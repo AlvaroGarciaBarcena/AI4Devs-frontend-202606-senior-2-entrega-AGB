@@ -20,6 +20,210 @@ frontend migrado de **Create React App** (descontinuado) a **Vite**.
 > [`prompts-AGB-backend.md`](./prompts-AGB-backend.md) /
 > [`prompts-AGB-frontend.md`](./prompts-AGB-frontend.md).
 
+## 0. Resumen ejecutivo: el camino completo, de un vistazo
+
+Esta sesión generó **7 ramas** a partir de `main`, en varias oleadas. Esta
+sección existe para poder entender el conjunto sin tener que leer las
+~1200 líneas de detalle de más abajo — cada punto enlaza a la sección
+donde está el porqué completo.
+
+### 0.1 Mapa de ramas
+
+```
+main (8025b6f) — estado original del repo, sin tocar
+│
+├── backend-AGB (24f86fd)            — arreglos de bugs del backend
+├── frontend-AGB (d92752d)           — arreglos de bugs del frontend
+├── positions-proceso-AGB (cd86b57)  — feature "Ver proceso" (parte de main
+│                                       directamente, independiente de las
+│                                       dos de arriba)
+│
+└── candidate-validation-i18n-a11y-AGB (eea6e5a)
+    │  = fusión de backend-AGB + frontend-AGB
+    │  + mensajes de validación estructurados y traducibles
+    │  + i18n "casero" (Context + diccionario a mano) para toda la app
+    │  + accesibilidad (aria-*, <html lang>, selector de idioma)
+    │
+    └── all-fixes-AGB (d60127b)
+        │  = fusión de lo anterior + positions-proceso-AGB
+        │  (todo el trabajo de las 4 primeras ramas, junto)
+        │
+        └── i18n-react-i18next-AGB (ace52cb)
+            │  = i18n "casero" sustituido por react-i18next (librería
+            │    estándar) — mismo comportamiento, mejor base
+            │
+            └── vite-migration-AGB (6b25e95)  ← RAMA ACTUAL, la más completa
+                 = Create React App sustituido por Vite
+```
+
+Cada rama tiene su propio commit y su propia sección de detalle en este
+documento (o en `prompts-AGB-backend.md` / `prompts-AGB-frontend.md` /
+`prompts-AGB-positions.md` para las tres primeras, conservadas aparte
+porque sus `prompts-AGB.md` originales entraron en conflicto de fusión al
+integrarlas).
+
+### 0.2 Cronología y qué disparó cada rama
+
+| # | Petición del usuario (resumida) | Rama resultante | Sección |
+|---|---|---|---|
+| 1 | "Analiza este repo y cuéntame qué hace y qué errores descubres" | *(análisis, sin rama)* | — |
+| 2 | "Arranca... backend y frontend" | *(arranque del entorno)* | — |
+| 3 | "Créa una rama para el back y otra para el front con los arreglos" | `backend-AGB`, `frontend-AGB` | `prompts-AGB-backend.md`, `prompts-AGB-frontend.md` |
+| 4 | "¿Por qué no funcionan los botones 'Ver proceso'? ... Adelante" | `positions-proceso-AGB` | `prompts-AGB-positions.md` |
+| 5 | "Me devuelve 'Invalid name' sin decir por qué. ¿Me ayudas?" → "Mejora el mensaje, con i18n y a11y" | `candidate-validation-i18n-a11y-AGB` (fusiona backend-AGB+frontend-AGB) | 3.1–3.8 |
+| 6 | Varios reportes de "el idioma no funciona bien" (resultaron ser: pestaña con caché obsoleta, y luego detección real pero navegador en inglés) | *(arreglos dentro de la misma rama)* | 3.3.1, 3.6–3.8 |
+| 7 | "¿Añades el selector a todo, no solo a los mensajes de error?" | *(misma rama, se extiende el alcance)* | 3.9–3.11 |
+| 8 | "¿Incluyes positions-proceso-AGB para tenerlo todo fusionado?" | `all-fixes-AGB` | 3.12 |
+| 9 | "¿Qué mejorarías [del i18n]?" → "Implementa el 1 [librería estándar]" | `i18n-react-i18next-AGB` | 3.13 |
+| 10 | "¿Por qué no TS5?" → "CRA está descontinuado, analiza migrar a Vite" → "Vamos a por ello" | `vite-migration-AGB` | 3.14 |
+
+### 0.3 Qué se hizo, paso a paso, en cada rama
+
+Versión compacta de las secciones 3.x — el detalle completo (comandos,
+fragmentos de código, verificaciones) está en la sección referenciada.
+
+**`backend-AGB`** (detalle en `prompts-AGB-backend.md`):
+1. Credenciales de la base de datos hardcodeadas en `schema.prisma` → `env("DATABASE_URL")`; `.env` deja de trackearse en git.
+2. `validator.ts`: se quita el `if (data.id) return` que saltaba toda la validación.
+3. Middleware de logging registrado después de las rutas (nunca se ejecutaba) → movido antes.
+4. `throw new Error(error)` envolviendo errores y perdiendo el mensaje → simplificado.
+5. Ruta de subida de ficheros relativa y frágil (`../uploads/`) → anclada a `process.cwd()`, se crea si no existe.
+6. Faltaba `isNaN` en `positionController` (a diferencia de `candidateController`) → añadido.
+7. Alta de candidato duplicada entre `candidateRoutes.ts` y un controlador sin usar → unificada.
+8. Test de `positionService` desactualizado (no contemplaba `id`/`applicationId`) → corregido.
+
+**`frontend-AGB`** (detalle en `prompts-AGB-frontend.md`):
+1. `App.js` y `App.tsx` duplicados (CRA resolvía `.js`, `App.tsx` quedaba muerto) → `App.tsx` eliminado.
+2. `candidateService.js`: `new Error(msg, data)` con el segundo argumento ignorado, y `TypeError` si el servidor no respondía → corregido.
+3. `axios` usado pero nunca instalado (descubierto al intentar reutilizar el servicio) → instalado.
+4. `AddCandidateForm`/`FileUploader` reimplementaban las llamadas con `fetch` en vez de usar el servicio → unificados.
+
+**`positions-proceso-AGB`** (detalle en `prompts-AGB-positions.md`):
+1. Diagnóstico: el botón "Ver proceso" no tenía `onClick` ni ruta, y aunque la tuviera no había endpoint de listado ni id real (los datos eran mock).
+2. Backend: nuevo `GET /position` (servicio + controlador + ruta + tests).
+3. Frontend: `Positions.tsx` pasa de datos mock a la API real; nuevo `PositionProcess.tsx` con un tablero Kanban por fase de entrevista.
+4. Hallazgo incidental: `ts-node` sin `--transpile-only` no podía ejecutar el seed de Prisma → añadido script `prisma:seed`.
+
+**`candidate-validation-i18n-a11y-AGB`** (detalle en 3.1–3.11, esta misma rama fusiona `backend-AGB`+`frontend-AGB` primero):
+1. `validator.ts` reescrito: de un `Error('Invalid name')` genérico a `{ field, code, params }` acumulando todos los fallos, no solo el primero.
+2. Bug de `instanceof` con `target: es5` que rompía distinguir `ValidationError` de otros errores → corregido con `Object.setPrototypeOf`.
+3. `candidateController.ts` distingue `ValidationError` y devuelve el array de issues sin traducir.
+4. Frontend: `i18n/validationMessages.js` traduce esos issues; mensajes por campo con `aria-invalid`/`aria-describedby`, resumen con `role="alert"`.
+5. `getLocale()` pasa de mirar solo `navigator.language` a recorrer `navigator.languages` completo.
+6. `<html lang="en">` estático (hallado por el usuario) corregido a `"es"`.
+7. Selector de idioma explícito (Español/English), con la detección automática como valor inicial, nunca sustituida salvo elección explícita.
+8. Extensión del i18n "casero" (Context + diccionario) a los 5 componentes con texto visible, no solo los mensajes de validación.
+
+**`all-fixes-AGB`** (detalle en 3.12):
+1. Fusión de `candidate-validation-i18n-a11y-AGB` + `positions-proceso-AGB`.
+2. Conflictos resueltos a mano en `App.js` (rutas + selector de idioma) y `Positions.tsx` (datos reales + i18n combinados).
+3. `PositionProcess.tsx`, nuevo con la fusión, traducido por primera vez.
+4. Backend fusionado sin conflictos de contenido, revisado a mano para confirmar que `GET /position` convivía con los `isNaN` ya existentes.
+
+**`i18n-react-i18next-AGB`** (detalle en 3.13):
+1. Instalación de `react-i18next`/`i18next`/`i18next-browser-languagedetector` — 3 intentos hasta encontrar versiones compatibles con TypeScript 4.9.5.
+2. `locale.js` + `LocaleContext.js` + `translations.js` (caseros) eliminados; sustituidos por `i18n/i18n.js` (config) + `i18n/locales/{es,en}.json` (JSON anidado).
+3. `validationMessages.js` reescrito para componer mensajes con `i18n.t()` en vez de plantillas JS a mano.
+4. `<html lang>` pasa de fijo a reactivo (`i18n.on('languageChanged', ...)`).
+5. Los 6 componentes que usaban el hook casero `useLocale()` migrados a `useTranslation()`.
+
+**`vite-migration-AGB`** (detalle en 3.14, rama actual):
+1. Análisis previo del riesgo (sin variables `REACT_APP_*`, sin tests que romper, sin `craco`/`eject`) antes de tocar nada.
+2. `react-scripts` desinstalado (-1239 paquetes); Vite instalado tras resolver dos conflictos de peer dependencies (`@babel/core`, `@types/node`).
+3. Cadena de versiones de TypeScript: `latest` resolvió `7.0.2` (incompatible con `typescript-eslint`) → `5.9.3` (funciona, pero no la más nueva posible) → `6.0.3` (estable, compatible, la definitiva — a raíz de una pregunta directa del usuario).
+4. `index.html` movido a la raíz; `vite.config.ts`, `tsconfig.json` dividido en project references, `vite-env.d.ts` nuevos.
+5. `App.js` y 4 componentes con JSX renombrados a `.jsx` (Vite 8 solo activa JSX por extensión).
+6. `eslint.config.js` (flat config) nuevo; encontró 5 `throw new Error()` sin `cause` en los servicios, corregidos.
+7. Vitest configurado (`npm test` estaba roto desde antes, apuntaba a un `jest.config.js` inexistente).
+8. `README.md` (raíz y frontend) actualizados para reflejar los comandos nuevos.
+
+### 0.4 Decisiones clave y por qué (el hilo conductor)
+
+- **Una rama por tema, nunca todo mezclado.** Cada peticion nueva que no
+  encajaba claramente en el propósito de la rama activa se llevó a una
+  rama nueva (p. ej. "Ver proceso" no se mezcló con los arreglos de
+  backend/frontend porque son cosas distintas). Esto se pagó luego en
+  forma de fusiones (`all-fixes-AGB`), pero mantuvo cada commit legible y
+  revisable de forma aislada.
+- **Fusionar hacia delante, nunca rehacer desde `main`.** Cuando hubo que
+  combinar trabajo de varias ramas (3.12, y de nuevo al pasar de
+  `all-fixes-AGB` a `i18n-react-i18next-AGB` a `vite-migration-AGB`),
+  siempre se partió de la rama más completa y se fusionó la que faltaba
+  encima — nunca se repitió trabajo ya hecho y verificado desde cero.
+- **Backend nunca redacta texto en un idioma.** Desde 3.1, el backend
+  solo devuelve *códigos* de validación (`{ field, code, params }`); quién
+  sabe en qué idioma quiere verlo el usuario es siempre el frontend. Esta
+  decisión de arquitectura temprana es lo que hizo trivial migrar después
+  a `react-i18next` (3.13) sin tocar el backend en absoluto.
+- **La detección automática de idioma nunca queda sustituida por el
+  selector manual — solo se le da prioridad cuando el usuario elige
+  explícitamente** (aclarado por el usuario a mitad de una respuesta en
+  3.9, respetado también tras migrar a `react-i18next`).
+- **"Lo último" se verifica, no se asume.** Tres veces en esta sesión una
+  versión "latest" resultó no ser la jugada correcta una vez comprobada
+  contra el resto del stack: `react-i18next@17`/`@15.5.0` rompían con
+  TypeScript 4.9 (3.13.1-3.13.2); `typescript@latest` resolvió a la v7
+  pero rompe `typescript-eslint` (3.14.1); y se pasó por 5.9.3 antes de
+  confirmar con `npm view` que 6.0.3 era estable y sí compatible. El
+  patrón repetido: instalar, dejar que `tsc`/`npm install` fallen si van
+  a fallar, leer el error real, y solo entonces decidir la versión final.
+- **Tratar la causa, no el síntoma.** La pregunta concreta "¿por qué no
+  TS5?" llevó a identificar que el bloqueo real no era una versión de
+  TypeScript sino Create React App en sí (descontinuado) — de ahí que la
+  solución no fuera "forzar TS5" sino migrar el toolchain (3.14.1).
+- **Cuando una herramienta nueva encuentra algo real, se corrige en el
+  momento**, aunque no fuera el objetivo de la rama: el test
+  `id`/`applicationId` desactualizado (3.1 del trabajo de posiciones), el
+  bug de `instanceof` con `target: es5` (3.1), el `<html lang>` estático
+  (3.7), y los `throw new Error()` sin `cause` que encontró ESLint recién
+  instalado (3.14.4) — todos se arreglaron in situ en vez de ignorarlos o
+  abrirlos como tareas aparte.
+
+### 0.5 Dónde estamos ahora (estado de `vite-migration-AGB`)
+
+**Verificado y funcionando**, de extremo a extremo, en el navegador y por
+línea de comandos:
+- Backend: Express + TypeScript + Prisma, con validación estructurada,
+  endpoint de listado de posiciones, `isNaN` en todos los `:id`. 5 suites
+  / 11 tests en verde (`npx jest`), `tsc --noEmit` limpio.
+- Frontend: React + TypeScript sobre **Vite** (ya no Create React App),
+  con **react-i18next** (español/inglés, detección automática +
+  selector, persistido) en toda la interfaz, formulario de alta de
+  candidato con mensajes de validación específicos por campo y
+  accesibles (`aria-invalid`, `aria-describedby`, `role="alert"`),
+  listado de posiciones con datos reales de la API, y el tablero "Ver
+  proceso" agrupando candidatos por fase de entrevista.
+- `npx tsc -b`, `npx eslint .` y `npm run build` (con `vite preview`
+  sirviendo el resultado) limpios en el frontend.
+- Nada de esto ha tocado la base de datos de forma permanente: los
+  candidatos de prueba creados durante las verificaciones se borraron
+  después de cada comprobación.
+
+**Deuda conocida, documentada pero no resuelta** (todas mencionadas donde
+se detectaron, ninguna oculta):
+- El botón **"Editar"** de una posición está deshabilitado a propósito
+  (`positions.editNotImplemented`) — nunca se pidió implementarlo.
+- El proyecto **no tiene ningún test todavía** (ni backend end-to-end ni
+  frontend) más allá de los unitarios del backend ya existentes; Vitest
+  está configurado y listo (`npm test`) pero vacío — no se han inventado
+  tests para no fabricar cobertura que nadie pidió.
+- El build de producción del frontend avisa de un chunk único de ~650KB
+  sin *code splitting* — funcional, pero no optimizado; no se ha tocado
+  porque no formaba parte de ninguna petición.
+- Los mensajes de error **no estructurados** (caída de red, backend
+  caído, mensajes ya hechos que vienen directos de un `Error` de
+  servicio) siguen sin traducirse — solo los errores de validación tienen
+  el tratamiento de códigos que permite traducirlos (ver 3.11).
+- La contraseña de la base de datos de desarrollo, aunque ya no se lee
+  del `schema.prisma` (arreglado en `backend-AGB`), sigue existiendo en
+  el **historial** de git del commit inicial — no se ha purgado el
+  historial por ser una operación destructiva que no se ha pedido.
+
+**Nada se ha subido a `origin`** en ningún momento de esta sesión — las 7
+ramas son enteramente locales. Si se quiere consolidar, el camino natural
+sería fusionar `vite-migration-AGB` sobre `main` (o sustituir `main` por
+ella) cuando el usuario lo decida explícitamente.
+
 ## 1. Prompts utilizados con el asistente de IA
 
 1. `Analiza este repo y cuéntame qué hace y qué errores descubres` /
