@@ -15,12 +15,16 @@ export const test = base.extend({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          positionName: 'Frontend Engineer',
-          interviewSteps: [
-            { id: 1, name: 'Applied' },
-            { id: 2, name: 'Screening' },
-            { id: 3, name: 'Technical' },
-          ],
+          interviewFlow: {
+            positionName: 'Frontend Engineer',
+            interviewFlow: {
+              interviewSteps: [
+                { id: 1, name: 'Applied', orderIndex: 1 },
+                { id: 2, name: 'Screening', orderIndex: 2 },
+                { id: 3, name: 'Technical', orderIndex: 3 },
+              ],
+            },
+          },
         }),
       });
     });
