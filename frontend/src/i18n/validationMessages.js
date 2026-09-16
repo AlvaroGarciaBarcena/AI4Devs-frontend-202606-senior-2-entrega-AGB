@@ -4,10 +4,40 @@
 // solo dice qué campo falló, con qué código y con qué parámetros
 // (`{ field, code, params }`), y aquí se compone la frase.
 
-const SUPPORTED_LOCALES = ['es', 'en'];
+export const SUPPORTED_LOCALES = ['es', 'en'];
 const DEFAULT_LOCALE = 'es';
+const LOCALE_STORAGE_KEY = 'lti_error_locale';
 
-export const getLocale = () => {
+// El resto de la aplicación no tiene i18n (todo el texto estático está
+// fijo en español), así que basarse solo en navigator.language producía
+// una mezcla rara: formulario en español, errores en inglés si el
+// navegador del usuario estaba en inglés (aunque técnicamente detectado
+// bien). Por eso hay un selector explícito en el formulario
+// (AddCandidateForm.js) que tiene prioridad sobre el navegador y se
+// recuerda entre sesiones.
+export const getStoredLocale = () => {
+    try {
+        if (typeof localStorage === 'undefined') return null;
+        const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
+        return SUPPORTED_LOCALES.includes(stored) ? stored : null;
+    } catch {
+        // localStorage puede no estar disponible (modo privado, política de
+        // cookies, etc.); en ese caso simplemente no se recuerda la elección.
+        return null;
+    }
+};
+
+export const setStoredLocale = (locale) => {
+    try {
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+        }
+    } catch {
+        // Igual que arriba: si no se puede persistir, no es un error fatal.
+    }
+};
+
+const detectBrowserLocale = () => {
     // navigator.language solo da el idioma principal. Si ese no es ni
     // español ni inglés (p. ej. un navegador configurado en catalán,
     // euskera o gallego, algo común en España), navigator.languages trae
@@ -26,6 +56,8 @@ export const getLocale = () => {
     }
     return DEFAULT_LOCALE;
 };
+
+export const getLocale = () => getStoredLocale() || detectBrowserLocale();
 
 const SIMPLE_FIELD_LABELS = {
     es: {

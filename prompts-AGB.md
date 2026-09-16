@@ -66,6 +66,38 @@ Rama base: fusión de `backend-AGB` (commit `24f86fd`) y `frontend-AGB`
    automática (`navigator.language`) no le estaba funcionando bien; el
    usuario confirmó lo segundo, dando lugar al arreglo de 3.3.1.
 
+7. `Esto es lo que me salía antes... Pruebo ahora tras los últimos cambios
+   y te digo` / `Tras meter el apellido con un underscore... el mensaje me
+   aparece en el siguiente Textbox... Y los mensajes de error me siguen
+   saliendo en inglés` → El asistente no logró reproducirlo (el DOM,
+   inspeccionado directamente, mostraba el mensaje bien colocado y en
+   español) y pidió abrir una ventana privada nueva para descartar caché/
+   extensiones, y el valor real de `navigator.language`/`navigator.languages`.
+
+8. `Tras abrir una nueva ventana ya no sale el error tras moverme a los
+   Textbox. Pero sí, el idioma está en EN por esto: <html lang="en">` →
+   Confirmó que el problema de posición era, de nuevo, la pestaña de
+   Firefox con estado obsoleto (arreglado con la ventana privada). Sobre
+   el idioma, el asistente aclaró que `<html lang="en">` es un atributo
+   estático sin relación con la lógica de i18n (que solo lee
+   `navigator.language`/`navigator.languages`) — pero lo corrigió de
+   todos modos por ser un fallo real y aparte (ver 3.7) — y pidió el valor
+   real de `navigator.language` para confirmar si el inglés en los
+   mensajes era la detección funcionando correctamente o un bug.
+
+9. `navigator.language me devuelve "en-US", así que no, está en US` →
+   Confirmó que la detección funcionaba correctamente (su navegador
+   realmente está en inglés); el problema pasó a ser de diseño (formulario
+   en español fijo + errores en el idioma real del navegador). El
+   asistente preguntó cómo resolver esa mezcla; el usuario eligió añadir
+   un selector explícito en pantalla (ver 3.8), aclarando además a mitad
+   de respuesta: *"Pero no que sustituya a la detección automática
+   inicial, sino que la interprete al seleccionar el idioma"* — es decir,
+   la detección automática debía seguir siendo el valor inicial, y el
+   selector solo debía intervenir cuando el usuario lo usara
+   explícitamente (comportamiento que ya tenía la primera implementación,
+   confirmado con `localStorage` vacío tras el primer render).
+
 ## 2. Metodología
 
 1. Se leyó `validator.ts` para entender exactamente por qué el mensaje era
@@ -259,6 +291,67 @@ Rama base: fusión de `backend-AGB` (commit `24f86fd`) y `frontend-AGB`
      de HTML5 (`required`, `type="email"`) bloquea antes de llegar a
      enviar varios campos igualmente inválidos a la vez.
 
+### 3.7 [Frontend] `public/index.html`: `<html lang="en">` en una app 100% en español
+
+- **Fichero modificado**: `frontend/public/index.html`.
+- **Hallazgo**: al investigar por qué los mensajes de error salían en
+  inglés, el usuario encontró `<html lang="en">` en el HTML estático y
+  preguntó si era la causa. No lo es — la lógica de `getLocale()` nunca
+  lee ese atributo, solo `navigator.language`/`navigator.languages` — pero
+  es un fallo real y separado: es el valor por defecto del boilerplate de
+  Create React App, nunca actualizado, y todo el texto estático de la app
+  (etiquetas, botones, títulos) está en español. Un lector de pantalla
+  configurado para seguir el idioma declarado de la página anunciaría en
+  inglés contenido que en realidad es español.
+- **Arreglo**: `lang="en"` → `lang="es"`.
+
+### 3.8 [Frontend] Selector explícito de idioma en `AddCandidateForm.js`
+
+- **Motivo**: `navigator.language` del usuario resultó ser `en-US` — la
+  detección automática funcionaba correctamente (ver 3.3.1), pero como el
+  resto de la app no tiene i18n en ningún otro sitio (todo el texto
+  estático está fijo en español), el resultado era una mezcla: formulario
+  en español, errores de validación en inglés. En vez de forzar siempre
+  español (perdiendo el beneficio de la detección para quien sí quiera
+  inglés) o dejarlo solo en manos del navegador, se añade un control
+  visible para elegir explícitamente.
+- **Ficheros modificados**:
+  - `frontend/src/i18n/validationMessages.js`: se separa `getLocale()` en
+    `getStoredLocale()` (lee `localStorage['lti_error_locale']`, `null` si
+    no hay nada guardado o no es un idioma soportado) +
+    `detectBrowserLocale()` (la lógica de 3.3.1, ahora privada) +
+    `setStoredLocale(locale)`. `getLocale()` pasa a ser
+    `getStoredLocale() || detectBrowserLocale()`: **la detección
+    automática del navegador sigue siendo el valor inicial** — la
+    preferencia guardada solo existe una vez que el usuario ha elegido
+    explícitamente un idioma con el selector, nunca antes. Esto es
+    deliberado: el usuario pidió expresamente que el selector "no
+    sustituya a la detección automática inicial, sino que la interprete
+    al seleccionar el idioma".
+  - `frontend/src/components/AddCandidateForm.js`:
+    - Nuevo control con dos botones ("Español"/"English") junto al título
+      del formulario, con `role="group"` y `aria-pressed` en el botón
+      activo (patrón accesible de grupo de botones tipo toggle).
+    - El estado ya no guarda los issues **ya traducidos**
+      (`fieldErrors`), sino los issues **en crudo** tal cual los devuelve
+      el backend (`issues`) más el `locale` actual; `fieldErrors` se
+      recalcula en cada render con
+      `translateValidationIssues(issues, locale)`. Así, cambiar el
+      selector re-traduce al instante los errores que ya estén en
+      pantalla, sin necesidad de reenviar el formulario.
+- **Verificación**:
+  - Con `navigator.language = 'es'` y sin nada en `localStorage`, el botón
+    "Español" aparece activo desde el primer render (confirmado
+    inspeccionando `localStorage.getItem('lti_error_locale') === null`
+    justo después de cargar la página, antes de tocar el selector) — la
+    detección automática sigue siendo el punto de partida.
+  - Se verificó la lógica de `getLocale()` de forma aislada (mismo
+    algoritmo, ejecutado en la consola del navegador) con
+    `navigator.language = 'en-US'` y `localStorage` vacío: resuelve a
+    `'en'`, confirmando que un navegador en inglés seguiría arrancando en
+    inglés hasta que el usuario elija lo contrario.
+  - Compilación (`webpack`/ESLint del dev server) limpia tras el cambio.
+
 ## 4. Verificación final
 
 ```
@@ -273,4 +366,10 @@ Navegador            → caso real del usuario reproducido y corregido,
                         (ca+es-ES+en → español; ca+en+es → inglés),
                         confirmando el DOM tras esperar la respuesta
                         async, no solo la captura inmediata al clic
+                      → selector explícito ES/English: arranca desde la
+                        detección automática (localStorage vacío en el
+                        primer render), cambia el idioma de los errores ya
+                        visibles al instante
+                      → <html lang="es"> corregido (antes "en", sin
+                        relación con la lógica de i18n)
 ```

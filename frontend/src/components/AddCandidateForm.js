@@ -5,7 +5,12 @@ import FileUploader from './FileUploader';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { sendCandidateData } from '../services/candidateService';
-import { translateValidationIssues } from '../i18n/validationMessages';
+import { getLocale, setStoredLocale, translateValidationIssues } from '../i18n/validationMessages';
+
+const LOCALE_OPTIONS = [
+    { code: 'es', label: 'Español' },
+    { code: 'en', label: 'English' },
+];
 
 const AddCandidateForm = () => {
     const [candidate, setCandidate] = useState({
@@ -19,10 +24,21 @@ const AddCandidateForm = () => {
         cv: null
     });
     const [error, setError] = useState('');
-    const [fieldErrors, setFieldErrors] = useState([]); // [{ field, code, params, message }], ver validator.ts del backend
+    // Los issues se guardan sin traducir; el mensaje se compone en cada
+    // render con el locale actual (ver `fieldErrors` más abajo), así el
+    // selector de idioma re-traduce al instante los errores ya visibles
+    // sin necesidad de reenviar el formulario.
+    const [issues, setIssues] = useState([]); // [{ field, code, params }], ver validator.ts del backend
+    const [locale, setLocale] = useState(getLocale());
     const [successMessage, setSuccessMessage] = useState('');
 
+    const fieldErrors = translateValidationIssues(issues, locale);
     const getFieldError = (field) => fieldErrors.find((issue) => issue.field === field);
+
+    const handleLocaleChange = (newLocale) => {
+        setLocale(newLocale);
+        setStoredLocale(newLocale);
+    };
 
     const handleInputChange = (e, index, section) => {
         const updatedSection = [...candidate[section]];
@@ -81,14 +97,14 @@ const AddCandidateForm = () => {
             await sendCandidateData(candidateData);
             setSuccessMessage('Candidato añadido con éxito');
             setError('');
-            setFieldErrors([]);
+            setIssues([]);
         } catch (err) {
             setSuccessMessage('');
             if (Array.isArray(err.issues)) {
-                setFieldErrors(translateValidationIssues(err.issues));
+                setIssues(err.issues);
                 setError('');
             } else {
-                setFieldErrors([]);
+                setIssues([]);
                 setError('Error al añadir candidato: ' + err.message);
             }
         }
@@ -96,7 +112,25 @@ const AddCandidateForm = () => {
 
     return (
         <Container className="mt-5">
-            <h1 className="mb-4">Agregar Candidato</h1>
+            <div className="d-flex justify-content-between align-items-center mb-4">
+                <h1 className="mb-0">Agregar Candidato</h1>
+                <div role="group" aria-label="Idioma de los mensajes de error">
+                    <span className="me-2 small text-muted">Idioma de los mensajes de error:</span>
+                    {LOCALE_OPTIONS.map(({ code, label }) => (
+                        <Button
+                            key={code}
+                            type="button"
+                            size="sm"
+                            variant={locale === code ? 'primary' : 'outline-primary'}
+                            className="me-1"
+                            aria-pressed={locale === code}
+                            onClick={() => handleLocaleChange(code)}
+                        >
+                            {label}
+                        </Button>
+                    ))}
+                </div>
+            </div>
             <Card className="shadow p-4">
                 <Form onSubmit={handleSubmit}>
                     <Row>
