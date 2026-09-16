@@ -39,7 +39,7 @@
     "test:app": "playwright test -c playwright.app.config.ts",
     "test:e2e:search": "playwright test -c playwright.app.config.ts e2e-app/candidate-search.spec.ts",
     "test:stories:search": "playwright test -c playwright.storybook.config.ts e2e/candidate-search.stories.spec.ts",
-    "test:midscene": "playwright test -c playwright.app.config.ts e2e-app/midscene-demo.spec.ts"
+    "test:midscene": "playwright test -c playwright.midscene.config.ts"
   },
   "eslintConfig": {
     "extends": [
