@@ -10,6 +10,7 @@
     "test:session": "npm --prefix frontend run test:session",
     "test:stories": "npm --prefix frontend run test:stories",
     "test:app": "npm --prefix frontend run test:app",
+    "test:e2e:search": "npm --prefix frontend run test:e2e:search",
     "backend:setup": "npm --prefix backend run session:setup",
     "backend:start": "npm --prefix backend run session:start",
     "frontend:start": "npm --prefix frontend start"

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Guía Visual de Slides - E2E Testing e IA Agéntica (LIDR)</title>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0b0f19; color: #f8fafc; margin: 0; padding: 2rem; }
+    h1 { color: #facc15; font-size: 2rem; margin-bottom: 0.5rem; text-align: center; }
+    p.intro { text-align: center; color: #94a3b8; margin-bottom: 2rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 1.5rem; max-width: 1400px; margin: 0 auto; }
+    .slide-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 20px rgba(0,0,0,0.4); position: relative; }
+    .slide-num { display: inline-block; background: #3b82f6; color: #fff; padding: 0.25rem 0.6rem; border-radius: 9999px; font-weight: bold; font-size: 0.8rem; margin-bottom: 0.8rem; }
+    .slide-num.modified { background: #f59e0b; }
+    .slide-num.new { background: #10b981; }
+    .slide-title { font-size: 1.25rem; font-weight: bold; color: #38bdf8; margin-bottom: 0.4rem; }
+    .slide-subtitle { font-size: 0.95rem; color: #94a3b8; margin-bottom: 1rem; font-style: italic; }
+    .slide-body { background: #0f172a; padding: 1rem; border-radius: 8px; font-size: 0.9rem; line-height: 1.5; border-left: 3px solid #38bdf8; }
+    .slide-body ul { margin: 0.5rem 0; padding-left: 1.2rem; }
+    .slide-body li { margin-bottom: 0.4rem; }
+    .notes { margin-top: 1rem; padding: 0.75rem; background: #1e293b; border: 1px dashed #64748b; border-radius: 6px; font-size: 0.85rem; color: #cbd5e1; }
+    .badge { font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+    .badge-yellow { background: #fef08a; color: #854d0e; }
+    .badge-green { background: #bbf7d0; color: #166534; }
+    .copy-btn { background: #334155; color: #e2e8f0; border: none; padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer; float: right; font-size: 0.8rem; }
+    .copy-btn:hover { background: #475569; }
+  </style>
+</head>
+<body>
+  <h1>Guía y Distribución de Diapositivas: E2E Testing e IA Agéntica</h1>
+  <p class="intro">Usa esta guía para acomodar tu presentación en Google Slides. Las tarjetas indican los cambios específicos diapositiva por diapositiva.</p>
+
+  <div class="grid">
+
+    <!-- Slide 1 -->
+    <div class="slide-card">
+      <span class="slide-num">Slide 1</span> <span class="badge badge-yellow">Sin cambios</span>
+      <div class="slide-title">TESTING 2: AUTOMATED TESTS Y QA</div>
+      <div class="slide-subtitle">E2E Testing e IA Agéntica</div>
+      <div class="slide-body">
+        <p>Mantener portada con Pedro Ávila & LIDR.</p>
+      </div>
+    </div>
+
+    <!-- Slide 4 -->
+    <div class="slide-card">
+      <span class="slide-num modified">Slide 4 - Actualizar</span> <span class="badge badge-yellow">Ajustar contenido</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText(this.nextElementSibling.nextElementSibling.innerText)">Copiar texto</button>
+      <div class="slide-title">Estrategia de Calidad: Diseñar para el Éxito en E2E con IA</div>
+      <div class="slide-subtitle">Más allá del "Pasó en Verde": El Framework de 5 Fases</div>
+      <div class="slide-body">
+        <p><strong>El E2E valida que el usuario final puede completar el flujo de negocio con éxito.</strong></p>
+        <p>Ciclo metodológico para evitar alucinaciones y selectores frágiles:</p>
+        <ul>
+          <li><strong>1. Preparar el Repo:</strong> Accesibilidad (AOM) como API nativa y estable para la IA.</li>
+          <li><strong>2. Dar Contexto:</strong> Criterios funcionales (BS-01 a BS-04) y estado determinista.</li>
+          <li><strong>3. Fijar el Harness:</strong> Servidor MCP, reglas de locators y mocks de red.</li>
+          <li><strong>4. Generar con el Agente:</strong> Semántico (AOM) vs Visión Multimodal.</li>
+          <li><strong>5. Verificar con Criterio:</strong> Detección de falsos verdes con Test Mutation.</li>
+        </ul>
+      </div>
+      <div class="notes">
+        <strong>Notas del orador:</strong> "Muchos equipos le piden a un LLM que escriba tests sobre un DOM caótico y obtienen selectores frágiles. Hoy aprenderemos a estructurar la UI y el arnés para que la IA sea un colaborador de ingeniería confiable."
+      </div>
+    </div>
+
+    <!-- Slide 5 -->
+    <div class="slide-card">
+      <span class="slide-num">Slide 5</span> <span class="badge badge-yellow">Conservar</span>
+      <div class="slide-title">Set-of-Mark Prompting (SoM)</div>
+      <div class="slide-subtitle">¿Cómo ve la IA por Visión? (Fundamento de la Configuración 2)</div>
+      <div class="slide-body">
+        <p>Mantener captura con marcas numéricas [1], [2], [3], [4] y respuesta del LLM.</p>
+      </div>
+    </div>
+
+    <!-- Slide 6 -->
+    <div class="slide-card">
+      <span class="slide-num modified">Slide 6 - Añadir Recuadro MCP</span> <span class="badge badge-yellow">Añadir detalle clave</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText(this.nextElementSibling.nextElementSibling.innerText)">Copiar texto</button>
+      <div class="slide-title">AOM vs DOM: La Semántica como API de la IA</div>
+      <div class="slide-subtitle">La Accesibilidad simplifica radicalmente la complejidad para el agente</div>
+      <div class="slide-body">
+        <p>Mantener la comparativa DOM (285 líneas) vs AOM (15 nodos semánticos).</p>
+        <div style="background:#1e3a8a; border:1px solid #60a5fa; padding:0.7rem; border-radius:6px; margin-top:0.8rem;">
+          <strong>💡 ¿Cómo consume el Agente el AOM?</strong><br/>
+          A través del <strong>Playwright MCP Server</strong>, el agente recibe el árbol de accesibilidad en tiempo real (vía <code>stdio</code>), operando con <code>searchbox "Buscar candidatos"</code> y <code>button "Limpiar búsqueda"</code> sin requerir selectores CSS frágiles ni visión pesada.
+        </div>
+      </div>
+      <div class="notes">
+        <strong>Notas del orador:</strong> "Aquí es donde la accesibilidad deja de ser una obligación legal y se convierte en una ventaja arquitectónica: es la API que los agentes de IA entienden sin equivocarse."
+      </div>
+    </div>
+
+    <!-- Slide 7 -->
+    <div class="slide-card">
+      <span class="slide-num">Slide 7</span> <span class="badge badge-yellow">Conservar</span>
+      <div class="slide-title">BDD sin Step Definitions</div>
+      <div class="slide-subtitle">El agente IA lee lenguaje natural y ejecuta directamente sobre la UI</div>
+      <div class="slide-body">
+        <p>Mantener el escenario Gherkin y los puntos de discusión sobre ambigüedad vs contratos.</p>
+      </div>
+    </div>
+
+    <!-- Slide 8 -->
+    <div class="slide-card">
+      <span class="slide-num modified">Slide 8 - Reemplazar Cypress</span> <span class="badge badge-green">Nueva: Config 1</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText(this.nextElementSibling.nextElementSibling.innerText)">Copiar texto</button>
+      <div class="slide-title">PARTE 1: Configuración 1: Playwright + MCP Agéntico</div>
+      <div class="slide-subtitle">Interacción semántica en vivo y generación de tests con Antigravity</div>
+      <div class="slide-body">
+        <ul>
+          <li><strong>Protocolo MCP (@playwright/mcp):</strong> Conexión nativa <code>stdio</code> que entrega herramientas de navegador al LLM.</li>
+          <li><strong>Interacción por Roles AOM:</strong> El agente opera con <code>getByRole('searchbox')</code>, <code>getByRole('button')</code> y regiones <code>aria-live</code>.</li>
+          <li><strong>Generación en Vivo:</strong> Antigravity explora la aplicación abierta, prueba interacciones y sintetiza el test en TypeScript nativo.</li>
+          <li><strong>Producción y CI:</strong> Tests 100% deterministas que se ejecutan en CI sin requerir APIs de IA en runtime.</li>
+        </ul>
+      </div>
+      <div class="notes">
+        <strong>Notas del orador:</strong> "Mostraremos cómo configurar <code>mcp_config.json</code> y cómo Antigravity interactúa con el buscador de candidatos de nuestro Kanban para crear <code>candidate-search.spec.ts</code>."
+      </div>
+    </div>
+
+    <!-- Slide 9 -->
+    <div class="slide-card">
+      <span class="slide-num modified">Slide 9 - Actualizar Playwright</span> <span class="badge badge-green">Nueva: Parte 2 init-agents</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText(this.nextElementSibling.nextElementSibling.innerText)">Copiar texto</button>
+      <div class="slide-title">PARTE 2: Industrialización con npx playwright init-agents</div>
+      <div class="slide-subtitle">La tríada oficial de agentes autónomos de Playwright</div>
+      <div class="slide-body">
+        <p><strong>Comando oficial:</strong> <code>npx playwright init-agents --loop=vscode|claude|codex</code></p>
+        <ul>
+          <li>🗺️ <strong>Planner Agent:</strong> Explora la UI viva y redacta un plan de pruebas en Markdown (<code>test-plan.md</code>).</li>
+          <li>⚙️ <strong>Generator Agent:</strong> Transforma el plan Markdown en código <code>.spec.ts</code> validando locators en vivo.</li>
+          <li>🩹 <strong>Healer Agent (Self-Healing):</strong> Diagnostica tests fallidos y auto-repara selectores ante cambios de diseño.</li>
+          <li>🌱 <strong>seed.spec.ts:</strong> El arnés determinista que proporciona autenticación y estado limpio para los agentes.</li>
+        </ul>
+      </div>
+      <div class="notes">
+        <strong>Notas del orador:</strong> "Playwright ha dado un paso de gigante al empaquetar estos agentes en su CLI. Ya no dependemos de un prompt suelto: tenemos agentes especializados para planificar, generar y auto-reparar tests cuando la UI cambia."
+      </div>
+    </div>
+
+    <!-- Slide 10 -->
+    <div class="slide-card">
+      <span class="slide-num modified">Slide 10 - Actualizar Midscene</span> <span class="badge badge-yellow">Ajustar a Config 2</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText(this.nextElementSibling.nextElementSibling.innerText)">Copiar texto</button>
+      <div class="slide-title">Configuración 2: Testing Multimodal con Visión (Midscene)</div>
+      <div class="slide-subtitle">Set-of-Mark Prompting y modelos de visión (GPT-4o)</div>
+      <div class="slide-body">
+        <ul>
+          <li><strong>Zero Selectors:</strong> La IA inspecciona la pantalla mediante capturas de imagen.</li>
+          <li><strong>Lenguaje Natural:</strong> <code>.ai('buscar candidato "José"')</code> y <code>.aiAssert('queda 1 candidato')</code>.</li>
+          <li><strong>AOM/MCP vs Visión (Trade-offs Senior):</strong>
+            <ul>
+              <li><em>Playwright MCP / Agents:</em> Ejecución en milisegundos, coste $0 en CI, determinista. Ideal para UIs accesibles.</li>
+              <li><em>Midscene (Visión):</em> Mayor latencia y coste en tokens. Ideal para Canvas, WebGL o interfaces sin accesibilidad.</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+      <div class="notes">
+        <strong>Notas del orador:</strong> "Como arquitectos debemos saber cuándo usar cada enfoque: AOM para SPAs estructuradas y robustas en CI; Visión multimodal para UIs donde no tenemos control del markup."
+      </div>
+    </div>
+
+    <!-- Slide 11 -->
+    <div class="slide-card">
+      <span class="slide-num new">Slide 11 - Nueva Diapositiva</span> <span class="badge badge-green">Nueva</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText(this.nextElementSibling.nextElementSibling.innerText)">Copiar texto</button>
+      <div class="slide-title">Verificar con Criterio: Calidad más allá del "Verde"</div>
+      <div class="slide-subtitle">Cómo auditar críticamente los tests generados por IA</div>
+      <div class="slide-body">
+        <ul>
+          <li><strong>El peligro del falso verde:</strong> Tests que pasan porque no asertan nada o enmascaran errores con esperas infinitas.</li>
+          <li><strong>Test Mutation en Directo:</strong> Modificamos intencionalmente una línea del código fuente (ej. comentamos la devolución de foco en <code>CandidateSearch.tsx</code>) y verificamos que el test falle en rojo.</li>
+          <li><strong>Trace Viewer:</strong> El post-mortem definitivo para auditar acciones, red y asincronías.</li>
+        </ul>
+      </div>
+      <div class="notes">
+        <strong>Notas del orador:</strong> "Si la IA genera un test y pasa en verde, nuestro trabajo como ingenieros no ha terminado: mutamos el código fuente para demostrar que el test detecta la rotura real."
+      </div>
+    </div>
+
+    <!-- Slide 12 -->
+    <div class="slide-card">
+      <span class="slide-num">Slide 12</span> <span class="badge badge-yellow">Cierre</span>
+      <div class="slide-title">¡GRACIAS!</div>
+      <div class="slide-subtitle">LIDR.co, AI-Powered Careers</div>
+      <div class="slide-body">
+        <p>Cierre, enlaces a la comunidad y preguntas.</p>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
