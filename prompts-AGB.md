@@ -1,20 +1,22 @@
-# Registro de prompts y arreglos — Integración completa + i18n + migración a Vite (rama `vite-migration-AGB`)
+# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests (rama `tests-AGB`)
 
 Autor: garciabarcenaalvaro@gmail.com
 Asistente: Claude Code (Sonnet 5)
 Fecha: 2026-09-16 / 2026-09-17
 
-Rama base: `i18n-react-i18next-AGB` (commit `ace52cb`), que ya reunía
+Rama base: `vite-migration-AGB` (commit `84cf836`), que ya reunía
 `backend-AGB` + `frontend-AGB` + `candidate-validation-i18n-a11y-AGB` +
-`positions-proceso-AGB` + la migración de i18n a `react-i18next`. Esta
-rama no fusiona nada nuevo — es la misma base, con el toolchain de
-frontend migrado de **Create React App** (descontinuado) a **Vite**.
+`positions-proceso-AGB` + la migración de i18n a `react-i18next` + la
+migración de Create React App a Vite. Esta rama no fusiona nada nuevo —
+añade **tests automáticos** que codifican las verificaciones que hasta
+ahora solo se habían hecho a mano (`curl` y navegador) a lo largo de toda
+la sesión.
 
 > Nota: las secciones 1-13 de este documento son el historial heredado de
 > `i18n-react-i18next-AGB`/`all-fixes-AGB` sin modificar — validación,
-> i18n con `react-i18next`, accesibilidad. La sección 14 documenta
-> específicamente la migración de CRA a Vite. El histórico de
-> `positions-proceso-AGB` sigue en
+> i18n con `react-i18next`, accesibilidad. La sección 14 documenta la
+> migración de CRA a Vite, y la sección 15 la incorporación de tests
+> automáticos. El histórico de `positions-proceso-AGB` sigue en
 > [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el de
 > `backend-AGB`/`frontend-AGB` en
 > [`prompts-AGB-backend.md`](./prompts-AGB-backend.md) /
@@ -22,9 +24,9 @@ frontend migrado de **Create React App** (descontinuado) a **Vite**.
 
 ## 0. Resumen ejecutivo: el camino completo, de un vistazo
 
-Esta sesión generó **7 ramas** a partir de `main`, en varias oleadas. Esta
+Esta sesión generó **8 ramas** a partir de `main`, en varias oleadas. Esta
 sección existe para poder entender el conjunto sin tener que leer las
-~1200 líneas de detalle de más abajo — cada punto enlaza a la sección
+~1600 líneas de detalle de más abajo — cada punto enlaza a la sección
 donde está el porqué completo.
 
 ### 0.1 Mapa de ramas
@@ -52,8 +54,12 @@ main (8025b6f) — estado original del repo, sin tocar
             │  = i18n "casero" sustituido por react-i18next (librería
             │    estándar) — mismo comportamiento, mejor base
             │
-            └── vite-migration-AGB (6b25e95)  ← RAMA ACTUAL, la más completa
-                 = Create React App sustituido por Vite
+            └── vite-migration-AGB (6b25e95)
+                │  = Create React App sustituido por Vite
+                │
+                └── tests-AGB  ← RAMA ACTUAL, la más completa
+                     = tests automáticos (backend y frontend) que
+                       codifican las verificaciones hechas a mano
 ```
 
 Cada rama tiene su propio commit y su propia sección de detalle en este
@@ -76,6 +82,7 @@ integrarlas).
 | 8 | "¿Incluyes positions-proceso-AGB para tenerlo todo fusionado?" | `all-fixes-AGB` | 3.12 |
 | 9 | "¿Qué mejorarías [del i18n]?" → "Implementa el 1 [librería estándar]" | `i18n-react-i18next-AGB` | 3.13 |
 | 10 | "¿Por qué no TS5?" → "CRA está descontinuado, analiza migrar a Vite" → "Vamos a por ello" | `vite-migration-AGB` | 3.14 |
+| 11 | "¿Añades todos los Tests para que tengamos las mismas pruebas de validación que en las primeras ramas?" | `tests-AGB` | 3.15 |
 
 ### 0.3 Qué se hizo, paso a paso, en cada rama
 
@@ -137,6 +144,12 @@ fragmentos de código, verificaciones) está en la sección referenciada.
 7. Vitest configurado (`npm test` estaba roto desde antes, apuntaba a un `jest.config.js` inexistente).
 8. `README.md` (raíz y frontend) actualizados para reflejar los comandos nuevos.
 
+**`tests-AGB`** (detalle en 3.15, rama actual):
+1. Backend: nuevos tests para `addCandidateController` (alta con éxito, con el caso del guión bajo, con varios campos acumulados, y error no relacionado con validación) y para `getCandidatesByPosition`/`getInterviewFlowByPosition` (id no numérico, posición inexistente) — huecos reales de cobertura, no cubiertos hasta ahora pese a haberse verificado a mano muchas veces con `curl`.
+2. Bug de aislamiento entre tests encontrado al escribirlos: sin `jest.clearAllMocks()` en un `beforeEach`, el recuento de llamadas de un mock se acumulaba entre `it()` distintos, dando falsos negativos.
+3. Frontend: primeros tests del proyecto (antes, cero). `i18n/validationMessages.test.js` (composición de mensajes, español/inglés, campos de array), `services/candidateService.test.js` (propagación de issues, el arreglo del doble prefijo, fallo de red sin `TypeError`) y `components/AddCandidateForm.test.jsx` (el flujo completo del guión bajo en el navegador, ahora automatizado).
+4. `@testing-library/react`/`user-event`/`jest-dom`, heredados de CRA en versiones antiguas (`user-event@13`, sin `.setup()`), actualizados a las versiones actuales; movidos de `dependencies` a `devDependencies` (nunca debieron ir a producción).
+
 ### 0.4 Decisiones clave y por qué (el hilo conductor)
 
 - **Una rama por tema, nunca todo mezclado.** Cada peticion nueva que no
@@ -179,34 +192,38 @@ fragmentos de código, verificaciones) está en la sección referenciada.
   instalado (3.14.4) — todos se arreglaron in situ en vez de ignorarlos o
   abrirlos como tareas aparte.
 
-### 0.5 Dónde estamos ahora (estado de `vite-migration-AGB`)
+### 0.5 Dónde estamos ahora (estado de `tests-AGB`)
 
-**Verificado y funcionando**, de extremo a extremo, en el navegador y por
-línea de comandos:
+**Verificado y funcionando**, de extremo a extremo, en el navegador, por
+línea de comandos y ahora también con tests automáticos:
 - Backend: Express + TypeScript + Prisma, con validación estructurada,
   endpoint de listado de posiciones, `isNaN` en todos los `:id`. 5 suites
-  / 11 tests en verde (`npx jest`), `tsc --noEmit` limpio.
+  / **19 tests** en verde (`npx jest`), `tsc --noEmit` limpio.
 - Frontend: React + TypeScript sobre **Vite** (ya no Create React App),
   con **react-i18next** (español/inglés, detección automática +
   selector, persistido) en toda la interfaz, formulario de alta de
   candidato con mensajes de validación específicos por campo y
   accesibles (`aria-invalid`, `aria-describedby`, `role="alert"`),
   listado de posiciones con datos reales de la API, y el tablero "Ver
-  proceso" agrupando candidatos por fase de entrevista.
+  proceso" agrupando candidatos por fase de entrevista. **3 suites /
+  18 tests** en verde (`npm test`, Vitest) — antes de esta rama, cero.
 - `npx tsc -b`, `npx eslint .` y `npm run build` (con `vite preview`
   sirviendo el resultado) limpios en el frontend.
 - Nada de esto ha tocado la base de datos de forma permanente: los
-  candidatos de prueba creados durante las verificaciones se borraron
-  después de cada comprobación.
+  candidatos de prueba creados durante las verificaciones manuales se
+  borraron después de cada comprobación; los tests automáticos no tocan
+  la base de datos real en ningún caso (todo mockeado).
 
 **Deuda conocida, documentada pero no resuelta** (todas mencionadas donde
 se detectaron, ninguna oculta):
 - El botón **"Editar"** de una posición está deshabilitado a propósito
   (`positions.editNotImplemented`) — nunca se pidió implementarlo.
-- El proyecto **no tiene ningún test todavía** (ni backend end-to-end ni
-  frontend) más allá de los unitarios del backend ya existentes; Vitest
-  está configurado y listo (`npm test`) pero vacío — no se han inventado
-  tests para no fabricar cobertura que nadie pidió.
+- La cobertura de tests se centra en **validación** (que es lo que se
+  pidió): alta de candidato, códigos de error, `isNaN` de posiciones.
+  Quedan sin test automático el dashboard, el listado/filtros de
+  posiciones (mock de UI sin lógica que probar todavía) y el tablero "Ver
+  proceso" — no se ha fabricado cobertura de esas partes por iniciativa
+  propia.
 - El build de producción del frontend avisa de un chunk único de ~650KB
   sin *code splitting* — funcional, pero no optimizado; no se ha tocado
   porque no formaba parte de ninguna petición.
@@ -219,10 +236,10 @@ se detectaron, ninguna oculta):
   el **historial** de git del commit inicial — no se ha purgado el
   historial por ser una operación destructiva que no se ha pedido.
 
-**Nada se ha subido a `origin`** en ningún momento de esta sesión — las 7
+**Nada se ha subido a `origin`** en ningún momento de esta sesión — las 8
 ramas son enteramente locales. Si se quiere consolidar, el camino natural
-sería fusionar `vite-migration-AGB` sobre `main` (o sustituir `main` por
-ella) cuando el usuario lo decida explícitamente.
+sería fusionar `tests-AGB` sobre `main` (o sustituir `main` por ella)
+cuando el usuario lo decida explícitamente.
 
 ### 0.6 Análisis de ventajas: por qué esto debería haber sido así desde el principio
 
@@ -1651,4 +1668,119 @@ Navegador (npm run dev)             → dashboard, /add-candidate (mismo
                                        "Ver proceso" con los candidatos
                                        del seed) — todo verificado sin
                                        regresiones tras la migración
+```
+
+## 3.15 Tests automáticos: las mismas pruebas de validación, ahora repetibles
+
+A lo largo de toda la sesión, "probar" un arreglo significó siempre lo
+mismo: lanzar el backend y el frontend, y reproducir el caso a mano con
+`curl` o en el navegador — el apellido con guión bajo, la acumulación de
+varios campos, el cambio de idioma, un id de posición no numérico... Esto
+verificaba que el comportamiento era correcto en el momento, pero no deja
+nada que vuelva a comprobarlo automáticamente si algo se rompe más
+adelante. Esta rama convierte esos mismos casos en tests que se ejecutan
+con `npm test` (o `npx jest` en el backend), sin depender de tener la
+base de datos ni los servidores arrancados.
+
+### 3.15.1 Backend: rellenar los huecos reales de cobertura
+
+Antes de esta rama, `candidateController.test.ts` solo cubría
+`updateCandidateStageController`; **`addCandidateController` — el flujo
+de alta de candidato, el más verificado a mano de toda la sesión — no
+tenía ni un solo test.** De igual manera, `positionController.test.ts`
+no cubría el caso `isNaN` de `getCandidatesByPosition`
+(sí arreglado en código desde `backend-AGB`, pero nunca comprobado por un
+test) ni `getInterviewFlowByPosition` en absoluto.
+
+Tests añadidos:
+- `addCandidateController`: alta con éxito (201), el caso concreto del
+  guión bajo en el apellido (400 con `errors: [{field, code, params}]`),
+  acumulación de varios campos a la vez, y un error no relacionado con
+  validación (p. ej. email duplicado) respondiendo con el formato
+  genérico en vez del de `issues`.
+- `getCandidatesByPosition` / `getInterviewFlowByPosition`: id no
+  numérico (400, sin llegar a llamar al servicio) y, para el segundo,
+  también una posición inexistente (404).
+
+**Bug de aislamiento entre tests, encontrado al escribirlos**: la primera
+versión de estos tests fallaba con "Expected number of calls: 0,
+Received: 1" en el caso de `id` no numérico — no porque el código
+estuviera mal, sino porque los mocks de Jest (`jest.mock(...)` a nivel de
+módulo) conservan su historial de llamadas entre distintos `it()` del
+mismo fichero si no se limpian explícitamente. El test anterior (con un
+`id` válido) dejaba registrada una llamada al servicio, y el siguiente
+test heredaba ese recuento. Se corrige con `beforeEach(() =>
+jest.clearAllMocks())` en ambos ficheros de tests de controladores — un
+recordatorio de que un test mal aislado puede fallar (o, peor, pasar)
+por razones que no tienen nada que ver con lo que dice comprobar.
+
+### 3.15.2 Frontend: de cero tests a los primeros tres ficheros
+
+Antes de esta rama, `frontend/src` no tenía ni un solo fichero de test —
+Vitest estaba configurado (desde `vite-migration-AGB`) pero vacío.
+
+- **`i18n/validationMessages.test.js`**: el equivalente, en la capa de
+  traducción, del `validator.test.ts` del backend — compone el mismo
+  `{field: 'lastName', code: 'invalidCharacters', params: {char: '_'}}`
+  y comprueba el texto final en español, en inglés (cambiando
+  `i18n.changeLanguage`), la composición de etiquetas para campos de
+  array (`educations[0].institution`) y la interpolación de `min`/`max`.
+- **`services/candidateService.test.js`**: mockeando `axios`, comprueba
+  que los issues de validación se propagan sin aplanar, que **no** hay
+  doble prefijo en errores genéricos (el bug real corregido en
+  `vite-migration-AGB`, sección 3.14.4) y que un fallo de red sin
+  `response` no lanza un `TypeError` (el bug real corregido en
+  `frontend-AGB`, sección 3.2 de `prompts-AGB-frontend.md`) — dos tests
+  que, de haber existido antes, habrían detectado esos dos bugs en el
+  momento en que se introdujeron, no cuando se encontraron a mano.
+- **`components/AddCandidateForm.test.jsx`**: el test más directamente
+  ligado a lo verificado a mano una y otra vez durante la sesión —
+  renderiza el formulario real (con `@testing-library/react`), rellena
+  Nombre/Apellido/Email, envía, y comprueba que el mensaje aparece **por
+  duplicado a propósito** (pegado al campo vía `Form.Control.Feedback` y
+  en el resumen `role="alert"`), que `aria-invalid`/`aria-describedby`
+  quedan bien puestos, que cambiar el idioma re-traduce el error ya
+  visible sin volver a llamar al servicio (`sendCandidateData` sigue con
+  1 sola llamada), que se acumulan varios campos a la vez, y que un envío
+  válido limpia los errores y muestra el mensaje de éxito.
+
+**Dependencias de testing actualizadas**: `@testing-library/user-event`
+venía en la versión `13.5.0` (heredada de la instalación por defecto de
+Create React App), cuya API (`userEvent.type(el, texto)` sin `setup()`)
+es distinta de la actual (`userEvent.setup()` primero, después
+`user.type(...)`). En vez de escribir el test contra una API antigua, se
+actualizaron `@testing-library/react` (13→16), `@testing-library/user-event`
+(13→14) y `@testing-library/jest-dom` (5→7) a sus versiones actuales — coherente
+con el resto de la sesión, donde "lo último que sea compatible" ha sido el
+criterio constante. De paso, las tres se movieron de `dependencies` a
+`devDependencies` en `package.json`: son herramientas de test, nunca
+deberían formar parte de un build de producción, y estaban donde no
+correspondía desde que CRA las instaló así por defecto.
+
+### 3.15.3 Lo que queda fuera, a propósito
+
+Siguiendo el mismo criterio de toda la sesión (no fabricar cobertura que
+nadie pidió), no se han escrito tests para el dashboard, el listado de
+posiciones (sigue habiendo lógica mínima que probar más allá del mock del
+propio `getPositions`) ni el tablero "Ver proceso" — el foco explícito de
+la petición era "las mismas pruebas de validación que en las primeras
+ramas", y eso es exactamente lo que cubren estos tests: alta de
+candidato, códigos de error, y las comprobaciones de `id` en las rutas de
+posiciones.
+
+## 8. Verificación de los tests añadidos (sección 3.15)
+
+```
+Backend (npx jest)   → 5 suites, 19 tests (antes 11; +8 nuevos), verde
+                        npx tsc --noEmit → sin errores
+Frontend (npm test)  → 3 suites, 18 tests (antes 0), verde
+                        npx tsc -b → sin errores
+                        npx eslint . → sin errores
+                        npm run build → mismo tamaño de bundle que antes
+                        (2773 módulos, 651.80 kB) — los ficheros .test.*
+                        no se cuelan en el build de producción
+Aislamiento           → bug real de mocks sin limpiar entre tests
+                        encontrado y corregido en positionController.test.ts
+                        y candidateController.test.ts (beforeEach +
+                        jest.clearAllMocks())
 ```
