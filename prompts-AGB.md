@@ -224,6 +224,195 @@ ramas son enteramente locales. Si se quiere consolidar, el camino natural
 sería fusionar `vite-migration-AGB` sobre `main` (o sustituir `main` por
 ella) cuando el usuario lo decida explícitamente.
 
+### 0.6 Análisis de ventajas: por qué esto debería haber sido así desde el principio
+
+Cada cifra de esta sección se ha medido en este mismo repositorio durante
+la sesión (comandos reales, `wc -l` sobre los ficheros reales, salida real
+de `npm`/`eslint`/`vite`) — no son estimaciones genéricas de "cómo suele
+ir" una migración. Donde no hay un número medido en este repo concreto
+(p. ej. no se llegó a ejecutar nunca `react-scripts build` en esta sesión,
+así que no hay un tiempo de build de CRA con el que comparar directamente
+el de Vite), se dice explícitamente en vez de inventar la cifra.
+
+#### A. Motor y herramientas: lo que se midió, no lo que se supone
+
+| Métrica | Dato medido en esta sesión |
+|---|---|
+| Arranque del dev server | Vite: **~150-175ms** (`VITE v8.3.0 ready in 154 ms` / `174 ms`, dos arranques distintos, logs reales) |
+| Build de producción | **438-441ms** (`✓ built in 441ms`), 2773 módulos transformados |
+| Motor usado en dev | `oxc` (parser/transformador en Rust) — se ve literalmente en los logs de error de esta sesión (`Plugin: vite:oxc`) al depurar el problema de JSX en `.js` |
+| Motor usado en build | `rolldown` (sucesor de Rollup, también en Rust) — igualmente visible en los propios logs (`rolldown/dist/shared/error-...mjs`) |
+| Dependencias eliminadas | **-1239 paquetes** exactos al desinstalar `react-scripts` (`npm uninstall react-scripts` → `removed 1239 packages`) |
+| Huella final de dependencias | 718 paquetes totales (`npm ls --all`), 494MB de `node_modules`, 18 dependencias directas + 12 de desarrollo |
+
+CRA (`react-scripts`) nunca llegó a compilarse en modo producción en esta
+sesión — se pasó directamente de verificar que el dev server funcionaba a
+desinstalarlo, así que no hay un número de "antes" medido en este mismo
+repo para el build. Lo que sí es un hecho verificable y no una opinión: al
+quitar `react-scripts`, **1239 paquetes transitivos** (todo el árbol de
+Babel, webpack, y sus plugins) dejaron de formar parte del proyecto de
+golpe — cada uno de esos paquetes era, hasta ese momento, superficie de
+ataque potencial (vulnerabilidades de la cadena de suministro) y coste de
+instalación/CI, sin aportar nada que Vite no cubra ya.
+
+#### B. Líneas de código: el caso concreto, fichero a fichero (no una cifra redonda)
+
+| Fichero (antes) | Líneas | → | Fichero (después) | Líneas | Cambio |
+|---|---|---|---|---|---|
+| `locale.js` | 56 | → | *(eliminado, sustituido por `LanguageDetector`)* | 0 | **-100%** |
+| `LocaleContext.js` | 39 | → | *(eliminado, sustituido por el hook de la librería)* | 0 | **-100%** |
+| `translations.js` | 147 | → | `locales/es.json` + `locales/en.json` | 212 | +44% |
+| `validationMessages.js` | 111 | → | `validationMessages.js` | 42 | **-62%** |
+| `i18n.js` (config, nuevo) | — | → | `i18n.js` | 53 | (nuevo) |
+| **Total** | **353** | → | | **307** | -13% |
+
+La cifra total (353→307) por sí sola no cuenta la historia real, y
+conviene ser precisos en vez de redondear a "la mitad" sin más:
+
+- **`locale.js` + `LocaleContext.js` (95 líneas de lógica de detección y
+  de `Context` de React, escritas y mantenidas a mano) desaparecen por
+  completo** — no se sustituyen por otras 95 líneas nuestras, sino por
+  código de una librería con miles de usos en producción que no
+  escribimos ni mantenemos nosotros. Ahí sí hay una reducción real del
+  100%, medible y sin matices.
+- **`validationMessages.js` baja un 62%** (111→42) porque la composición
+  de mensajes (antes plantillas JS escritas a mano por cada combinación
+  de campo+código+idioma) pasa a delegarse en el motor de interpolación
+  de i18next — la lógica que quedaba era, literalmente, reimplementar mal
+  una pequeña parte de lo que ya hace la librería.
+- **`translations.js` → `es.json`+`en.json` *crece* un 44%** (147→212), y
+  es importante no ocultarlo: el JSON anidado necesita más líneas por
+  cadena de texto que un objeto JS con claves planas (una llave de
+  apertura/cierre por cada nivel de anidamiento). Esto **no es deuda
+  técnica** — es texto de traducción puro, el mismo cueste lo que cueste
+  representarlo, y a cambio de esas líneas de más se gana compatibilidad
+  con herramientas de extracción de claves y plataformas de gestión de
+  traducciones (Lokalise, Crowdin...) que no existía con el formato a
+  mano.
+
+**Conclusión honesta**: la intuición de "menos de la mitad de código a
+mantener" es correcta específicamente para la parte que **es lógica
+nuestra susceptible de tener bugs** (locale.js + LocaleContext.js +
+validationMessages.js: 206→42 líneas, **-80%**) — no para el texto de
+traducción en sí, que ocupa prácticamente el mismo espacio se represente
+como se represente.
+
+#### C. Correctitud real, no solo estilo: lo que encontró el linter al configurarse por primera vez de verdad
+
+Antes de esta sesión, `package.json` tenía `"eslintConfig": {"extends":
+["react-app", "react-app/jest"]}` — el linter de CRA, con un conjunto de
+reglas orientado a errores básicos de React (hooks mal usados, JSX roto),
+sin ninguna regla de buenas prácticas generales de JavaScript moderno. Al
+instalar el stack de ESLint 9 + `typescript-eslint` con las reglas
+recomendadas (`js.configs.recommended` + `tseslint.configs.recommended`),
+`npx eslint .` encontró **5 errores reales** en código que llevaba ahí
+desde antes de esta sesión, invisibles hasta ese momento:
+
+```
+src/services/candidateService.js  19:9  error  There is no `cause` attached...
+src/services/candidateService.js  41:9  error  There is no `cause` attached...
+src/services/positionService.js   15:9  error  There is no `cause` attached...
+src/services/positionService.js   24:9  error  There is no `cause` attached...
+src/services/positionService.js   33:9  error  There is no `cause` attached...
+```
+
+(regla `preserve-caught-error`: un `catch (error) { throw new Error(...) }`
+que no adjunta la causa original pierde la traza de pila real del fallo —
+en producción, esto es la diferencia entre depurar un error de red viendo
+exactamente qué petición falló, o viendo solo un mensaje genérico sin
+ningún rastro de dónde vino). Los cinco se corrigieron en el momento.
+
+Además, `npm test` estaba roto desde antes de esta sesión —
+`jest --config jest.config.js` apuntando a un fichero que nunca existió
+en el repositorio (confirmado con `ls jest.config.js` → *no existe*) — y
+nadie lo había notado porque nunca se ejecutaba en ningún flujo. Ahora
+`npm test` (Vitest) sale con código 0 de verdad.
+
+#### D. Accesibilidad: técnicas concretas, mapeadas a criterios WCAG 2.1 (no "buenas prácticas" genéricas)
+
+| Criterio WCAG 2.1 | Nivel | Técnica implementada | Dónde |
+|---|---|---|---|
+| **3.1.1** Language of Page | A | `<html lang>` sincronizado dinámicamente con el idioma activo (`i18n.on('languageChanged', ...)`) | `i18n.js` |
+| **4.1.3** Status Messages | AA | `role="alert"` + `aria-live="assertive"` para errores; `role="status"` + `aria-live="polite"` para el éxito — un lector de pantalla anuncia el mensaje sin que el foco tenga que moverse a él | `AddCandidateForm.jsx` |
+| **3.3.1** Error Identification | A | Cada campo inválido lleva `aria-invalid="true"` y un mensaje de error específico (no genérico) | `AddCandidateForm.jsx` |
+| **1.3.1** Info and Relationships | A | `aria-describedby` asocia programáticamente cada input con su mensaje de error concreto, no solo visualmente | `AddCandidateForm.jsx` |
+| **4.1.2** Name, Role, Value | A | `aria-pressed` en los botones del selector de idioma, comunicando cuál está activo a tecnología de asistencia | `LanguageSwitcher.jsx` |
+| *(Buena práctica, no un SC numerado)* | — | `lang="es"`/`lang="en"` en cada botón del selector, para que un lector de pantalla pronuncie "Español"/"English" con las reglas fonéticas del idioma que nombran | `LanguageSwitcher.jsx` |
+
+Antes de esta sesión no había ni una sola de estas técnicas en el
+formulario: los errores eran un `<Alert>` sin `role`, sin asociar a
+ningún campo, y `<html lang="en">` estaba fijo pese a que toda la
+interfaz estaba en español.
+
+#### E. TypeScript: la trayectoria real de esta sesión, sin inflar lo que no se usa
+
+Esta sesión pasó por **cuatro** versiones de TypeScript distintas, cada
+una descartada o aceptada por una razón medida, no supuesta:
+
+1. **4.9.5** (la que traía CRA) — techo real: `react-scripts` declara
+   `"typescript": "^3.2.1 || ^4"` como peer, así que no se podía subir sin
+   quitar CRA primero.
+2. **7.0.2** (`typescript@latest` en el momento de esta sesión — el
+   compilador reescrito nativamente en Go) — descartada: `typescript-eslint`
+   declara `typescript: ">=4.8.4 <6.1.0"`, y no es solo un peer estricto:
+   sin `typescript-eslint` no hay forma de enlazar TypeScript con ESLint,
+   así que habría que renunciar al linter tipado por completo.
+3. **5.9.3** — funcional y compatible, primera elección "segura".
+4. **6.0.3** (versión final) — se comprobó con `npm view typescript
+   versions --json` que existen releases **estables** 6.0.2/6.0.3 (no solo
+   la beta que aparece en `dist-tags`), y caen dentro del rango que acepta
+   `typescript-eslint`. Es la versión más reciente posible sin sacrificar
+   el linter.
+
+**Lo que esto significa hacia delante, con datos y no con deseos**: el
+bloqueo que impedía subir de TypeScript 4 ya no existe — no es que TS7 se
+vaya a poder usar "en el futuro" de forma vaga, es que el único obstáculo
+real hoy es una única peer dependency de un solo paquete
+(`typescript-eslint`, versión `8.70.0` en el momento de esta sesión). El
+día que esa librería publique soporte para TS7 (ya en desarrollo activo,
+visible en su propio repositorio), adoptarlo aquí es un `npm install
+typescript@latest` — sin ningún otro cambio de infraestructura. Con CRA
+en medio, el mismo salto habría exigido primero un `eject` irreversible
+antes de poder tocar una sola versión.
+
+#### F. "La manera correcta de hacerlo": patrones adoptados que son el estándar de facto actual, no una preferencia
+
+- **`tsconfig.json` como *project references*** (`tsconfig.app.json` +
+  `tsconfig.node.json`) — el mismo patrón que genera `npm create
+  vite@latest` con la plantilla oficial `react-ts`, no una convención
+  inventada para este proyecto.
+- **`eslint.config.js` (flat config)** — el único formato que reconoce
+  ESLint 9 de forma nativa; el `eslintConfig` de `package.json` que usaba
+  CRA es un formato que ESLint 9 ya ni siquiera carga sin un plugin de
+  compatibilidad adicional.
+- **Códigos de error estructurados (`{ field, code, params }`) en vez de
+  strings ya redactados** en el backend — el patrón que hace posible que
+  el frontend traduzca sin que el backend sepa nada de idiomas; es la
+  razón por la que migrar de un sistema de i18n casero a `react-i18next`
+  (sección 3.13) no tocó una sola línea del backend.
+- **Un idioma, un fichero JSON**, en vez de un único objeto JS con todos
+  los idiomas mezclados — el formato que esperan `i18next-parser` y
+  cualquier plataforma de gestión de traducciones externa.
+
+#### G. Resumen en una tabla
+
+| Aspecto | Antes de esta sesión | Ahora | Evidencia |
+|---|---|---|---|
+| Toolchain de frontend | Create React App (descontinuado desde 2025, sin versión mayor desde 2022) | Vite 8, mantenido activamente | `npm uninstall react-scripts` |
+| TypeScript | 4.9.5 (techo de CRA) | 6.0.3 (techo real del ecosistema de linting hoy) | Cadena de instalaciones documentada en 3.14.1 |
+| Arranque en desarrollo | No medido en este repo (CRA nunca llegó a compararse) | ~150-175ms medidos | Logs de `vite` |
+| Lógica de i18n propia (detección + contexto + composición de mensajes) | 206 líneas | 42 líneas | `wc -l` sobre los ficheros reales, sección B |
+| Linter configurado | Reglas básicas de React únicamente | ESLint 9 + TypeScript + 5 bugs reales encontrados y corregidos | `npx eslint .`, sección C |
+| `npm test` | Roto (`jest.config.js` inexistente) | Funcional (Vitest, sale con código 0) | Comprobado en 3.14.2 |
+| Accesibilidad del formulario | Ninguna técnica WCAG aplicada | 5 criterios WCAG 2.1 implementados | Sección D |
+| Idiomas soportados | Español fijo en el código | Español/inglés, detección automática + selector, `<html lang>` reactivo | Secciones 3.9-3.13 |
+| Dependencias transitivas | +1239 paquetes solo por `react-scripts` | Ninguno de esos 1239 | `npm uninstall`, sección A |
+
+Ninguna de estas filas es una opinión de estilo — todas son
+consecuencia directa de sustituir herramientas descontinuadas o caseras
+por el estándar actual del ecosistema, verificado paso a paso en el
+propio repositorio durante esta misma sesión.
+
 ## 1. Prompts utilizados con el asistente de IA
 
 1. `Analiza este repo y cuéntame qué hace y qué errores descubres` /
