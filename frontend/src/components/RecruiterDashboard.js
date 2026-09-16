@@ -2,10 +2,10 @@ import React from 'react';
 import { Button, Card, Container, Row, Col } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import logo from '../assets/lti-logo.png'; // Ruta actualizada para importar desde src/assets
-import { useLocale } from '../i18n/LocaleContext';
+import { useTranslation } from 'react-i18next';
 
 const RecruiterDashboard = () => {
-    const { t } = useLocale();
+    const { t } = useTranslation();
 
     return (
         <Container className="mt-5">

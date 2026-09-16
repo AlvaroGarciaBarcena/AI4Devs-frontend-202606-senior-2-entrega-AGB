@@ -1,27 +1,24 @@
-# Registro de prompts y arreglos — Integración completa (rama `all-fixes-AGB`)
+# Registro de prompts y arreglos — Integración completa + migración a react-i18next (rama `i18n-react-i18next-AGB`)
 
 Autor: garciabarcenaalvaro@gmail.com
 Asistente: Claude Code (Sonnet 5)
 Fecha: 2026-09-16
 
-Rama base: fusión de `candidate-validation-i18n-a11y-AGB` (commit `eea6e5a`
-— que a su vez ya era fusión de `backend-AGB` y `frontend-AGB`) y
-`positions-proceso-AGB` (commit `cd86b57`, partiendo de `main`
-directamente). Esta rama reúne el trabajo de las cuatro ramas de arreglos/
-funcionalidades en una sola.
+Rama base: `all-fixes-AGB` (commit `d60127b`), que ya reunía
+`backend-AGB` + `frontend-AGB` + `candidate-validation-i18n-a11y-AGB` +
+`positions-proceso-AGB`. Esta rama no fusiona nada nuevo — es la misma
+base, con el sistema de i18n "casero" (`locale.js` + `LocaleContext.js` +
+`translations.js`, hecho a mano en `candidate-validation-i18n-a11y-AGB`)
+sustituido por `react-i18next`, la librería estándar del ecosistema.
 
-> Nota sobre la fusión: las secciones 1-11 de este documento (más abajo)
-> son el historial heredado de `candidate-validation-i18n-a11y-AGB` sin
-> modificar — describen mensajes de validación, i18n y a11y. La sección 12
-> documenta específicamente la fusión con `positions-proceso-AGB` (el
-> "Ver proceso" con datos reales) y los ajustes necesarios para
-> integrarlo con el i18n ya existente. El histórico completo de
-> `positions-proceso-AGB` se conserva en
-> [`prompts-AGB-positions.md`](./prompts-AGB-positions.md) (igual que
-> `backend-AGB`/`frontend-AGB` ya se conservaban en
+> Nota: las secciones 1-12 de este documento son el historial heredado de
+> `candidate-validation-i18n-a11y-AGB`/`all-fixes-AGB` sin modificar. La
+> sección 13 documenta específicamente la migración a `react-i18next`. El
+> histórico de `positions-proceso-AGB` sigue en
+> [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el de
+> `backend-AGB`/`frontend-AGB` en
 > [`prompts-AGB-backend.md`](./prompts-AGB-backend.md) /
-> [`prompts-AGB-frontend.md`](./prompts-AGB-frontend.md) desde la fusión
-> anterior).
+> [`prompts-AGB-frontend.md`](./prompts-AGB-frontend.md).
 
 ## 1. Prompts utilizados con el asistente de IA
 
@@ -116,8 +113,44 @@ funcionalidades en una sola.
 
 12. `¿Incluyes positions-proceso-AGB en una nueva rama que parta de
     candidate-validation-i18n-a11y-AGB para tenerlo ya todo fusionado?`
-    → Prompt que originó esta rama (`all-fixes-AGB`) y la sección 12 de
-    este documento.
+    → Prompt que originó la rama `all-fixes-AGB` y la sección 12 de este
+    documento.
+
+13. `¿Tiene sentido que a18n también los endpoints, así add-candidate pase
+    a ser anadir-candidato, etc.?` → El asistente recomendó no hacerlo:
+    las rutas de React Router son paths internos (nunca se escriben ni
+    comparten a mano, a diferencia de un sitio público con SEO
+    multi-idioma), así que localizarlas solo añade complejidad de alias/
+    redirecciones sin beneficio real en una herramienta interna.
+
+14. `¿Y cómo se gestiona en los casos en que los endpoints están
+    traducidos?` → Pregunta puramente conceptual (sin implementación): el
+    asistente explicó el patrón estándar — tabla de rutas por clave
+    canónica con traducción de path por idioma, el idioma codificado en la
+    propia URL (prefijo `/es/`/`/en/`) en vez de solo en `localStorage`,
+    redirecciones/alias para no romper enlaces ya compartidos, y
+    `hreflang` para SEO.
+
+15. `Estoy aprendiendo a hacerlo bien, flexible, estándar, escalable, con
+    idiomas, accesible... ¿Qué mejorarías?` → El asistente listó 5 mejoras
+    priorizadas sobre el sistema de i18n "casero" construido hasta
+    entonces: (1) adoptar una librería real (`react-i18next`/`react-intl`)
+    en vez del diccionario a mano, (2) sincronizar `<html lang>`
+    dinámicamente con el idioma activo (estaba fijo en `"es"`), (3) usar
+    `Intl.DateTimeFormat`/`Intl.NumberFormat` para fechas/números en vez de
+    manipulación de strings, (4) tipar las claves de traducción con
+    TypeScript para detectar en compilación una clave inexistente, (5) un
+    fichero JSON por idioma cargado bajo demanda en vez de un único objeto
+    JS con todos los idiomas siempre en el bundle.
+
+16. `¿Creas una rama e implementas el 1. que me parece el más potente para
+    ver cómo debería hacerse bien?` → Prompt que originó esta rama
+    (`i18n-react-i18next-AGB`) y la migración documentada en la sección 13
+    más abajo. De paso se implementan también la mejora 2 (`<html lang>`
+    dinámico, trivial una vez usando `i18next.on('languageChanged', ...)`)
+    y la 5 (un JSON por idioma), por ser consecuencia directa y casi
+    gratuita de adoptar la librería — no un alcance añadido por iniciativa
+    propia.
 
 ## 2. Metodología
 
@@ -578,4 +611,116 @@ Navegador            → GET /position con datos reales del seed (2
                         Screening"...) sin traducir, por ser datos
                       → formulario de alta de candidato verificado de
                         nuevo tras la fusión, sin regresiones
+```
+
+## 3.13 Migración a `react-i18next`: cómo se hace "bien"
+
+- **Por qué esta rama y no seguir ampliando el sistema casero**: el
+  sistema anterior (`locale.js` + `LocaleContext.js` + `translations.js`)
+  funcionaba, pero reinventaba a mano cosas que una librería de i18n
+  resuelve de forma probada: detección de idioma del navegador con
+  fallbacks, persistencia, interpolación de parámetros, y ningún soporte
+  para pluralización ni formato de fechas/números — problemas reales en
+  cuanto la app creciera más allá de 2 idiomas o de frases sin plural.
+
+- **Dependencias instaladas**: `react-i18next`, `i18next`,
+  `i18next-browser-languagedetector`.
+  - **Problema real encontrado al instalar**: la versión más reciente de
+    `react-i18next` (17.x) exige TypeScript 5+ como *peer dependency*, y
+    este proyecto usa TypeScript 4.9.5 (`tsconfig.json`). `npm install` lo
+    rechazó por conflicto de peer dependencies.
+  - Se probó fijar `react-i18next@15.5.0` (la última versión de la rama
+    15.x sin ese peer requirement) junto con `i18next@23.16.8` — pero
+    `npx tsc --noEmit` seguía fallando, esta vez con errores de sintaxis
+    reales (`TS1139: Type parameter declaration expected`, etc.) al leer
+    los `.d.ts` de `react-i18next@15.5.0`: **no era solo un peer
+    dependency estricto de más — esa versión usa sintaxis de tipos que
+    TypeScript 4.9 literalmente no puede parsear**. Se bajó a
+    `react-i18next@14.1.3` (última de la rama 14.x), que sí compila
+    limpio con TS 4.9. Lección: cuando un peer dependency de tipos falla,
+    hay que comprobar si es solo una advertencia conservadora o una
+    incompatibilidad real de sintaxis — aquí resultó ser lo segundo.
+
+- **Ficheros nuevos**:
+  - `frontend/src/i18n/locales/es.json` y `en.json`: los mismos textos que
+    antes vivían en `translations.js` (un objeto JS con claves planas
+    `'addCandidate.firstName'`), ahora como JSON **anidado**
+    (`{ "addCandidate": { "firstName": "..." } }`) — el formato
+    recomendado por i18next, que además usa por defecto `.` como
+    separador de claves, así que `t('addCandidate.firstName')` sigue
+    funcionando exactamente igual desde los componentes sin tocar ni una
+    sola llamada a `t()`. También incluyen ahora un namespace
+    `validation.*` con las etiquetas de campo y plantillas de mensaje que
+    antes vivían como objetos JS dentro de `validationMessages.js`.
+  - `frontend/src/i18n/i18n.js`: configuración e inicialización de
+    i18next. Se importa una sola vez, como efecto secundario, desde
+    `index.tsx` antes de renderizar `<App />` — el patrón estándar de
+    `react-i18next`, que no necesita un `<Provider>` explícito envolviendo
+    la app porque el hook `useTranslation()` lee la instancia global.
+    Configuración relevante:
+    - `LanguageDetector` con `order: ['localStorage', 'navigator']` y
+      `lookupLocalStorage: 'lti_error_locale'` (la misma clave que ya
+      usaba el sistema casero, para no perder la preferencia de quien ya
+      la había elegido) — sustituye por completo la función
+      `detectBrowserLocale()` escrita a mano que recorría
+      `navigator.languages`.
+    - `load: 'languageOnly'`: hace que `'en-US'` se resuelva como `'en'`
+      automáticamente, sustituyendo el bucle manual que hacíamos antes.
+    - Un listener `i18n.on('languageChanged', lng => document.documentElement.lang = lng)`:
+      esto es la mejora 2 de la lista anterior (`<html lang>` dinámico) —
+      antes quedaba fijo en `"es"` tras mi arreglo puntual; ahora seguirá
+      al idioma activo automáticamente, para siempre.
+- **Ficheros eliminados**: `frontend/src/i18n/locale.js`,
+  `frontend/src/i18n/LocaleContext.js`, `frontend/src/i18n/translations.js`
+  — toda su funcionalidad la cubre ahora `react-i18next` + `i18n.js`.
+- **`validationMessages.js` reescrito**: en vez de objetos JS
+  (`SIMPLE_FIELD_LABELS`, `MESSAGE_TEMPLATES`...) con plantillas
+  interpoladas a mano (`` `${field} es obligatorio.` ``), ahora compone
+  los mensajes con `i18n.t('validation.messages.required', { field })`,
+  usando la interpolación `{{field}}`/`{{min}}`/`{{max}}`/`{{char}}` nativa
+  de i18next. Ya no necesita recibir el `locale` como parámetro explícito
+  (`translateValidationIssue(issue, locale)` → `translateValidationIssue(issue)`):
+  usa el idioma activo de la instancia global de i18next directamente,
+  igual que se haría fuera de un componente React (`i18n.t(...)` en vez
+  del hook `useTranslation()`, que solo hace falta dentro de JSX).
+- **Componentes migrados** (`useLocale()` → `useTranslation()` de
+  `react-i18next`): `RecruiterDashboard.js`, `FileUploader.js`,
+  `AddCandidateForm.js`, `Positions.tsx`, `PositionProcess.tsx`,
+  `LanguageSwitcher.js`. En `LanguageSwitcher.js`, `setLocale(code)` pasa a
+  ser `i18n.changeLanguage(code)` (la API estándar de i18next, que ya
+  persiste en `localStorage` vía el `LanguageDetector` sin código extra),
+  y la comparación de idioma activo usa `i18n.resolvedLanguage` (el
+  idioma realmente resuelto tras aplicar `load: 'languageOnly'`, más
+  fiable que `i18n.language` para este propósito). Se añade también
+  `lang={code}` a cada botón del selector, para que un lector de pantalla
+  pronuncie "Español"/"English" con las reglas fonéticas del idioma que
+  nombran, no las de la página.
+- **Ajuste en los `useEffect` de `Positions.tsx`/`PositionProcess.tsx`**:
+  antes incluían `t` en el array de dependencias (necesario con el `t`
+  "casero", recreado en cada cambio de idioma vía `useMemo`), lo que
+  volvía a pedir los datos a la API cada vez que alguien cambiaba de
+  idioma. Se corrige a `[]`/`[id]`: los datos solo se piden una vez, y el
+  texto se re-traduce en cada render sin necesidad de refetch.
+
+## 6. Verificación de la migración a react-i18next (sección 3.13)
+
+```
+npm install react-i18next@14.1.3 i18next@23.16.8 i18next-browser-languagedetector
+                      → tras descartar react-i18next@17 (exige TS5) y
+                        @15.5.0 (sus .d.ts no compilan con TS 4.9)
+npx tsc --noEmit (frontend) → sin errores con react-i18next@14.1.3
+npx jest (backend)   → 5 suites, 11 tests, sin cambios (rama solo de frontend)
+Navegador            → <html lang> confirmado dinámico
+                        (document.documentElement.lang pasa de "es" a "en"
+                        al cambiar el selector, sin recargar)
+                      → localStorage['lti_error_locale'] se sigue
+                        actualizando con la misma clave que antes
+                      → caso real del guión bajo en el apellido reproducido
+                        de nuevo: mensaje interpolado correctamente vía
+                        i18next ("...character that is not allowed: "_"...")
+                      → cambio de idioma en caliente sobre un error ya
+                        visible, sin reenviar el formulario (igual que con
+                        el sistema casero)
+                      → /positions y /positions/:id (datos reales)
+                        verificados en español, sin regresiones
 ```

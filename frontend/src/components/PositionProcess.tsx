@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Container, Row, Col, Card, Badge, Spinner, Alert, Button } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import { getCandidatesByPosition, getInterviewFlowByPosition } from '../services/positionService';
-import { useLocale } from '../i18n/LocaleContext';
+import { useTranslation } from 'react-i18next';
 
 type Candidate = {
     id: number;
@@ -28,7 +28,7 @@ type InterviewFlow = {
 };
 
 const PositionProcess: React.FC = () => {
-    const { t } = useLocale();
+    const { t } = useTranslation();
     const { id } = useParams<{ id: string }>();
     const [flow, setFlow] = useState<InterviewFlow | null>(null);
     const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -54,7 +54,8 @@ const PositionProcess: React.FC = () => {
         };
 
         fetchProcess();
-    }, [id, t]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
 
     if (loading) {
         return (

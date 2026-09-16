@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Button, InputGroup, FormControl, Spinner } from 'react-bootstrap';
 import { uploadCV } from '../services/candidateService';
-import { useLocale } from '../i18n/LocaleContext';
+import { useTranslation } from 'react-i18next';
 
 const FileUploader = ({ onChange, onUpload }) => {
-  const { t } = useLocale();
+  const { t } = useTranslation();
   const [file, setFile] = useState(null);
   const [fileName, setFileName] = useState('');
   const [fileData, setFileData] = useState(null);

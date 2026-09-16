@@ -1,0 +1,106 @@
+{
+  "languageSwitcher": {
+    "label": "Language:"
+  },
+  "dashboard": {
+    "title": "Recruiter Dashboard",
+    "logoAlt": "LTI Logo",
+    "addCandidate": {
+      "heading": "Add Candidate",
+      "button": "Add New Candidate"
+    },
+    "viewPositions": {
+      "heading": "View Positions",
+      "button": "Go to Positions"
+    }
+  },
+  "addCandidate": {
+    "title": "Add Candidate",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "email": "Email",
+    "phone": "Phone",
+    "address": "Address",
+    "cv": "CV",
+    "addEducation": "Add Education",
+    "addWorkExperience": "Add Work Experience",
+    "institutionPlaceholder": "Institution",
+    "titlePlaceholder": "Title",
+    "startDatePlaceholder": "Start Date",
+    "endDatePlaceholder": "End Date",
+    "companyPlaceholder": "Company",
+    "positionPlaceholder": "Position",
+    "remove": "Remove",
+    "submit": "Submit",
+    "reviewFields": "Please review the following fields:",
+    "success": "Candidate added successfully",
+    "genericErrorPrefix": "Error adding candidate: "
+  },
+  "fileUploader": {
+    "ariaLabel": "File",
+    "selectedFile": "Selected file:",
+    "upload": "Upload File",
+    "success": "File uploaded successfully"
+  },
+  "positions": {
+    "title": "Positions",
+    "searchByTitle": "Search by title",
+    "searchByDate": "Search by date",
+    "statusFilterLabel": "Status",
+    "status": {
+      "open": "Open",
+      "filled": "Filled",
+      "closed": "Closed",
+      "draft": "Draft"
+    },
+    "company": "Company:",
+    "location": "Location:",
+    "deadline": "Deadline:",
+    "viewProcess": "View process",
+    "edit": "Edit",
+    "editNotImplemented": "Editing positions is not implemented yet",
+    "empty": "No positions available.",
+    "fetchError": "Error fetching positions"
+  },
+  "positionProcess": {
+    "back": "← Back to positions",
+    "title": "Hiring process: ",
+    "noFlow": "This position does not have an interview flow configured.",
+    "noCandidatesInStep": "No candidates in this stage.",
+    "averageScore": "Average score: ",
+    "fetchError": "Error fetching this position's process"
+  },
+  "validation": {
+    "fields": {
+      "firstName": "The first name",
+      "lastName": "The last name",
+      "email": "The email",
+      "phone": "The phone number",
+      "address": "The address",
+      "cv": "The CV"
+    },
+    "sections": {
+      "educations": "Education",
+      "workExperiences": "Work experience"
+    },
+    "subfields": {
+      "institution": "the institution",
+      "title": "the title",
+      "startDate": "the start date",
+      "endDate": "the end date",
+      "company": "the company",
+      "position": "the position",
+      "description": "the description"
+    },
+    "arrayFieldLabel": "{{section}} #{{position}} ({{subfield}})",
+    "messages": {
+      "required": "{{field}} is required.",
+      "tooShort": "{{field}} must be at least {{min}} characters long.",
+      "tooLong": "{{field}} cannot exceed {{max}} characters.",
+      "invalidCharacters": "{{field}} contains a character that is not allowed: \"{{char}}\". Only letters and spaces are allowed.",
+      "invalidCharactersGeneric": "{{field}} contains characters that are not allowed. Only letters and spaces are allowed.",
+      "invalidFormat": "{{field}} has an invalid format.",
+      "invalid": "{{field}} is not valid."
+    }
+  }
+}

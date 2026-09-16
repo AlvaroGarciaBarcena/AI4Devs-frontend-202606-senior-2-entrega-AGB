@@ -1,111 +1,42 @@
 // Traduce los códigos de validación que devuelve el backend
 // (backend/src/application/validator.ts) a un mensaje legible en el idioma
-// del usuario. El backend nunca decide el idioma ni redacta el texto final:
-// solo dice qué campo falló, con qué código y con qué parámetros
-// (`{ field, code, params }`), y aquí se compone la frase.
+// activo de i18next. El backend nunca decide el idioma ni redacta el texto
+// final: solo dice qué campo falló, con qué código y con qué parámetros
+// (`{ field, code, params }`), y aquí se compone la frase con las cadenas
+// de locales/{es,en}.json (namespace "validation").
 //
-// La lógica de qué idioma está activo (detección del navegador +
-// preferencia guardada) es compartida con el resto de la app — ver
-// ./locale.js — porque el selector de idioma (LocaleContext) afecta tanto
-// a estos mensajes como a los textos estáticos de translations.js.
-
-import { DEFAULT_LOCALE, getLocale } from './locale';
-
-export { SUPPORTED_LOCALES, getStoredLocale, setStoredLocale, getLocale } from './locale';
-
-const SIMPLE_FIELD_LABELS = {
-    es: {
-        firstName: 'El nombre',
-        lastName: 'El apellido',
-        email: 'El email',
-        phone: 'El teléfono',
-        address: 'La dirección',
-        cv: 'El CV',
-    },
-    en: {
-        firstName: 'The first name',
-        lastName: 'The last name',
-        email: 'The email',
-        phone: 'The phone number',
-        address: 'The address',
-        cv: 'The CV',
-    },
-};
-
-const SECTION_LABELS = {
-    es: { educations: 'Educación', workExperiences: 'Experiencia laboral' },
-    en: { educations: 'Education', workExperiences: 'Work experience' },
-};
-
-const SUBFIELD_LABELS = {
-    es: {
-        institution: 'la institución',
-        title: 'el título',
-        startDate: 'la fecha de inicio',
-        endDate: 'la fecha de fin',
-        company: 'la empresa',
-        position: 'el puesto',
-        description: 'la descripción',
-    },
-    en: {
-        institution: 'the institution',
-        title: 'the title',
-        startDate: 'the start date',
-        endDate: 'the end date',
-        company: 'the company',
-        position: 'the position',
-        description: 'the description',
-    },
-};
+// i18next mantiene un idioma "actual" global (i18n.language), así que
+// estas funciones no necesitan recibir el locale explícitamente como antes
+// — usan la instancia de i18next directamente, igual que fuera de
+// componentes React se usaría i18n.t(...) en vez del hook useTranslation().
+import i18n from './i18n';
 
 const ARRAY_FIELD_REGEX = /^(educations|workExperiences)\[(\d+)\]\.(\w+)$/;
 
-const getFieldLabel = (field, locale) => {
+const getFieldLabel = (field) => {
     const match = field.match(ARRAY_FIELD_REGEX);
     if (match) {
         const [, section, index, subfield] = match;
-        const sectionLabel = (SECTION_LABELS[locale] || SECTION_LABELS[DEFAULT_LOCALE])[section] || section;
-        const subfieldLabel = (SUBFIELD_LABELS[locale] || SUBFIELD_LABELS[DEFAULT_LOCALE])[subfield] || subfield;
-        const position = Number(index) + 1;
-        return `${sectionLabel} #${position} (${subfieldLabel})`;
+        return i18n.t('validation.arrayFieldLabel', {
+            section: i18n.t(`validation.sections.${section}`),
+            position: Number(index) + 1,
+            subfield: i18n.t(`validation.subfields.${subfield}`),
+        });
     }
-    const labels = SIMPLE_FIELD_LABELS[locale] || SIMPLE_FIELD_LABELS[DEFAULT_LOCALE];
-    return labels[field] || field;
-};
-
-const MESSAGE_TEMPLATES = {
-    es: {
-        required: (field) => `${field} es obligatorio.`,
-        tooShort: (field, params) => `${field} debe tener al menos ${params.min} caracteres.`,
-        tooLong: (field, params) => `${field} no puede superar los ${params.max} caracteres.`,
-        invalidCharacters: (field, params) => params.char
-            ? `${field} contiene un carácter no permitido: "${params.char}". Solo se admiten letras y espacios.`
-            : `${field} contiene caracteres no permitidos. Solo se admiten letras y espacios.`,
-        invalidFormat: (field) => `${field} no tiene un formato válido.`,
-        invalid: (field) => `${field} no es válido.`,
-    },
-    en: {
-        required: (field) => `${field} is required.`,
-        tooShort: (field, params) => `${field} must be at least ${params.min} characters long.`,
-        tooLong: (field, params) => `${field} cannot exceed ${params.max} characters.`,
-        invalidCharacters: (field, params) => params.char
-            ? `${field} contains a character that is not allowed: "${params.char}". Only letters and spaces are allowed.`
-            : `${field} contains characters that are not allowed. Only letters and spaces are allowed.`,
-        invalidFormat: (field) => `${field} has an invalid format.`,
-        invalid: (field) => `${field} is not valid.`,
-    },
+    return i18n.t(`validation.fields.${field}`, { defaultValue: field });
 };
 
 // issue: { field: string, code: string, params?: object }
-export const translateValidationIssue = (issue, locale = getLocale()) => {
-    const fieldLabel = getFieldLabel(issue.field, locale);
-    const templates = MESSAGE_TEMPLATES[locale] || MESSAGE_TEMPLATES[DEFAULT_LOCALE];
-    const template = templates[issue.code];
-    if (!template) {
-        return `${fieldLabel}: ${issue.code}`;
+export const translateValidationIssue = (issue) => {
+    const field = getFieldLabel(issue.field);
+    const params = issue.params || {};
+
+    if (issue.code === 'invalidCharacters' && !params.char) {
+        return i18n.t('validation.messages.invalidCharactersGeneric', { field });
     }
-    return template(fieldLabel, issue.params || {});
+
+    return i18n.t(`validation.messages.${issue.code}`, { field, ...params, defaultValue: `${field}: ${issue.code}` });
 };
 
-export const translateValidationIssues = (issues, locale = getLocale()) =>
-    issues.map((issue) => ({ ...issue, message: translateValidationIssue(issue, locale) }));
+export const translateValidationIssues = (issues) =>
+    issues.map((issue) => ({ ...issue, message: translateValidationIssue(issue) }));

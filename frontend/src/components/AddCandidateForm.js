@@ -6,10 +6,16 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { sendCandidateData } from '../services/candidateService';
 import { translateValidationIssues } from '../i18n/validationMessages';
-import { useLocale } from '../i18n/LocaleContext';
+import { useTranslation } from 'react-i18next';
 
 const AddCandidateForm = () => {
-    const { locale, t } = useLocale();
+    // useTranslation() suscribe al componente a los cambios de idioma de
+    // i18next (aunque `t` no se use para los mensajes de validación en sí
+    // — translateValidationIssues usa i18n.t() directamente, ver
+    // i18n/validationMessages.js —, esta suscripción es lo que hace que
+    // `fieldErrors` se recalcule y el componente se re-renderice al
+    // cambiar el idioma desde el selector).
+    const { t } = useTranslation();
     const [candidate, setCandidate] = useState({
         firstName: '',
         lastName: '',
@@ -22,14 +28,13 @@ const AddCandidateForm = () => {
     });
     const [error, setError] = useState('');
     // Los issues se guardan sin traducir; el mensaje se compone en cada
-    // render con el locale actual (el selector de idioma vive en la barra
-    // superior de la app, ver App.js/LocaleContext), así un cambio de
-    // idioma re-traduce al instante los errores ya visibles sin necesidad
-    // de reenviar el formulario.
+    // render con el idioma actual de i18next, así un cambio de idioma
+    // re-traduce al instante los errores ya visibles sin necesidad de
+    // reenviar el formulario.
     const [issues, setIssues] = useState([]); // [{ field, code, params }], ver validator.ts del backend
     const [successMessage, setSuccessMessage] = useState('');
 
-    const fieldErrors = translateValidationIssues(issues, locale);
+    const fieldErrors = translateValidationIssues(issues);
     const getFieldError = (field) => fieldErrors.find((issue) => issue.field === field);
 
     const handleInputChange = (e, index, section) => {

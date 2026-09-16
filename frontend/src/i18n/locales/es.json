@@ -1,0 +1,106 @@
+{
+  "languageSwitcher": {
+    "label": "Idioma:"
+  },
+  "dashboard": {
+    "title": "Dashboard del Reclutador",
+    "logoAlt": "Logo de LTI",
+    "addCandidate": {
+      "heading": "Añadir Candidato",
+      "button": "Añadir Nuevo Candidato"
+    },
+    "viewPositions": {
+      "heading": "Ver Posiciones",
+      "button": "Ir a Posiciones"
+    }
+  },
+  "addCandidate": {
+    "title": "Agregar Candidato",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "email": "Correo Electrónico",
+    "phone": "Teléfono",
+    "address": "Dirección",
+    "cv": "CV",
+    "addEducation": "Añadir Educación",
+    "addWorkExperience": "Añadir Experiencia Laboral",
+    "institutionPlaceholder": "Institución",
+    "titlePlaceholder": "Título",
+    "startDatePlaceholder": "Fecha de Inicio",
+    "endDatePlaceholder": "Fecha de Fin",
+    "companyPlaceholder": "Empresa",
+    "positionPlaceholder": "Puesto",
+    "remove": "Eliminar",
+    "submit": "Enviar",
+    "reviewFields": "Revisa los siguientes campos:",
+    "success": "Candidato añadido con éxito",
+    "genericErrorPrefix": "Error al añadir candidato: "
+  },
+  "fileUploader": {
+    "ariaLabel": "Archivo",
+    "selectedFile": "Archivo seleccionado:",
+    "upload": "Subir Archivo",
+    "success": "Archivo subido con éxito"
+  },
+  "positions": {
+    "title": "Posiciones",
+    "searchByTitle": "Buscar por título",
+    "searchByDate": "Buscar por fecha",
+    "statusFilterLabel": "Estado",
+    "status": {
+      "open": "Abierto",
+      "filled": "Contratado",
+      "closed": "Cerrado",
+      "draft": "Borrador"
+    },
+    "company": "Empresa:",
+    "location": "Ubicación:",
+    "deadline": "Deadline:",
+    "viewProcess": "Ver proceso",
+    "edit": "Editar",
+    "editNotImplemented": "Edición de posiciones aún no implementada",
+    "empty": "No hay posiciones disponibles.",
+    "fetchError": "Error al obtener las posiciones"
+  },
+  "positionProcess": {
+    "back": "← Volver a posiciones",
+    "title": "Proceso de selección: ",
+    "noFlow": "Esta posición no tiene un flujo de entrevistas configurado.",
+    "noCandidatesInStep": "Sin candidatos en esta fase.",
+    "averageScore": "Puntuación media: ",
+    "fetchError": "Error al obtener el proceso de esta posición"
+  },
+  "validation": {
+    "fields": {
+      "firstName": "El nombre",
+      "lastName": "El apellido",
+      "email": "El email",
+      "phone": "El teléfono",
+      "address": "La dirección",
+      "cv": "El CV"
+    },
+    "sections": {
+      "educations": "Educación",
+      "workExperiences": "Experiencia laboral"
+    },
+    "subfields": {
+      "institution": "la institución",
+      "title": "el título",
+      "startDate": "la fecha de inicio",
+      "endDate": "la fecha de fin",
+      "company": "la empresa",
+      "position": "el puesto",
+      "description": "la descripción"
+    },
+    "arrayFieldLabel": "{{section}} #{{position}} ({{subfield}})",
+    "messages": {
+      "required": "{{field}} es obligatorio.",
+      "tooShort": "{{field}} debe tener al menos {{min}} caracteres.",
+      "tooLong": "{{field}} no puede superar los {{max}} caracteres.",
+      "invalidCharacters": "{{field}} contiene un carácter no permitido: \"{{char}}\". Solo se admiten letras y espacios.",
+      "invalidCharactersGeneric": "{{field}} contiene caracteres no permitidos. Solo se admiten letras y espacios.",
+      "invalidFormat": "{{field}} no tiene un formato válido.",
+      "invalid": "{{field}} no es válido."
+    }
+  }
+}
