@@ -4,11 +4,10 @@
  * 
  * INSTRUCCIONES DE USO EN GOOGLE SLIDES (1 minuto):
  * 1. Abre tu presentación: https://docs.google.com/presentation/d/1IiT9moRBj6Ido7ClOtOibWKaO9E3sdYvQ4-srmrN_J8/edit
- * 2. En el menú superior, haz clic en: Extensiones -> Apps Script (o Herramientas -> Editor de secuencias de comandos).
- * 3. Borra cualquier código existente y pega todo este archivo.
- * 4. Haz clic en "Guardar" (icono de disquete) y luego en "Ejecutar" (Run).
- * 5. Si Google pide autorización ("Revisar permisos"), concédela (Avanzado -> Ir a Proyecto -> Permitir).
- * 6. ¡Listo! Todas las diapositivas se actualizarán al instante con la nueva estructura de 2 partes y 5 fases.
+ * 2. En el menú superior, haz clic en: Extensiones -> Apps Script.
+ * 3. Borra cualquier código anterior y pega todo este código corregido.
+ * 4. Haz clic en "Guardar" (icono de disquete 💾) y luego en "Ejecutar" (Run ▶️).
+ * 5. ¡Listo! Todas las diapositivas se actualizarán al instante.
  */
 
 function actualizarPresentacionE2E() {
@@ -24,8 +23,7 @@ function actualizarPresentacionE2E() {
     var slide4 = slides[3];
     actualizarTextoEnSlide(slide4, "Estrategia de Calidad", "Estrategia de Calidad: Diseñar para el Éxito con IA");
     
-    // Añadimos el recuadro del Framework de 5 Fases
-    var shape5Fases = slide4.insertShape(SlidesApp.ShapeType.RECTANGLE, 150, 480, 980, 180);
+    var shape5Fases = slide4.insertShape(SlidesApp.ShapeType.RECTANGLE, 150, 470, 980, 190);
     shape5Fases.getFill().setSolidFill("#0F172A");
     shape5Fases.getBorder().setTransparent();
     var txt4 = shape5Fases.getText();
@@ -36,7 +34,7 @@ function actualizarPresentacionE2E() {
                  "4. Generar con el Agente: Enfoque Semántico (AOM / Playwright) vs Visión Multimodal (Midscene).\n" +
                  "5. Verificar con Criterio: Calidad más allá del verde mediante Test Mutation en vivo.");
     txt4.getTextStyle().setFontFamily("Urbanist").setFontSize(13).setForegroundColor("#F8FAFC");
-    txt4.getParagraphs()[0].getTextStyle().setFontSize(14).setBold(true).setForegroundColor("#FACC15");
+    txt4.getParagraphs()[0].getRange().getTextStyle().setFontSize(14).setBold(true).setForegroundColor("#FACC15");
   }
 
   // -------------------------------------------------------------
@@ -44,7 +42,6 @@ function actualizarPresentacionE2E() {
   // -------------------------------------------------------------
   if (slides.length >= 6) {
     var slide6 = slides[5];
-    // Añadimos caja destacada inferior explicando cómo el agente accede al AOM
     var shapeMCP = slide6.insertShape(SlidesApp.ShapeType.ROUNDED_RECTANGLE, 150, 580, 980, 100);
     shapeMCP.getFill().setSolidFill("#1E3A8A");
     shapeMCP.getBorder().setSolidFill("#38BDF8");
@@ -52,7 +49,7 @@ function actualizarPresentacionE2E() {
     txt6.setText("💡 ¿Cómo consume el Agente el AOM?\n" +
                  "A través del Playwright MCP Server (@playwright/mcp), el agente recibe el árbol de accesibilidad en formato semántico ligero vía stdio, operando con getByRole('searchbox') y getByRole('button') sin selectores CSS frágiles ni visión costosa.");
     txt6.getTextStyle().setFontFamily("Urbanist").setFontSize(12).setForegroundColor("#FFFFFF");
-    txt6.getParagraphs()[0].getTextStyle().setFontSize(13).setBold(true).setForegroundColor("#FACC15");
+    txt6.getParagraphs()[0].getRange().getTextStyle().setFontSize(13).setBold(true).setForegroundColor("#FACC15");
   }
 
   // -------------------------------------------------------------
@@ -74,7 +71,7 @@ function actualizarPresentacionE2E() {
                  "• Determinismo en CI: Pruebas nativas que se ejecutan a velocidad de máquina en CI/CD con coste $0 de tokens en runtime.\n\n" +
                  "Caso Práctico en Vivo: Exploración y generación del test E2E del buscador de candidatos (CandidateSearch.tsx).");
     txt8.getTextStyle().setFontFamily("Urbanist").setFontSize(15).setForegroundColor("#E2E8F0");
-    txt8.getParagraphs()[0].getTextStyle().setFontSize(22).setBold(true).setForegroundColor("#38BDF8");
+    txt8.getParagraphs()[0].getRange().getTextStyle().setFontSize(22).setBold(true).setForegroundColor("#38BDF8");
   }
 
   // -------------------------------------------------------------
@@ -96,8 +93,8 @@ function actualizarPresentacionE2E() {
                  "• 🩹 Healer Agent (Self-Healing): Diagnostica tests fallidos y auto-repara selectores ante cambios en el frontend.\n\n" +
                  "El Arnés seed.spec.ts: El punto de entrada humano que proporciona estado limpio, mocks y estabilidad a los agentes.");
     txt9.getTextStyle().setFontFamily("Urbanist").setFontSize(15).setForegroundColor("#E2E8F0");
-    txt9.getParagraphs()[0].getTextStyle().setFontSize(22).setBold(true).setForegroundColor("#FACC15");
-    txt9.getParagraphs()[1].getTextStyle().setFontSize(13).setForegroundColor("#94A3B8");
+    txt9.getParagraphs()[0].getRange().getTextStyle().setFontSize(22).setBold(true).setForegroundColor("#FACC15");
+    txt9.getParagraphs()[1].getRange().getTextStyle().setFontSize(13).setForegroundColor("#94A3B8");
   }
 
   // -------------------------------------------------------------
@@ -118,7 +115,7 @@ function actualizarPresentacionE2E() {
                   "• Playwright MCP & Agents: Máxima velocidad, coste $0 en CI, 100% determinista. Ideal para SPAs y diseño atómico accesible.\n" +
                   "• Midscene (Visión): Mayor latencia y coste en tokens. Ideal para Canvas, WebGL, flujos exploratorios o UIs sin semántica.");
     txt10.getTextStyle().setFontFamily("Urbanist").setFontSize(15).setForegroundColor("#E2E8F0");
-    txt10.getParagraphs()[0].getTextStyle().setFontSize(22).setBold(true).setForegroundColor("#38BDF8");
+    txt10.getParagraphs()[0].getRange().getTextStyle().setFontSize(22).setBold(true).setForegroundColor("#38BDF8");
   }
 
   // -------------------------------------------------------------
@@ -130,8 +127,8 @@ function actualizarPresentacionE2E() {
   var shapeTitulo11 = slide11.insertShape(SlidesApp.ShapeType.TEXT_BOX, 100, 50, 1080, 100);
   var txtTitulo11 = shapeTitulo11.getText();
   txtTitulo11.setText("Verificar con Criterio: Calidad más allá del \"Verde\"\nCómo auditar críticamente los tests generados por IA");
-  txtTitulo11.getParagraphs()[0].getTextStyle().setFontFamily("Urbanist").setFontSize(36).setBold(true).setForegroundColor("#FFFFFF");
-  txtTitulo11.getParagraphs()[1].getTextStyle().setFontFamily("Urbanist").setFontSize(18).setForegroundColor("#94A3B8");
+  txtTitulo11.getParagraphs()[0].getRange().getTextStyle().setFontFamily("Urbanist").setFontSize(36).setBold(true).setForegroundColor("#FFFFFF");
+  txtTitulo11.getParagraphs()[1].getRange().getTextStyle().setFontFamily("Urbanist").setFontSize(18).setForegroundColor("#94A3B8");
 
   var shapeBody11 = slide11.insertShape(SlidesApp.ShapeType.ROUNDED_RECTANGLE, 100, 180, 1080, 460);
   shapeBody11.getFill().setSolidFill("#1E293B");
@@ -148,7 +145,7 @@ function actualizarPresentacionE2E() {
                  "📊 Trace Viewer & Post-Mortem:\n" +
                  "Auditoría visual de eventos de acción, red, DOM snapshots y timeline para garantizar determinismo.");
   txtB11.getTextStyle().setFontFamily("Urbanist").setFontSize(16).setForegroundColor("#E2E8F0");
-  txtB11.getParagraphs()[0].getTextStyle().setFontSize(20).setBold(true).setForegroundColor("#FACC15");
+  txtB11.getParagraphs()[0].getRange().getTextStyle().setFontSize(20).setBold(true).setForegroundColor("#FACC15");
 
   Logger.log("¡Presentación actualizada exitosamente!");
 }
