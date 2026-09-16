@@ -1,23 +1,27 @@
-# Registro de prompts y arreglos — Validación de candidatos: mensajes claros, i18n y a11y (rama `candidate-validation-i18n-a11y-AGB`)
+# Registro de prompts y arreglos — Integración completa (rama `all-fixes-AGB`)
 
 Autor: garciabarcenaalvaro@gmail.com
 Asistente: Claude Code (Sonnet 5)
 Fecha: 2026-09-16
 
-Rama base: fusión de `backend-AGB` (commit `24f86fd`) y `frontend-AGB`
-(commit `d92752d`), ambas partiendo de `main` (`8025b6f`).
+Rama base: fusión de `candidate-validation-i18n-a11y-AGB` (commit `eea6e5a`
+— que a su vez ya era fusión de `backend-AGB` y `frontend-AGB`) y
+`positions-proceso-AGB` (commit `cd86b57`, partiendo de `main`
+directamente). Esta rama reúne el trabajo de las cuatro ramas de arreglos/
+funcionalidades en una sola.
 
-> Nota sobre la fusión: esta rama toca exactamente los mismos ficheros que
-> `backend-AGB` (`validator.ts`, `candidateController.ts`,
-> `candidateRoutes.ts`) y `frontend-AGB` (`AddCandidateForm.js`,
-> `candidateService.js`) ya habían corregido, así que en vez de partir de
-> `main` de nuevo (y reintroducir bugs ya arreglados en esas dos ramas), se
-> parte de la fusión de ambas. El único conflicto de la fusión fue este
-> mismo fichero (`prompts-AGB.md`), porque las dos ramas crearon uno
-> independiente en la raíz; se resolvió conservando ambos como
-> [`prompts-AGB-backend.md`](./prompts-AGB-backend.md) y
-> [`prompts-AGB-frontend.md`](./prompts-AGB-frontend.md), y reescribiendo
-> este fichero para el trabajo de la rama actual.
+> Nota sobre la fusión: las secciones 1-11 de este documento (más abajo)
+> son el historial heredado de `candidate-validation-i18n-a11y-AGB` sin
+> modificar — describen mensajes de validación, i18n y a11y. La sección 12
+> documenta específicamente la fusión con `positions-proceso-AGB` (el
+> "Ver proceso" con datos reales) y los ajustes necesarios para
+> integrarlo con el i18n ya existente. El histórico completo de
+> `positions-proceso-AGB` se conserva en
+> [`prompts-AGB-positions.md`](./prompts-AGB-positions.md) (igual que
+> `backend-AGB`/`frontend-AGB` ya se conservaban en
+> [`prompts-AGB-backend.md`](./prompts-AGB-backend.md) /
+> [`prompts-AGB-frontend.md`](./prompts-AGB-frontend.md) desde la fusión
+> anterior).
 
 ## 1. Prompts utilizados con el asistente de IA
 
@@ -103,6 +107,17 @@ Rama base: fusión de `backend-AGB` (commit `24f86fd`) y `frontend-AGB`
     texto estático de la interfaz (no solo los mensajes de validación),
     dando lugar a la infraestructura compartida de 3.9-3.11 y la
     traducción de los 5 componentes con texto visible.
+
+11. `¿Cuántas ramas tenemos ahora?` → El asistente listó las 5 ramas
+    locales existentes (`main`, `backend-AGB`, `frontend-AGB`,
+    `positions-proceso-AGB`, `candidate-validation-i18n-a11y-AGB`),
+    señalando que `positions-proceso-AGB` era independiente y no incluía
+    el trabajo de las demás.
+
+12. `¿Incluyes positions-proceso-AGB en una nueva rama que parta de
+    candidate-validation-i18n-a11y-AGB para tenerlo ya todo fusionado?`
+    → Prompt que originó esta rama (`all-fixes-AGB`) y la sección 12 de
+    este documento.
 
 ## 2. Metodología
 
@@ -450,6 +465,63 @@ Rama base: fusión de `backend-AGB` (commit `24f86fd`) y `frontend-AGB`
   tienen los errores de validación, aplicado a todos los demás mensajes de
   error del backend — un cambio bastante más grande, no pedido aquí.
 
+### 3.12 Fusión con `positions-proceso-AGB`: todo el trabajo en una sola rama
+
+- **Por qué esta rama y no otra combinación**: `positions-proceso-AGB`
+  parte de `main` directamente (no de `backend-AGB`/`frontend-AGB`), así
+  que nunca tuvo los arreglos de validación, i18n ni a11y. Para tenerlo
+  todo junto sin reintroducir bugs ya corregidos, se crea `all-fixes-AGB`
+  desde `candidate-validation-i18n-a11y-AGB` (que ya incluye
+  `backend-AGB` + `frontend-AGB` + todo el trabajo de i18n/a11y) y se
+  fusiona `positions-proceso-AGB` sobre ella — en vez de al revés, que
+  habría obligado a reconstruir el i18n desde cero sobre el código de
+  posiciones.
+- **Conflictos de la fusión** (`git merge positions-proceso-AGB`):
+  - `prompts-AGB.md`: mismo patrón que la fusión anterior — se conserva el
+    histórico de `positions-proceso-AGB` como
+    [`prompts-AGB-positions.md`](./prompts-AGB-positions.md) y se reescribe
+    este fichero.
+  - `frontend/src/App.js`: se combinan las dos rutas (`LocaleProvider` +
+    barra de idioma de esta rama, ruta `/positions/:id` → `PositionProcess`
+    de `positions-proceso-AGB`).
+  - `frontend/src/components/Positions.tsx`: el conflicto más sustancial —
+    esta rama tenía la versión **mock** ya traducida (con códigos de
+    estado neutros `open`/`filled`/`closed`/`draft`);
+    `positions-proceso-AGB` tenía la versión con **datos reales** de la
+    API pero sin traducir. Se reescribe a mano combinando ambas: fetch
+    real (`getPositions()`, estados de carga/error/vacío) + `t()` en todo
+    el texto estático, con los códigos de estado en minúscula
+    (`position.status.toLowerCase()`) para que coincidan con las claves
+    del diccionario, ya que el backend real devuelve `Open`/`Filled`/...
+    con mayúscula inicial.
+  - `backend/src/presentation/controllers/positionController.ts`,
+    `positionService.ts`, `positionRoutes.ts`, `api-spec.yaml`,
+    `positionService.test.ts`, `positionController.test.ts`,
+    `backend/package.json`: se fusionaron automáticamente sin conflictos
+    de contenido; se revisaron a mano de todos modos para confirmar que
+    combinaban correctamente el endpoint `GET /position` (de
+    `positions-proceso-AGB`) con las comprobaciones `isNaN` (de
+    `backend-AGB`) y el test corregido de `id`/`applicationId` (también de
+    `backend-AGB`) — todo presente, sin pérdidas.
+- **`frontend/src/components/PositionProcess.tsx`**: no existía en esta
+  rama antes de la fusión (por eso no se había traducido, ver 3.10). Al
+  llegar con la fusión, se traduce ahora: "Volver a posiciones", "Proceso
+  de selección: ", "Esta posición no tiene un flujo de entrevistas
+  configurado.", "Sin candidatos en esta fase.", "Puntuación media: " y el
+  mensaje de error genérico. Los nombres de las fases de entrevista
+  (`step.name`, p. ej. "Technical Interview") y el paso actual de cada
+  candidato (`candidate.currentInterviewStep`) **no** se traducen — son
+  datos que vienen de la base de datos (`InterviewStep.name`), no texto
+  estático de la interfaz, igual que los nombres de los candidatos o de
+  las empresas no se traducen.
+- **`frontend/src/i18n/translations.js`**: se añaden las claves que
+  faltaban para la versión real de `Positions.tsx`
+  (`positions.company`, `positions.location`, `positions.empty`,
+  `positions.editNotImplemented`, `positions.fetchError`) y las nuevas de
+  `positionProcess.*`; se retiran `positions.managerLabel`/
+  `positions.managerFilterLabel`, que pertenecían solo al mock (el
+  concepto de "Manager" no existe en el modelo `Position` real).
+
 ## 4. Verificación final
 
 ```
@@ -480,4 +552,30 @@ Navegador            → caso real del usuario reproducido y corregido,
                       → bug de doble prefijo en candidateService.js
                         detectado y corregido antes de dar el cambio por
                         bueno
+```
+
+## 5. Verificación de la fusión con `positions-proceso-AGB` (sección 12)
+
+```
+npx tsc --noEmit (backend y frontend) → sin errores tras resolver los
+                        conflictos de App.js y Positions.tsx
+npx jest (backend)   → 5 suites, 11 tests, todos en verde (los 2 tests
+                        nuevos de getAllPositionsService/getAllPositions
+                        de positions-proceso-AGB conviven con los 9 ya
+                        existentes de esta rama)
+Navegador            → GET /position con datos reales del seed (2
+                        posiciones), badges de estado y "Edit"
+                        deshabilitado, en inglés (idioma recordado de la
+                        sesión anterior, confirmando que la preferencia
+                        persiste entre fusiones)
+                      → "View process" → tablero con Carlos García /
+                        John Doe / Jane Smith en sus fases correctas,
+                        interfaz en inglés
+                      → cambio a español desde el selector → "Volver a
+                        posiciones", "Proceso de selección: ", "Sin
+                        candidatos en esta fase.", "Puntuación media: "
+                        traducidos; nombres de fases ("Initial
+                        Screening"...) sin traducir, por ser datos
+                      → formulario de alta de candidato verificado de
+                        nuevo tras la fusión, sin regresiones
 ```
