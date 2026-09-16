@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Form, Button, Alert, InputGroup, FormControl, Card, Container, Row, Col } from 'react-bootstrap';
+import { Form, Button, Alert, FormControl, Card, Container, Row, Col } from 'react-bootstrap';
 import { Trash } from 'react-bootstrap-icons';
 import FileUploader from './FileUploader';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import { sendCandidateData } from '../services/candidateService';
 
 const AddCandidateForm = () => {
     const [candidate, setCandidate] = useState({
@@ -73,25 +74,9 @@ const AddCandidateForm = () => {
                 endDate: experience.endDate ? experience.endDate.toISOString().slice(0, 10) : ''
             }));
 
-            const res = await fetch('http://localhost:3010/candidates', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(candidateData)
-            });
-
-            if (res.status === 201) {
-                setSuccessMessage('Candidato añadido con éxito');
-                setError('');
-            } else if (res.status === 400) {
-                const errorData = await res.json();
-                throw new Error('Datos inválidos: ' + errorData.message);
-            } else if (res.status === 500) {
-                throw new Error('Error interno del servidor');
-            } else {
-                throw new Error('Error al enviar datos del candidato');
-            }
+            await sendCandidateData(candidateData);
+            setSuccessMessage('Candidato añadido con éxito');
+            setError('');
         } catch (error) {
             setError('Error al añadir candidato: ' + error.message);
             setSuccessMessage('');
