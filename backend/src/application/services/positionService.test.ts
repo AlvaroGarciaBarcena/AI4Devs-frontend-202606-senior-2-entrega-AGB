@@ -1,4 +1,4 @@
-import { getCandidatesByPositionService } from './positionService';
+import { getAllPositionsService, getCandidatesByPositionService } from './positionService';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -8,8 +8,40 @@ jest.mock('@prisma/client', () => {
     application: {
       findMany: jest.fn(),
     },
+    position: {
+      findMany: jest.fn(),
+    },
   };
   return { PrismaClient: jest.fn(() => mockPrisma) };
+});
+
+describe('getAllPositionsService', () => {
+  it('should return the flattened list of positions with their company name', async () => {
+    const mockPositions = [
+      {
+        id: 1,
+        title: 'Senior Full-Stack Engineer',
+        location: 'Remote',
+        status: 'Open',
+        applicationDeadline: new Date('2024-12-31'),
+        company: { name: 'LTI' },
+      },
+    ];
+
+    jest.spyOn(prisma.position, 'findMany').mockResolvedValue(mockPositions as any);
+
+    const result = await getAllPositionsService();
+    expect(result).toEqual([
+      {
+        id: 1,
+        title: 'Senior Full-Stack Engineer',
+        companyName: 'LTI',
+        location: 'Remote',
+        status: 'Open',
+        applicationDeadline: new Date('2024-12-31'),
+      },
+    ]);
+  });
 });
 
 describe('getCandidatesByPositionService', () => {

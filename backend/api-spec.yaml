@@ -185,6 +185,35 @@ paths:
           description: Invalid file type, only PDF and DOCX are allowed
         '500':
           description: Error during the file upload process
+  /position:
+    get:
+      summary: List all positions
+      description: Retrieves every open position with its company name, used by the frontend positions board.
+      responses:
+        '200':
+          description: List of positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    title:
+                      type: string
+                    companyName:
+                      type: string
+                    location:
+                      type: string
+                    status:
+                      type: string
+                    applicationDeadline:
+                      type: string
+                      format: date-time
+        '500':
+          description: Internal server error
   /position/{id}/candidates:
     get:
       summary: Get candidates by position
