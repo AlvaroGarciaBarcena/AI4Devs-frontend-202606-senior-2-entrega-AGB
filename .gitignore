@@ -29,3 +29,5 @@ yarn-error.log*
 frontend/storybook-static/
 frontend/test-results/
 frontend/playwright-report/
+**/midscene_run/
+**/midscene-report/

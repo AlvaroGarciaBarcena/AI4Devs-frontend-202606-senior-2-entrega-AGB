@@ -38,7 +38,8 @@
     "lint:session": "eslint src/components/PositionKanbanDetail.tsx src/components/kanban --ext .ts,.tsx",
     "test:app": "playwright test -c playwright.app.config.ts",
     "test:e2e:search": "playwright test -c playwright.app.config.ts e2e-app/candidate-search.spec.ts",
-    "test:stories:search": "playwright test -c playwright.storybook.config.ts e2e/candidate-search.stories.spec.ts"
+    "test:stories:search": "playwright test -c playwright.storybook.config.ts e2e/candidate-search.stories.spec.ts",
+    "test:midscene": "playwright test -c playwright.app.config.ts e2e-app/midscene-demo.spec.ts"
   },
   "eslintConfig": {
     "extends": [
@@ -59,6 +60,7 @@
     ]
   },
   "devDependencies": {
+    "@midscene/web": "^1.12.8",
     "@playwright/test": "^1.56.1",
     "@storybook/addon-a11y": "^7.6.20",
     "@storybook/addon-essentials": "^7.6.20",

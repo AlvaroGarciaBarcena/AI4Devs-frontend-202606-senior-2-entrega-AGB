@@ -11,6 +11,7 @@
     "test:stories": "npm --prefix frontend run test:stories",
     "test:app": "npm --prefix frontend run test:app",
     "test:e2e:search": "npm --prefix frontend run test:e2e:search",
+    "test:midscene": "npm --prefix frontend run test:midscene",
     "backend:setup": "npm --prefix backend run session:setup",
     "backend:start": "npm --prefix backend run session:start",
     "frontend:start": "npm --prefix frontend start"

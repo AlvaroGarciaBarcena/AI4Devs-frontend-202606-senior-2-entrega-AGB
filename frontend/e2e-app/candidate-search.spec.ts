@@ -2,12 +2,16 @@ import { test, expect } from '@playwright/test';
 
 test.describe('E2E Frontend: Búsqueda de Candidatos en Kanban (AOM & Semántica)', () => {
   const mockInterviewFlow = {
-    positionName: 'Frontend Engineer',
-    interviewSteps: [
-      { id: 1, name: 'Applied' },
-      { id: 2, name: 'Screening' },
-      { id: 3, name: 'Technical' },
-    ],
+    interviewFlow: {
+      positionName: 'Frontend Engineer',
+      interviewFlow: {
+        interviewSteps: [
+          { id: 1, name: 'Applied', orderIndex: 1 },
+          { id: 2, name: 'Screening', orderIndex: 2 },
+          { id: 3, name: 'Technical', orderIndex: 3 },
+        ],
+      },
+    },
   };
 
   const mockCandidates = [
