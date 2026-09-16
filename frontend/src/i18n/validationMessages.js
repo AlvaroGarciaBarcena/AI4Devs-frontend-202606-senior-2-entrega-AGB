@@ -8,9 +8,23 @@ const SUPPORTED_LOCALES = ['es', 'en'];
 const DEFAULT_LOCALE = 'es';
 
 export const getLocale = () => {
-    const browserLang = (typeof navigator !== 'undefined' && navigator.language) || DEFAULT_LOCALE;
-    const short = browserLang.slice(0, 2).toLowerCase();
-    return SUPPORTED_LOCALES.includes(short) ? short : DEFAULT_LOCALE;
+    // navigator.language solo da el idioma principal. Si ese no es ni
+    // español ni inglés (p. ej. un navegador configurado en catalán,
+    // euskera o gallego, algo común en España), navigator.languages trae
+    // la lista completa de idiomas preferidos en orden, y puede que el
+    // segundo o tercero sí sea uno de los soportados. Se recorre esa lista
+    // antes de rendirse al idioma por defecto.
+    const candidates = (typeof navigator !== 'undefined' && navigator.languages && navigator.languages.length > 0)
+        ? navigator.languages
+        : [(typeof navigator !== 'undefined' && navigator.language) || DEFAULT_LOCALE];
+
+    for (const lang of candidates) {
+        const short = lang.slice(0, 2).toLowerCase();
+        if (SUPPORTED_LOCALES.includes(short)) {
+            return short;
+        }
+    }
+    return DEFAULT_LOCALE;
 };
 
 const SIMPLE_FIELD_LABELS = {

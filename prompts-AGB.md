@@ -49,6 +49,23 @@ Rama base: fusión de `backend-AGB` (commit `24f86fd`) y `frontend-AGB`
    Tras la confirmación ("Sí, ambas"), se implementó lo que documenta este
    fichero.
 
+5. `Introdujiste un fallo, y es que al mover el foco a un textbox, se
+   dispara la acción añadir candidato...` → El texto exacto del error
+   reportado (`"Datos inválidos: Error: Invalid name"`) solo existe en el
+   código **anterior** a esta rama (`main`/`backend-AGB`/
+   `positions-proceso-AGB`, comprobado con `git grep` sobre todas las
+   ramas); el navegador del usuario (Firefox, conectado de forma
+   independiente al mismo servidor de desarrollo que el panel del
+   asistente) llevaba abierto desde antes de varios cambios de rama, y no
+   sobrevivió bien a tantos hot-reloads seguidos. Tras recargar la pestaña,
+   confirmó que funcionaba bien.
+
+6. `¿Puedes conseguir que los textos de error salgan en el idioma elegido
+   por a18n?` (de nuevo, errata de i18n) → El asistente preguntó si el
+   usuario quería un selector explícito de idioma o si la detección
+   automática (`navigator.language`) no le estaba funcionando bien; el
+   usuario confirmó lo segundo, dando lugar al arreglo de 3.3.1.
+
 ## 2. Metodología
 
 1. Se leyó `validator.ts` para entender exactamente por qué el mensaje era
@@ -156,6 +173,37 @@ Rama base: fusión de `backend-AGB` (commit `24f86fd`) y `frontend-AGB`
   ver el mensaje el usuario. Así, añadir un tercer idioma en el futuro es
   un diccionario nuevo en este fichero, sin tocar el backend.
 
+### 3.3.1 [Frontend] `getLocale()`: usar `navigator.languages`, no solo el idioma principal
+
+- **Fichero modificado**: `frontend/src/i18n/validationMessages.js`.
+- **Motivo**: el usuario reportó que la detección automática del idioma no
+  le funcionaba bien. La primera versión de `getLocale()` solo miraba
+  `navigator.language` (un único valor, el idioma principal del
+  navegador) y, si no era exactamente `es` o `en`, se rendía directamente
+  al español por defecto. Esto falla para alguien con el navegador
+  configurado en catalán, euskera o gallego (frecuente en España) que
+  tenga español o inglés como preferencia secundaria: por ejemplo
+  `navigator.language = 'ca'` con `navigator.languages = ['ca', 'es-ES',
+  'en']` acababa siempre en español por defecto (por casualidad correcto
+  en ese caso concreto) pero ignoraba por completo la preferencia real del
+  navegador, y si el orden fuera `['ca', 'en', 'es']` habría mostrado
+  español en vez del inglés realmente preferido.
+- **Arreglo**: `getLocale()` ahora recorre `navigator.languages` (la lista
+  completa de idiomas preferidos, en orden) y se queda con el primero que
+  sea `es` o `en`; solo cae al español por defecto si ninguno de los
+  idiomas de la lista está soportado. Si el navegador no expone
+  `navigator.languages` (algunos entornos no lo hacen), sigue usando
+  `navigator.language` como antes.
+- **Verificación manual** (simulando `navigator.language`/`navigator.languages`
+  en el navegador, reproduciendo el mismo caso del guión bajo en el
+  apellido):
+  - `language: 'ca'`, `languages: ['ca', 'es-ES', 'en']` → mensaje en
+    español ("El apellido contiene un carácter no permitido...").
+  - `language: 'ca'`, `languages: ['ca', 'en', 'es']` → mensaje en inglés
+    ("The last name contains a character that is not allowed...").
+  - Confirmado inspeccionando el DOM (`document.querySelector('.alert-danger')`),
+    no solo visualmente.
+
 ### 3.4 [Frontend] `services/candidateService.js`: propagar los `issues` sin aplanarlos
 
 - **Fichero modificado**: `frontend/src/services/candidateService.js`.
@@ -220,4 +268,9 @@ npx jest (backend) → 5 suites, 9 tests, todos en verde
 Navegador            → caso real del usuario reproducido y corregido,
                         en español e inglés, con aria-invalid/
                         aria-describedby verificados en el DOM
+                      → detección de idioma verificada con varias
+                        combinaciones de navigator.language/languages
+                        (ca+es-ES+en → español; ca+en+es → inglés),
+                        confirmando el DOM tras esperar la respuesta
+                        async, no solo la captura inmediata al clic
 ```
