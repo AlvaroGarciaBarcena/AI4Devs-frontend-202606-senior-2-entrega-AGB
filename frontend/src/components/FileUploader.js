@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Button, InputGroup, FormControl, Spinner } from 'react-bootstrap';
+import { uploadCV } from '../services/candidateService';
 
 const FileUploader = ({ onChange, onUpload }) => {
   const [file, setFile] = useState(null);
   const [fileName, setFileName] = useState('');
   const [fileData, setFileData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleFileChange = (event) => {
     setFile(event.target.files[0]);
@@ -16,24 +18,14 @@ const FileUploader = ({ onChange, onUpload }) => {
   const handleFileUpload = async () => {
     if (file) {
       setLoading(true);
-      const formData = new FormData();
-      formData.append('file', file);
-
+      setError('');
       try {
-        const res = await fetch('http://localhost:3010/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!res.ok) {
-          throw new Error('Error al subir archivo');
-        }
-
-        const fileData = await res.json();
-        setFileData(fileData);
-        onUpload(fileData);
+        const data = await uploadCV(file);
+        setFileData(data);
+        onUpload(data);
       } catch (error) {
-        console.error('Error al subir archivo:', error);
+        console.error(error);
+        setError(error.message);
       } finally {
         setLoading(false); // Asegura que loading se establezca a false después de la operación
       }
@@ -63,6 +55,7 @@ const FileUploader = ({ onChange, onUpload }) => {
           Archivo subido con éxito
         </p>
       )}
+      {error && <p className="mt-2 text-danger">{error}</p>}
     </div>
   );
 };

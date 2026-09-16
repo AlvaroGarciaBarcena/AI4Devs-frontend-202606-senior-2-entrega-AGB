@@ -12,7 +12,8 @@ export const uploadCV = async (file) => {
         });
         return response.data; // Devuelve la ruta del archivo y el tipo
     } catch (error) {
-        throw new Error('Error al subir el archivo:', error.response.data);
+        const details = error.response?.data?.error || error.message;
+        throw new Error(`Error al subir el archivo: ${details}`);
     }
 };
 
@@ -21,6 +22,7 @@ export const sendCandidateData = async (candidateData) => {
         const response = await axios.post('http://localhost:3010/candidates', candidateData);
         return response.data;
     } catch (error) {
-        throw new Error('Error al enviar datos del candidato:', error.response.data);
+        const details = error.response?.data?.error || error.message;
+        throw new Error(`Error al enviar datos del candidato: ${details}`);
     }
 };
