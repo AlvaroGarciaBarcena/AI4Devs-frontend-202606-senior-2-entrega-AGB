@@ -12,8 +12,11 @@ export const uploadCV = async (file) => {
         });
         return response.data; // Devuelve la ruta del archivo y el tipo
     } catch (error) {
-        const details = error.response?.data?.error || error.message;
-        throw new Error(`Error al subir el archivo: ${details}`);
+        // Se lanza solo el detalle, sin prefijo: quien muestra el error
+        // (FileUploader.js) sabe en qué idioma traducirlo. El detalle en sí
+        // (mensaje del servidor o de red) no está traducido — ver el límite
+        // de alcance explicado en AddCandidateForm.js/candidateService.js.
+        throw new Error(error.response?.data?.error || error.message);
     }
 };
 
@@ -33,7 +36,8 @@ export const sendCandidateData = async (candidateData) => {
             throw validationError;
         }
 
-        const details = responseData?.error || error.message;
-        throw new Error(`Error al enviar datos del candidato: ${details}`);
+        // Igual que en uploadCV: solo el detalle, sin prefijo. El prefijo
+        // traducido lo añade AddCandidateForm.js con t('addCandidate.genericErrorPrefix').
+        throw new Error(responseData?.error || error.message);
     }
 };

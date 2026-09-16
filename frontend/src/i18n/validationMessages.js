@@ -3,61 +3,15 @@
 // del usuario. El backend nunca decide el idioma ni redacta el texto final:
 // solo dice qué campo falló, con qué código y con qué parámetros
 // (`{ field, code, params }`), y aquí se compone la frase.
+//
+// La lógica de qué idioma está activo (detección del navegador +
+// preferencia guardada) es compartida con el resto de la app — ver
+// ./locale.js — porque el selector de idioma (LocaleContext) afecta tanto
+// a estos mensajes como a los textos estáticos de translations.js.
 
-export const SUPPORTED_LOCALES = ['es', 'en'];
-const DEFAULT_LOCALE = 'es';
-const LOCALE_STORAGE_KEY = 'lti_error_locale';
+import { DEFAULT_LOCALE, getLocale } from './locale';
 
-// El resto de la aplicación no tiene i18n (todo el texto estático está
-// fijo en español), así que basarse solo en navigator.language producía
-// una mezcla rara: formulario en español, errores en inglés si el
-// navegador del usuario estaba en inglés (aunque técnicamente detectado
-// bien). Por eso hay un selector explícito en el formulario
-// (AddCandidateForm.js) que tiene prioridad sobre el navegador y se
-// recuerda entre sesiones.
-export const getStoredLocale = () => {
-    try {
-        if (typeof localStorage === 'undefined') return null;
-        const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
-        return SUPPORTED_LOCALES.includes(stored) ? stored : null;
-    } catch {
-        // localStorage puede no estar disponible (modo privado, política de
-        // cookies, etc.); en ese caso simplemente no se recuerda la elección.
-        return null;
-    }
-};
-
-export const setStoredLocale = (locale) => {
-    try {
-        if (typeof localStorage !== 'undefined') {
-            localStorage.setItem(LOCALE_STORAGE_KEY, locale);
-        }
-    } catch {
-        // Igual que arriba: si no se puede persistir, no es un error fatal.
-    }
-};
-
-const detectBrowserLocale = () => {
-    // navigator.language solo da el idioma principal. Si ese no es ni
-    // español ni inglés (p. ej. un navegador configurado en catalán,
-    // euskera o gallego, algo común en España), navigator.languages trae
-    // la lista completa de idiomas preferidos en orden, y puede que el
-    // segundo o tercero sí sea uno de los soportados. Se recorre esa lista
-    // antes de rendirse al idioma por defecto.
-    const candidates = (typeof navigator !== 'undefined' && navigator.languages && navigator.languages.length > 0)
-        ? navigator.languages
-        : [(typeof navigator !== 'undefined' && navigator.language) || DEFAULT_LOCALE];
-
-    for (const lang of candidates) {
-        const short = lang.slice(0, 2).toLowerCase();
-        if (SUPPORTED_LOCALES.includes(short)) {
-            return short;
-        }
-    }
-    return DEFAULT_LOCALE;
-};
-
-export const getLocale = () => getStoredLocale() || detectBrowserLocale();
+export { SUPPORTED_LOCALES, getStoredLocale, setStoredLocale, getLocale } from './locale';
 
 const SIMPLE_FIELD_LABELS = {
     es: {

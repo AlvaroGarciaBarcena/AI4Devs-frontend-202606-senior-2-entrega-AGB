@@ -98,6 +98,12 @@ Rama base: fusión de `backend-AGB` (commit `24f86fd`) y `frontend-AGB`
    explícitamente (comportamiento que ya tenía la primera implementación,
    confirmado con `localStorage` vacío tras el primer render).
 
+10. `Perfecto, ahora lo hace bien. ¿Añades el a18n a todo, no sólo a los
+    mensajes de error?` → Petición de extender la traducción a **todo** el
+    texto estático de la interfaz (no solo los mensajes de validación),
+    dando lugar a la infraestructura compartida de 3.9-3.11 y la
+    traducción de los 5 componentes con texto visible.
+
 ## 2. Metodología
 
 1. Se leyó `validator.ts` para entender exactamente por qué el mensaje era
@@ -352,6 +358,98 @@ Rama base: fusión de `backend-AGB` (commit `24f86fd`) y `frontend-AGB`
     inglés hasta que el usuario elija lo contrario.
   - Compilación (`webpack`/ESLint del dev server) limpia tras el cambio.
 
+### 3.9 [Frontend] Infraestructura compartida de i18n para toda la app
+
+- **Ficheros nuevos**:
+  - `frontend/src/i18n/locale.js`: la lógica de "qué idioma está activo"
+    (detección de `navigator.language`/`navigator.languages`, lectura/
+    escritura de la preferencia guardada) se extrae de
+    `validationMessages.js` a un módulo propio, porque ahora la necesitan
+    dos consumidores distintos: los mensajes de validación y los textos
+    estáticos generales.
+  - `frontend/src/i18n/translations.js`: diccionario `es`/`en` de todos
+    los textos estáticos de la interfaz (etiquetas, botones, placeholders,
+    mensajes de estado), organizados por namespace de componente
+    (`dashboard.*`, `addCandidate.*`, `fileUploader.*`, `positions.*`) más
+    una función `translate(key, locale, params)`.
+  - `frontend/src/i18n/LocaleContext.js`: contexto de React
+    (`LocaleProvider`/`useLocale()`) que envuelve toda la app (en
+    `App.js`) y expone `{ locale, setLocale, t }` a cualquier componente,
+    para que solo exista **un** selector de idioma (no uno por página) y
+    un único origen de verdad para el idioma activo.
+  - `frontend/src/components/LanguageSwitcher.js`: el control ES/English
+    (extraído de `AddCandidateForm.js`, que ya lo tenía inline) como
+    componente reutilizable, ahora consumiendo `useLocale()` en vez de
+    recibir el estado por props.
+- **`validationMessages.js`**: ya no duplica la lógica de detección de
+  idioma; reexporta `SUPPORTED_LOCALES`/`getStoredLocale`/`setStoredLocale`/
+  `getLocale` desde `locale.js`. El resto (composición de mensajes de
+  validación a partir de `{field, code, params}`) no cambia.
+- **`App.js`**: envuelve `<BrowserRouter>` con `<LocaleProvider>` y añade
+  una barra superior fija con `<LanguageSwitcher />`, visible en las tres
+  rutas de la app (antes el selector solo existía dentro del formulario de
+  alta de candidato).
+- **Bug encontrado al integrar con `Positions.tsx` (TypeScript)**:
+  `createContext(null)` hacía que TypeScript infiriera el tipo de `t()`
+  (tras el `if (!context) throw` de `useLocale`) como `never` en los
+  ficheros `.tsx` que lo consumen (`This expression is not callable. Type
+  'never' has no call signatures.`) — un problema conocido de
+  `createContext` sin un valor por defecto con forma concreta. Se
+  soluciona dándole a `createContext` un objeto por defecto con la misma
+  forma que el valor real (`{ locale, setLocale, t }`), en vez de `null`
+  más una comprobación que lanza.
+
+### 3.10 [Frontend] Traducción de los 5 componentes con texto visible
+
+- **`RecruiterDashboard.js`**: título, encabezados de las dos tarjetas,
+  botones, `alt` del logo.
+- **`FileUploader.js`**: `aria-label` del input de fichero, "Selected
+  file:"/"Archivo seleccionado:" (antes en inglés fijo pese al resto de la
+  app en español — inconsistencia previa, corregida de paso), botón de
+  subida, mensaje de éxito.
+- **`AddCandidateForm.js`**: título, las 5 etiquetas de campo, "CV",
+  botones de añadir/eliminar educación y experiencia, los 6 placeholders
+  compartidos entre educación y experiencia, botón de envío, cabecera del
+  resumen de errores, mensaje de éxito. Se elimina el selector de idioma
+  local (ahora vive en la barra superior de `App.js`, vía `useLocale()`
+  compartido) para no tener dos selectores independientes.
+- **`Positions.tsx`**: título, placeholders de búsqueda, etiqueta y
+  opciones del filtro de estado, etiquetas "Manager"/"Deadline", botones
+  "Ver proceso"/"Editar". Los valores de `status` en `mockPositions` pasan
+  de cadenas en español (`'Abierto'`, tipadas como unión literal) a
+  códigos neutros (`'open'`, `'filled'`, `'closed'`, `'draft'` — ya
+  usados como `value` de las opciones del filtro), traducidos solo al
+  renderizar; así el mismo dato no depende del idioma para tener sentido
+  internamente. **Nota de alcance**: esta es la versión con datos mock de
+  `frontend-AGB` — el listado real conectado a la API y la vista "Ver
+  proceso" con el tablero Kanban viven en la rama separada
+  `positions-proceso-AGB`, que no está fusionada aquí; no se ha traducido
+  `PositionProcess.tsx` porque ese fichero no existe en esta rama.
+- **`candidateService.js`**: se detecta y corrige un bug introducido al
+  añadir el prefijo traducido (`t('addCandidate.genericErrorPrefix')`) en
+  `AddCandidateForm.js` sin quitar el prefijo español que `candidateService.js`
+  ya añadía él mismo (`"Error al enviar datos del candidato: ..."`) — el
+  resultado habría sido un prefijo duplicado. Se corrige dejando que
+  `candidateService.js` lance solo el detalle del error, sin prefijo; el
+  prefijo traducido lo añade quien lo muestra.
+
+### 3.11 Límites de alcance de esta traducción
+
+- **Texto nativo del navegador**: el botón "Seleccionar archivo" y el
+  texto "Ningún archivo seleccionado" del `<input type="file">` son
+  generados por el propio navegador según su idioma de interfaz (no el de
+  la página), y no se pueden traducir desde JavaScript/React. Se
+  documenta aquí para que no se confunda con un olvido.
+- **Mensajes de error dinámicos no estructurados**: los mensajes que
+  vienen de errores genéricos (no de validación) — p. ej. si el backend
+  está caído, o un error de red — siguen sin traducirse: son texto ya
+  hecho que viene de `error.message` (JS) o de un `Error` lanzado por el
+  propio backend (que tampoco los traduce, como el `"Invalid file type,
+  only PDF and DOCX are allowed!"` de `fileUploadService.ts`). Traducir
+  esto exigiría el mismo tratamiento de códigos estructurados que ya
+  tienen los errores de validación, aplicado a todos los demás mensajes de
+  error del backend — un cambio bastante más grande, no pedido aquí.
+
 ## 4. Verificación final
 
 ```
@@ -372,4 +470,14 @@ Navegador            → caso real del usuario reproducido y corregido,
                         visibles al instante
                       → <html lang="es"> corregido (antes "en", sin
                         relación con la lógica de i18n)
+                      → las 3 rutas (dashboard, alta de candidato,
+                        posiciones) verificadas en español e inglés tras
+                        cambiar el selector global, con el idioma
+                        persistiendo al navegar entre páginas
+                      → bug de tipos (createContext(null) → `never` en
+                        .tsx) detectado por tsc y corregido antes de dar
+                        el cambio por bueno
+                      → bug de doble prefijo en candidateService.js
+                        detectado y corregido antes de dar el cambio por
+                        bueno
 ```

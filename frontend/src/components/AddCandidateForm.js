@@ -5,14 +5,11 @@ import FileUploader from './FileUploader';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { sendCandidateData } from '../services/candidateService';
-import { getLocale, setStoredLocale, translateValidationIssues } from '../i18n/validationMessages';
-
-const LOCALE_OPTIONS = [
-    { code: 'es', label: 'Español' },
-    { code: 'en', label: 'English' },
-];
+import { translateValidationIssues } from '../i18n/validationMessages';
+import { useLocale } from '../i18n/LocaleContext';
 
 const AddCandidateForm = () => {
+    const { locale, t } = useLocale();
     const [candidate, setCandidate] = useState({
         firstName: '',
         lastName: '',
@@ -25,20 +22,15 @@ const AddCandidateForm = () => {
     });
     const [error, setError] = useState('');
     // Los issues se guardan sin traducir; el mensaje se compone en cada
-    // render con el locale actual (ver `fieldErrors` más abajo), así el
-    // selector de idioma re-traduce al instante los errores ya visibles
-    // sin necesidad de reenviar el formulario.
+    // render con el locale actual (el selector de idioma vive en la barra
+    // superior de la app, ver App.js/LocaleContext), así un cambio de
+    // idioma re-traduce al instante los errores ya visibles sin necesidad
+    // de reenviar el formulario.
     const [issues, setIssues] = useState([]); // [{ field, code, params }], ver validator.ts del backend
-    const [locale, setLocale] = useState(getLocale());
     const [successMessage, setSuccessMessage] = useState('');
 
     const fieldErrors = translateValidationIssues(issues, locale);
     const getFieldError = (field) => fieldErrors.find((issue) => issue.field === field);
-
-    const handleLocaleChange = (newLocale) => {
-        setLocale(newLocale);
-        setStoredLocale(newLocale);
-    };
 
     const handleInputChange = (e, index, section) => {
         const updatedSection = [...candidate[section]];
@@ -95,7 +87,7 @@ const AddCandidateForm = () => {
             }));
 
             await sendCandidateData(candidateData);
-            setSuccessMessage('Candidato añadido con éxito');
+            setSuccessMessage(t('addCandidate.success'));
             setError('');
             setIssues([]);
         } catch (err) {
@@ -105,38 +97,20 @@ const AddCandidateForm = () => {
                 setError('');
             } else {
                 setIssues([]);
-                setError('Error al añadir candidato: ' + err.message);
+                setError(t('addCandidate.genericErrorPrefix') + err.message);
             }
         }
     };
 
     return (
         <Container className="mt-5">
-            <div className="d-flex justify-content-between align-items-center mb-4">
-                <h1 className="mb-0">Agregar Candidato</h1>
-                <div role="group" aria-label="Idioma de los mensajes de error">
-                    <span className="me-2 small text-muted">Idioma de los mensajes de error:</span>
-                    {LOCALE_OPTIONS.map(({ code, label }) => (
-                        <Button
-                            key={code}
-                            type="button"
-                            size="sm"
-                            variant={locale === code ? 'primary' : 'outline-primary'}
-                            className="me-1"
-                            aria-pressed={locale === code}
-                            onClick={() => handleLocaleChange(code)}
-                        >
-                            {label}
-                        </Button>
-                    ))}
-                </div>
-            </div>
+            <h1 className="mb-4">{t('addCandidate.title')}</h1>
             <Card className="shadow p-4">
                 <Form onSubmit={handleSubmit}>
                     <Row>
                         <Col md={6}>
                             <Form.Group controlId="firstName">
-                                <Form.Label>Nombre</Form.Label>
+                                <Form.Label>{t('addCandidate.firstName')}</Form.Label>
                                 <Form.Control
                                     type="text"
                                     name="firstName"
@@ -154,7 +128,7 @@ const AddCandidateForm = () => {
                                 )}
                             </Form.Group>
                             <Form.Group controlId="lastName">
-                                <Form.Label>Apellido</Form.Label>
+                                <Form.Label>{t('addCandidate.lastName')}</Form.Label>
                                 <Form.Control
                                     type="text"
                                     name="lastName"
@@ -172,7 +146,7 @@ const AddCandidateForm = () => {
                                 )}
                             </Form.Group>
                             <Form.Group controlId="email">
-                                <Form.Label>Correo Electrónico</Form.Label>
+                                <Form.Label>{t('addCandidate.email')}</Form.Label>
                                 <Form.Control
                                     type="email"
                                     name="email"
@@ -190,7 +164,7 @@ const AddCandidateForm = () => {
                                 )}
                             </Form.Group>
                             <Form.Group controlId="phone">
-                                <Form.Label>Teléfono</Form.Label>
+                                <Form.Label>{t('addCandidate.phone')}</Form.Label>
                                 <Form.Control
                                     type="tel"
                                     name="phone"
@@ -207,7 +181,7 @@ const AddCandidateForm = () => {
                                 )}
                             </Form.Group>
                             <Form.Group controlId="address">
-                                <Form.Label>Dirección</Form.Label>
+                                <Form.Label>{t('addCandidate.address')}</Form.Label>
                                 <Form.Control
                                     type="text"
                                     name="address"
@@ -226,7 +200,7 @@ const AddCandidateForm = () => {
                         </Col>
                         <Col md={6}>
                             <Form.Group controlId="cv">
-                                <Form.Label>CV</Form.Label>
+                                <Form.Label>{t('addCandidate.cv')}</Form.Label>
                                 <FileUploader
                                     onChange={handleCVUpload}
                                     onUpload={handleCVUpload}
@@ -234,14 +208,14 @@ const AddCandidateForm = () => {
                                 />
                             </Form.Group>
                             <Row className="mt-4">
-                                <Button onClick={() => handleAddSection('educations')} className="btn btn-primary btn-sm mr-2">Añadir Educación</Button>
+                                <Button onClick={() => handleAddSection('educations')} className="btn btn-primary btn-sm mr-2">{t('addCandidate.addEducation')}</Button>
                             </Row>
                             {candidate.educations.map((education, index) => (
                                 <div key={index} className="mb-3">
                                     <Row className="mt-4">
                                         <Col md={6}>
                                             <FormControl
-                                                placeholder="Institución"
+                                                placeholder={t('addCandidate.institutionPlaceholder')}
                                                 name="institution"
                                                 value={education.institution}
                                                 onChange={(e) => handleInputChange(e, index, 'educations')}
@@ -252,7 +226,7 @@ const AddCandidateForm = () => {
                                     <Row className="mt-2">
                                         <Col md={6}>
                                             <FormControl
-                                                placeholder="Título"
+                                                placeholder={t('addCandidate.titlePlaceholder')}
                                                 name="title"
                                                 value={education.title}
                                                 onChange={(e) => handleInputChange(e, index, 'educations')}
@@ -266,7 +240,7 @@ const AddCandidateForm = () => {
                                                 selected={education.startDate}
                                                 onChange={(date) => handleDateChange(date, index, 'educations', 'startDate')}
                                                 dateFormat="yyyy-MM-dd"
-                                                placeholderText="Fecha de Inicio"
+                                                placeholderText={t('addCandidate.startDatePlaceholder')}
                                                 className="form-control shadow-sm"
                                             />
                                         </Col>
@@ -275,25 +249,25 @@ const AddCandidateForm = () => {
                                                 selected={education.endDate}
                                                 onChange={(date) => handleDateChange(date, index, 'educations', 'endDate')}
                                                 dateFormat="yyyy-MM-dd"
-                                                placeholderText="Fecha de Fin"
+                                                placeholderText={t('addCandidate.endDatePlaceholder')}
                                                 className="form-control shadow-sm"
                                             />
                                         </Col>
                                     </Row>
                                     <Button variant="danger" onClick={() => handleRemoveSection(index, 'educations')} className="mt-2">
-                                        <Trash /> Eliminar
+                                        <Trash /> {t('addCandidate.remove')}
                                     </Button>
                                 </div>
                             ))}
                             <Row className="mt-4">
-                                <Button onClick={() => handleAddSection('workExperiences')} className="btn btn-primary btn-sm mr-2">Añadir Experiencia Laboral</Button>
+                                <Button onClick={() => handleAddSection('workExperiences')} className="btn btn-primary btn-sm mr-2">{t('addCandidate.addWorkExperience')}</Button>
                             </Row>
                             {candidate.workExperiences.map((experience, index) => (
                                 <div key={index} className="mb-3">
                                     <Row className="mt-4">
                                         <Col md={6}>
                                             <FormControl
-                                                placeholder="Empresa"
+                                                placeholder={t('addCandidate.companyPlaceholder')}
                                                 name="company"
                                                 value={experience.company}
                                                 onChange={(e) => handleInputChange(e, index, 'workExperiences')}
@@ -304,7 +278,7 @@ const AddCandidateForm = () => {
                                     <Row className="mt-2">
                                         <Col md={6}>
                                             <FormControl
-                                                placeholder="Puesto"
+                                                placeholder={t('addCandidate.positionPlaceholder')}
                                                 name="position"
                                                 value={experience.position}
                                                 onChange={(e) => handleInputChange(e, index, 'workExperiences')}
@@ -318,7 +292,7 @@ const AddCandidateForm = () => {
                                                 selected={experience.startDate}
                                                 onChange={(date) => handleDateChange(date, index, 'workExperiences', 'startDate')}
                                                 dateFormat="yyyy-MM-dd"
-                                                placeholderText="Fecha de Inicio"
+                                                placeholderText={t('addCandidate.startDatePlaceholder')}
                                                 className="form-control shadow-sm"
                                             />
                                         </Col>
@@ -327,22 +301,22 @@ const AddCandidateForm = () => {
                                                 selected={experience.endDate}
                                                 onChange={(date) => handleDateChange(date, index, 'workExperiences', 'endDate')}
                                                 dateFormat="yyyy-MM-dd"
-                                                placeholderText="Fecha de Fin"
+                                                placeholderText={t('addCandidate.endDatePlaceholder')}
                                                 className="form-control shadow-sm"
                                             />
                                         </Col>
                                     </Row>
                                     <Button variant="danger" onClick={() => handleRemoveSection(index, 'workExperiences')} className="mt-2">
-                                        <Trash /> Eliminar
+                                        <Trash /> {t('addCandidate.remove')}
                                     </Button>
                                 </div>
                             ))}
                         </Col>
                     </Row>
-                    <Button type="submit" className="btn btn-primary btn-block shadow-sm mt-5">Enviar</Button>
+                    <Button type="submit" className="btn btn-primary btn-block shadow-sm mt-5">{t('addCandidate.submit')}</Button>
                     {fieldErrors.length > 0 && (
                         <Alert variant="danger" role="alert" aria-live="assertive" className="mt-3">
-                            <Alert.Heading as="h2" className="h6">Revisa los siguientes campos:</Alert.Heading>
+                            <Alert.Heading as="h2" className="h6">{t('addCandidate.reviewFields')}</Alert.Heading>
                             <ul className="mb-0">
                                 {fieldErrors.map((issue) => (
                                     <li key={issue.field}>{issue.message}</li>
