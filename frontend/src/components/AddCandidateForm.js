@@ -5,6 +5,7 @@ import FileUploader from './FileUploader';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { sendCandidateData } from '../services/candidateService';
+import { translateValidationIssues } from '../i18n/validationMessages';
 
 const AddCandidateForm = () => {
     const [candidate, setCandidate] = useState({
@@ -18,7 +19,10 @@ const AddCandidateForm = () => {
         cv: null
     });
     const [error, setError] = useState('');
+    const [fieldErrors, setFieldErrors] = useState([]); // [{ field, code, params, message }], ver validator.ts del backend
     const [successMessage, setSuccessMessage] = useState('');
+
+    const getFieldError = (field) => fieldErrors.find((issue) => issue.field === field);
 
     const handleInputChange = (e, index, section) => {
         const updatedSection = [...candidate[section]];
@@ -77,9 +81,16 @@ const AddCandidateForm = () => {
             await sendCandidateData(candidateData);
             setSuccessMessage('Candidato añadido con éxito');
             setError('');
-        } catch (error) {
-            setError('Error al añadir candidato: ' + error.message);
+            setFieldErrors([]);
+        } catch (err) {
             setSuccessMessage('');
+            if (Array.isArray(err.issues)) {
+                setFieldErrors(translateValidationIssues(err.issues));
+                setError('');
+            } else {
+                setFieldErrors([]);
+                setError('Error al añadir candidato: ' + err.message);
+            }
         }
     };
 
@@ -98,7 +109,15 @@ const AddCandidateForm = () => {
                                     required
                                     onChange={(e) => setCandidate({ ...candidate, firstName: e.target.value })}
                                     className="form-control shadow-sm"
+                                    isInvalid={!!getFieldError('firstName')}
+                                    aria-invalid={!!getFieldError('firstName')}
+                                    aria-describedby={getFieldError('firstName') ? 'firstName-error' : undefined}
                                 />
+                                {getFieldError('firstName') && (
+                                    <Form.Control.Feedback type="invalid" id="firstName-error">
+                                        {getFieldError('firstName').message}
+                                    </Form.Control.Feedback>
+                                )}
                             </Form.Group>
                             <Form.Group controlId="lastName">
                                 <Form.Label>Apellido</Form.Label>
@@ -108,7 +127,15 @@ const AddCandidateForm = () => {
                                     required
                                     onChange={(e) => setCandidate({ ...candidate, lastName: e.target.value })}
                                     className="form-control shadow-sm"
+                                    isInvalid={!!getFieldError('lastName')}
+                                    aria-invalid={!!getFieldError('lastName')}
+                                    aria-describedby={getFieldError('lastName') ? 'lastName-error' : undefined}
                                 />
+                                {getFieldError('lastName') && (
+                                    <Form.Control.Feedback type="invalid" id="lastName-error">
+                                        {getFieldError('lastName').message}
+                                    </Form.Control.Feedback>
+                                )}
                             </Form.Group>
                             <Form.Group controlId="email">
                                 <Form.Label>Correo Electrónico</Form.Label>
@@ -118,7 +145,15 @@ const AddCandidateForm = () => {
                                     required
                                     onChange={(e) => setCandidate({ ...candidate, email: e.target.value })}
                                     className="form-control shadow-sm"
+                                    isInvalid={!!getFieldError('email')}
+                                    aria-invalid={!!getFieldError('email')}
+                                    aria-describedby={getFieldError('email') ? 'email-error' : undefined}
                                 />
+                                {getFieldError('email') && (
+                                    <Form.Control.Feedback type="invalid" id="email-error">
+                                        {getFieldError('email').message}
+                                    </Form.Control.Feedback>
+                                )}
                             </Form.Group>
                             <Form.Group controlId="phone">
                                 <Form.Label>Teléfono</Form.Label>
@@ -127,7 +162,15 @@ const AddCandidateForm = () => {
                                     name="phone"
                                     onChange={(e) => setCandidate({ ...candidate, phone: e.target.value })}
                                     className="form-control shadow-sm"
+                                    isInvalid={!!getFieldError('phone')}
+                                    aria-invalid={!!getFieldError('phone')}
+                                    aria-describedby={getFieldError('phone') ? 'phone-error' : undefined}
                                 />
+                                {getFieldError('phone') && (
+                                    <Form.Control.Feedback type="invalid" id="phone-error">
+                                        {getFieldError('phone').message}
+                                    </Form.Control.Feedback>
+                                )}
                             </Form.Group>
                             <Form.Group controlId="address">
                                 <Form.Label>Dirección</Form.Label>
@@ -136,7 +179,15 @@ const AddCandidateForm = () => {
                                     name="address"
                                     onChange={(e) => setCandidate({ ...candidate, address: e.target.value })}
                                     className="form-control shadow-sm"
+                                    isInvalid={!!getFieldError('address')}
+                                    aria-invalid={!!getFieldError('address')}
+                                    aria-describedby={getFieldError('address') ? 'address-error' : undefined}
                                 />
+                                {getFieldError('address') && (
+                                    <Form.Control.Feedback type="invalid" id="address-error">
+                                        {getFieldError('address').message}
+                                    </Form.Control.Feedback>
+                                )}
                             </Form.Group>
                         </Col>
                         <Col md={6}>
@@ -255,8 +306,18 @@ const AddCandidateForm = () => {
                         </Col>
                     </Row>
                     <Button type="submit" className="btn btn-primary btn-block shadow-sm mt-5">Enviar</Button>
-                    {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
-                    {successMessage && <Alert variant="success" className="mt-3">{successMessage}</Alert>}
+                    {fieldErrors.length > 0 && (
+                        <Alert variant="danger" role="alert" aria-live="assertive" className="mt-3">
+                            <Alert.Heading as="h2" className="h6">Revisa los siguientes campos:</Alert.Heading>
+                            <ul className="mb-0">
+                                {fieldErrors.map((issue) => (
+                                    <li key={issue.field}>{issue.message}</li>
+                                ))}
+                            </ul>
+                        </Alert>
+                    )}
+                    {error && <Alert variant="danger" role="alert" aria-live="assertive" className="mt-3">{error}</Alert>}
+                    {successMessage && <Alert variant="success" role="status" aria-live="polite" className="mt-3">{successMessage}</Alert>}
                 </Form>
             </Card>
         </Container>
