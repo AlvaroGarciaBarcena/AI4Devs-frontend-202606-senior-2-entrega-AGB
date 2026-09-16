@@ -1682,7 +1682,38 @@ adelante. Esta rama convierte esos mismos casos en tests que se ejecutan
 con `npm test` (o `npx jest` en el backend), sin depender de tener la
 base de datos ni los servidores arrancados.
 
-### 3.15.1 Backend: rellenar los huecos reales de cobertura
+### 3.15.1 El recuento exacto: por qué 11→19 en el backend y 0→18 en el frontend
+
+No son cifras redondeadas — cada test nuevo está contado (`grep -c
+"it("` sobre cada fichero, verificado literalmente antes de escribir esta
+sección).
+
+**Backend: 11 → 19 (+8)**
+
+| Fichero | Antes | Después | Qué se añadió |
+|---|---|---|---|
+| `candidateController.test.ts` | 1 | 5 (+4) | `addCandidateController`: alta con éxito (201); el caso del guión bajo (400, `errors: [{field, code, params}]`); acumulación de 3 campos a la vez; error no-validación (formato genérico, no `issues`) |
+| `positionController.test.ts` | 2 | 6 (+4) | `getCandidatesByPosition` con id no numérico (400, sin llamar al servicio); `getInterviewFlowByPosition` con id numérico (200), id no numérico (400) y posición inexistente (404) |
+| `validator.test.ts` | 5 | 5 | sin cambios (ya existía desde `candidate-validation-i18n-a11y-AGB`) |
+| `candidateService.test.ts` | 1 | 1 | sin cambios |
+| `positionService.test.ts` | 2 | 2 | sin cambios |
+
+Los +8 son exactamente los huecos de cobertura identificados en 3.15.2 —
+no tests genéricos añadidos por rellenar un número, sino los casos
+concretos que antes solo se habían comprobado con `curl`.
+
+**Frontend: 0 → 18** (no había ningún fichero `*.test.*` en todo
+`frontend/src` antes de esta rama — `Vitest` estaba instalado y
+configurado desde `vite-migration-AGB`, pero vacío)
+
+| Fichero (nuevo) | Tests |
+|---|---|
+| `i18n/validationMessages.test.js` | 8 |
+| `services/candidateService.test.js` | 6 |
+| `components/AddCandidateForm.test.jsx` | 4 |
+| **Total** | **18** |
+
+### 3.15.2 Backend: rellenar los huecos reales de cobertura
 
 Antes de esta rama, `candidateController.test.ts` solo cubría
 `updateCandidateStageController`; **`addCandidateController` — el flujo
@@ -1692,72 +1723,180 @@ no cubría el caso `isNaN` de `getCandidatesByPosition`
 (sí arreglado en código desde `backend-AGB`, pero nunca comprobado por un
 test) ni `getInterviewFlowByPosition` en absoluto.
 
-Tests añadidos:
-- `addCandidateController`: alta con éxito (201), el caso concreto del
-  guión bajo en el apellido (400 con `errors: [{field, code, params}]`),
-  acumulación de varios campos a la vez, y un error no relacionado con
-  validación (p. ej. email duplicado) respondiendo con el formato
-  genérico en vez del de `issues`.
-- `getCandidatesByPosition` / `getInterviewFlowByPosition`: id no
-  numérico (400, sin llegar a llamar al servicio) y, para el segundo,
-  también una posición inexistente (404).
+### 3.15.3 Hallazgo: aislamiento entre tests (mocks que no se limpiaban)
 
-**Bug de aislamiento entre tests, encontrado al escribirlos**: la primera
-versión de estos tests fallaba con "Expected number of calls: 0,
-Received: 1" en el caso de `id` no numérico — no porque el código
-estuviera mal, sino porque los mocks de Jest (`jest.mock(...)` a nivel de
-módulo) conservan su historial de llamadas entre distintos `it()` del
-mismo fichero si no se limpian explícitamente. El test anterior (con un
-`id` válido) dejaba registrada una llamada al servicio, y el siguiente
-test heredaba ese recuento. Se corrige con `beforeEach(() =>
-jest.clearAllMocks())` en ambos ficheros de tests de controladores — un
-recordatorio de que un test mal aislado puede fallar (o, peor, pasar)
-por razones que no tienen nada que ver con lo que dice comprobar.
+La primera versión de los tests nuevos de `positionController.test.ts`
+fallaba así, literalmente:
 
-### 3.15.2 Frontend: de cero tests a los primeros tres ficheros
+```
+expect(jest.fn()).not.toHaveBeenCalled()
 
-Antes de esta rama, `frontend/src` no tenía ni un solo fichero de test —
-Vitest estaba configurado (desde `vite-migration-AGB`) pero vacío.
+Expected number of calls: 0
+Received number of calls: 1
+```
 
-- **`i18n/validationMessages.test.js`**: el equivalente, en la capa de
-  traducción, del `validator.test.ts` del backend — compone el mismo
-  `{field: 'lastName', code: 'invalidCharacters', params: {char: '_'}}`
-  y comprueba el texto final en español, en inglés (cambiando
+No porque el código probado estuviera mal: `jest.mock(...)` a nivel de
+módulo conserva el historial de llamadas de un mock **entre distintos
+`it()` del mismo fichero** si nadie lo limpia explícitamente. El test
+anterior (con un `id` válido, que sí debía llamar al servicio) dejaba
+registrada esa llamada, y el siguiente test (`id` no numérico, que **no**
+debía llamarlo) heredaba ese recuento y fallaba pese a que el código
+`if (isNaN(positionId)) return res.status(400)...` funcionaba
+perfectamente. Se corrige con:
+
+```ts
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+```
+
+en `positionController.test.ts` y, por coherencia y prevención,
+también en `candidateController.test.ts`. Lección concreta: un test mal
+aislado puede fallar — o, más peligroso todavía, **pasar** — por motivos
+que no tienen nada que ver con lo que dice comprobar.
+
+### 3.15.4 Hallazgo: `getByText` falla cuando el mensaje aparece duplicado a propósito
+
+Al escribir `AddCandidateForm.test.jsx`, la primera versión usaba
+`screen.getByText(mensaje)` y fallaba así:
+
+```
+TestingLibraryElementError: Found multiple elements with the text:
+El apellido contiene un carácter no permitido: "_". Solo se admiten
+letras y espacios.
+
+Here are the matching elements: [...]
+```
+
+Esto no es un fallo del test ni del componente: es el comportamiento
+**diseñado a propósito** en `candidate-validation-i18n-a11y-AGB` (sección
+3.5) — el mismo mensaje aparece dos veces, pegado al campo
+(`Form.Control.Feedback`, para quien ve la pantalla) y en el resumen
+`role="alert"` al final (para que un lector de pantalla lo anuncie sin
+que el foco tenga que moverse hasta el campo). `getByText` de
+Testing Library está diseñado para **fallar** si hay más de una
+coincidencia — es una salvaguarda para detectar selectores ambiguos, no
+un bug de la librería. La solución correcta no es "hacer que solo
+aparezca una vez" (eso rompería la accesibilidad que se buscaba
+conseguir), sino usar la función pensada para este caso:
+
+```js
+expect(screen.getAllByText(expectedMessage)).toHaveLength(2);
+```
+
+`getAllByText` devuelve un array con todas las coincidencias en vez de
+lanzar; afirmar `toHaveLength(2)` además deja constancia explícita de que
+la duplicación es intencionada — si algún día solo apareciera una vez (o
+tres), el test fallaría y alertaría de una regresión real en el diseño
+de accesibilidad, no solo de un cambio de texto.
+
+### 3.15.5 Hallazgo: `.setup()` no se eliminó — hubo que *adoptarlo*, actualizando la librería
+
+Aquí conviene ser preciso porque es fácil describirlo al revés: **no se
+quitó `.setup()` de los tests. Al contrario: `.setup()` es la API
+*actual* de `@testing-library/user-event`, y hubo que actualizar la
+librería para poder usarla**, porque la versión instalada era una
+heredada de la plantilla por defecto de Create React App, nunca
+actualizada desde entonces.
+
+El primer intento de test ya usaba la API moderna, con la que se escribe
+código nuevo hoy:
+
+```js
+const user = userEvent.setup();
+await user.type(screen.getByLabelText('Apellido'), 'Garcia_');
+```
+
+Y falló así:
+
+```
+TypeError: default.setup is not a function
+ ❯ src/components/AddCandidateForm.test.jsx:34:32
+```
+
+La causa: `package.json` tenía `"@testing-library/user-event": "^13.5.0"`
+— la v13 no tiene el método `.setup()` en absoluto; su API era la más
+antigua, de llamada directa y síncrona
+(`userEvent.type(elemento, texto)`, sin sesión previa). `.setup()` se
+introdujo en la v14 como el patrón recomendado (crea una "sesión" de
+usuario que simula con más fidelidad la secuencia real de eventos de
+puntero/teclado del navegador, en vez de disparar un único evento
+sintético). Dos caminos posibles: reescribir el test contra la API vieja
+(v13), o actualizar la librería para poder usar la API que ya se había
+escrito por ser la actual. Se optó por lo segundo — coherente con el
+criterio de toda la sesión ("lo último que sea compatible", ya aplicado
+en 3.13/3.14 con `react-i18next` y `TypeScript`):
+
+```bash
+npm install @testing-library/react@16.3.3 @testing-library/user-event@14.6.7 @testing-library/jest-dom@7.0.1
+```
+
+Instalación limpia, sin conflictos de peer dependencies (a diferencia de
+los tropiezos con TypeScript de 3.13/3.14, estas tres sí eran compatibles
+con el resto del stack a la primera). Tras la actualización, el mismo
+código de test (con `.setup()`) pasó a funcionar sin cambiarle una línea.
+
+### 3.15.6 Hallazgo: las librerías de test estaban en `dependencies`, no en `devDependencies`
+
+Al tocar `package.json` para el punto anterior, se observó que
+`@testing-library/jest-dom`, `@testing-library/react` y
+`@testing-library/user-event` llevaban desde el origen del proyecto
+dentro de `"dependencies"` — el bloque de paquetes que se instalan
+siempre, incluidos los despliegues de producción — en vez de
+`"devDependencies"` (paquetes que solo hacen falta durante el desarrollo
+y la ejecución de tests). Es el resultado por defecto de
+`npx create-react-app`: CRA no distingue entre ambos bloques porque todo
+pasa igualmente por su propio proceso de build, así que nunca hizo falta
+corregirlo — pero fuera de CRA (con Vite, o con cualquier build estándar)
+si alguien instalara el proyecto con `npm install --omit=dev` (habitual
+en una imagen Docker de producción minimalista), estas tres librerías se
+habrían instalado igualmente sin necesidad ninguna, solo por estar mal
+clasificadas. Se corrige moviéndolas al bloque correcto:
+
+```diff
+   "dependencies": {
+-    "@testing-library/jest-dom": "^7.0.1",
+-    "@testing-library/react": "^16.3.3",
+-    "@testing-library/user-event": "^14.6.7",
+     "@types/react": "^18.3.1",
+     ...
+   },
+   "devDependencies": {
++    "@testing-library/jest-dom": "^7.0.1",
++    "@testing-library/react": "^16.3.3",
++    "@testing-library/user-event": "^14.6.7",
+     "@eslint/js": "^10.0.1",
+     ...
+```
+
+### 3.15.7 Frontend: qué prueba cada fichero nuevo
+
+- **`i18n/validationMessages.test.js`** (8 tests): el equivalente, en la
+  capa de traducción, del `validator.test.ts` del backend — compone el
+  mismo `{field: 'lastName', code: 'invalidCharacters', params: {char:
+  '_'}}` y comprueba el texto final en español, en inglés (cambiando
   `i18n.changeLanguage`), la composición de etiquetas para campos de
   array (`educations[0].institution`) y la interpolación de `min`/`max`.
-- **`services/candidateService.test.js`**: mockeando `axios`, comprueba
-  que los issues de validación se propagan sin aplanar, que **no** hay
-  doble prefijo en errores genéricos (el bug real corregido en
+- **`services/candidateService.test.js`** (6 tests): mockeando `axios`,
+  comprueba que los issues de validación se propagan sin aplanar, que
+  **no** hay doble prefijo en errores genéricos (el bug real corregido en
   `vite-migration-AGB`, sección 3.14.4) y que un fallo de red sin
   `response` no lanza un `TypeError` (el bug real corregido en
   `frontend-AGB`, sección 3.2 de `prompts-AGB-frontend.md`) — dos tests
   que, de haber existido antes, habrían detectado esos dos bugs en el
   momento en que se introdujeron, no cuando se encontraron a mano.
-- **`components/AddCandidateForm.test.jsx`**: el test más directamente
-  ligado a lo verificado a mano una y otra vez durante la sesión —
-  renderiza el formulario real (con `@testing-library/react`), rellena
-  Nombre/Apellido/Email, envía, y comprueba que el mensaje aparece **por
-  duplicado a propósito** (pegado al campo vía `Form.Control.Feedback` y
-  en el resumen `role="alert"`), que `aria-invalid`/`aria-describedby`
-  quedan bien puestos, que cambiar el idioma re-traduce el error ya
-  visible sin volver a llamar al servicio (`sendCandidateData` sigue con
-  1 sola llamada), que se acumulan varios campos a la vez, y que un envío
-  válido limpia los errores y muestra el mensaje de éxito.
+- **`components/AddCandidateForm.test.jsx`** (4 tests): el test más
+  directamente ligado a lo verificado a mano una y otra vez durante la
+  sesión — renderiza el formulario real, rellena Nombre/Apellido/Email,
+  envía, y comprueba (entre los hallazgos 3.15.4 y 3.15.5 de arriba) que
+  el mensaje aparece por duplicado a propósito, que
+  `aria-invalid`/`aria-describedby` quedan bien puestos, que cambiar el
+  idioma re-traduce el error ya visible sin volver a llamar al servicio
+  (`sendCandidateData` sigue con 1 sola llamada), que se acumulan varios
+  campos a la vez, y que un envío válido limpia los errores y muestra el
+  mensaje de éxito.
 
-**Dependencias de testing actualizadas**: `@testing-library/user-event`
-venía en la versión `13.5.0` (heredada de la instalación por defecto de
-Create React App), cuya API (`userEvent.type(el, texto)` sin `setup()`)
-es distinta de la actual (`userEvent.setup()` primero, después
-`user.type(...)`). En vez de escribir el test contra una API antigua, se
-actualizaron `@testing-library/react` (13→16), `@testing-library/user-event`
-(13→14) y `@testing-library/jest-dom` (5→7) a sus versiones actuales — coherente
-con el resto de la sesión, donde "lo último que sea compatible" ha sido el
-criterio constante. De paso, las tres se movieron de `dependencies` a
-`devDependencies` en `package.json`: son herramientas de test, nunca
-deberían formar parte de un build de producción, y estaban donde no
-correspondía desde que CRA las instaló así por defecto.
-
-### 3.15.3 Lo que queda fuera, a propósito
+### 3.15.8 Lo que queda fuera, a propósito
 
 Siguiendo el mismo criterio de toda la sesión (no fabricar cobertura que
 nadie pidió), no se han escrito tests para el dashboard, el listado de
