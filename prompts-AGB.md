@@ -1,20 +1,20 @@
-# Registro de prompts y arreglos — Integración completa + migración a react-i18next (rama `i18n-react-i18next-AGB`)
+# Registro de prompts y arreglos — Integración completa + i18n + migración a Vite (rama `vite-migration-AGB`)
 
 Autor: garciabarcenaalvaro@gmail.com
 Asistente: Claude Code (Sonnet 5)
-Fecha: 2026-09-16
+Fecha: 2026-09-16 / 2026-09-17
 
-Rama base: `all-fixes-AGB` (commit `d60127b`), que ya reunía
+Rama base: `i18n-react-i18next-AGB` (commit `ace52cb`), que ya reunía
 `backend-AGB` + `frontend-AGB` + `candidate-validation-i18n-a11y-AGB` +
-`positions-proceso-AGB`. Esta rama no fusiona nada nuevo — es la misma
-base, con el sistema de i18n "casero" (`locale.js` + `LocaleContext.js` +
-`translations.js`, hecho a mano en `candidate-validation-i18n-a11y-AGB`)
-sustituido por `react-i18next`, la librería estándar del ecosistema.
+`positions-proceso-AGB` + la migración de i18n a `react-i18next`. Esta
+rama no fusiona nada nuevo — es la misma base, con el toolchain de
+frontend migrado de **Create React App** (descontinuado) a **Vite**.
 
-> Nota: las secciones 1-12 de este documento son el historial heredado de
-> `candidate-validation-i18n-a11y-AGB`/`all-fixes-AGB` sin modificar. La
-> sección 13 documenta específicamente la migración a `react-i18next`. El
-> histórico de `positions-proceso-AGB` sigue en
+> Nota: las secciones 1-13 de este documento son el historial heredado de
+> `i18n-react-i18next-AGB`/`all-fixes-AGB` sin modificar — validación,
+> i18n con `react-i18next`, accesibilidad. La sección 14 documenta
+> específicamente la migración de CRA a Vite. El histórico de
+> `positions-proceso-AGB` sigue en
 > [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el de
 > `backend-AGB`/`frontend-AGB` en
 > [`prompts-AGB-backend.md`](./prompts-AGB-backend.md) /
@@ -151,6 +151,51 @@ sustituido por `react-i18next`, la librería estándar del ecosistema.
     y la 5 (un JSON por idioma), por ser consecuencia directa y casi
     gratuita de adoptar la librería — no un alcance añadido por iniciativa
     propia.
+
+17. `Documenta porfa con todo detalle todos los pasos dados, comandos
+    ejecutados, paquetes instalados, la filosofía que hay detrás y cómo se
+    modificó el código y las ventajas que todo esto supuso frente a la
+    versión inicial.` → Ampliación de la sección 3.13 (commit `ace52cb`)
+    con el nivel de detalle que documenta esta misma sección para la
+    migración a Vite: filosofía, comandos exactos (incluidos los
+    fallidos), tabla de paquetes, cambios de código fichero a fichero y
+    tabla comparativa de ventajas.
+
+18. `¿Y por qué no pasar a TS 5? ;). ¿Hay algún impedimento de peso?. Dado
+    que el sistema es nuevo, ¿mejor con lo último, no?` → El asistente
+    explicó que no hay impedimento técnico real en el código: el bloqueo
+    es que `react-scripts` (Create React App) declara como peer
+    `"typescript": "^3.2.1 || ^4"`. Pero señaló el problema de fondo: CRA
+    está descontinuado (retirado como recomendación oficial de React en
+    2025), así que subir solo TypeScript trata el síntoma, no la causa —
+    cada librería futura volverá a chocar con el mismo peer desfasado.
+    Recomendó migrar el toolchain a Vite en vez de forzar TS5 sobre CRA.
+
+19. `Pero CRA está descontinuado y lo que busco es aprender con lo último
+    y cómo debe hacerse. ¿Analizas qué supondría? Soy partidario de
+    hacerlo` → El asistente inspeccionó el estado real del proyecto
+    (variables de entorno, tests existentes, personalizaciones de CRA) y
+    presentó un análisis concreto de qué implicaría migrar a Vite,
+    concluyendo que el riesgo era bajo (sin `REACT_APP_*`, sin suite de
+    tests que romper, sin `craco` ni `eject`, nada fuera de `frontend/`
+    dependiente de CRA) y preguntó si debía proceder.
+
+20. `En una rama nueva, porfa ;)` (enviado a mitad de turno, mientras el
+    asistente ya estaba creando la rama) → Confirmó el plan ya en marcha;
+    dio lugar a la rama `vite-migration-AGB`.
+
+21. `¿Y TS6 no es compatible con todo el stack también?` (enviado a mitad
+    de turno, tras ver que el asistente había fijado TypeScript en
+    `5.9.3`) → El asistente comprobó con `npm view typescript versions`
+    que, efectivamente, `6.0.2`/`6.0.3` son versiones **estables**
+    (no solo beta) y caen dentro del rango que soporta `typescript-eslint`
+    (`>=4.8.4 <6.1.0`) — más cerca de "lo último" que la 5.9.3 sin perder
+    compatibilidad con el linter. Se corrigió a `typescript@6.0.3`.
+
+22. `Documenta porfa el análisis previo y vamos a por ello, sí.` → Prompt
+    que originó la ejecución real de la migración documentada en la
+    sección 14 más abajo (la rama ya se había creado en respuesta al
+    prompt 20).
 
 ## 2. Metodología
 
@@ -928,4 +973,289 @@ Navegador            → <html lang> confirmado dinámico
                         el sistema casero)
                       → /positions y /positions/:id (datos reales)
                         verificados en español, sin regresiones
+```
+
+## 3.14 Migración de Create React App a Vite
+
+### 3.14.1 Filosofía: por qué migrar el toolchain y no solo la versión de TypeScript
+
+El disparador fue una pregunta muy concreta: "¿por qué no pasar a
+TypeScript 5?". La respuesta corta es que no hay ningún impedimento en
+el código — nada de lo escrito en este proyecto usa sintaxis específica
+de una versión de TS. El impedimento era `react-scripts` (Create React
+App), que declara `"typescript": "^3.2.1 || ^4"` como *peer dependency*.
+
+Pero forzar solo esa versión habría sido tratar el síntoma, no la causa:
+**Create React App está descontinuado** — el equipo de React lo retiró
+oficialmente como recomendación en 2025, y `react-scripts` no ha tenido
+una versión mayor desde 2022 que reconozca nada del ecosistema moderno.
+Subir TypeScript por su cuenta habría significado volver a chocar con el
+mismo peer dependency desfasado en la siguiente librería (como de hecho
+ya había pasado con `react-i18next` en la sección 3.13). La decisión de
+migrar a Vite fue del usuario, explícitamente ("busco aprender con lo
+último y cómo debe hacerse"), tras un análisis previo de qué implicaba
+(ver el resumen que dio el asistente antes de empezar: sin variables
+`REACT_APP_*`, sin suite de tests que romper — `npm test` ya estaba roto,
+apuntaba a un `jest.config.js` inexistente —, sin `craco` ni `eject`,
+nada fuera de `frontend/` dependiente de CRA — riesgo bajo).
+
+Un hallazgo no anticipado durante la propia migración reforzó la
+filosofía de "lo último no siempre es lo más compatible, y hay que
+comprobarlo, no asumirlo": al intentar instalar TypeScript en su versión
+`latest`, npm resolvió `7.0.2` — **TypeScript ya va por la versión 7**
+(el compilador reescrito nativamente en Go), más nuevo todavía de lo que
+la pregunta original planteaba. Pero `typescript-eslint` (necesario para
+enlazar TypeScript con ESLint) declara un peer `typescript: ">=4.8.4
+<6.1.0"` — no soporta ni TS7 ni siquiera TS 5.9 en su forma más estricta
+de resolución de npm. La cadena de decisiones fue: TS7 (más nuevo,
+incompatible con el linter) → TS5.9.3 (compatible, pero no la más
+reciente posible) → **TS6.0.3** (el usuario preguntó explícitamente si
+TS6 también encajaba; se comprobó con `npm view typescript versions` que
+sí hay releases estables 6.0.2/6.0.3, no solo la beta que aparecía en
+`dist-tags`, y caen dentro del rango que acepta `typescript-eslint`). El
+resultado final es la versión más nueva posible que no rompe ninguna
+pieza del stack — ni más, ni menos.
+
+### 3.14.2 Pasos ejecutados, en orden, con los comandos exactos
+
+```bash
+# 1. Nueva rama desde la que ya tenía todo integrado + i18n con react-i18next
+git checkout -b vite-migration-AGB
+cd frontend
+
+# 2. Primer intento de instalar Vite — falla por un conflicto de babel
+#    heredado del propio react-scripts, todavía instalado en ese momento
+npm install --save-dev vite @vitejs/plugin-react
+# npm error Conflicting peer dependency: @babel/core@8.0.5
+# npm error peer @babel/core@"^7.29.0 || ^8.0.0-rc.1" from @rolldown/plugin-babel@0.2.4
+# npm error   peerOptional @rolldown/plugin-babel from @vitejs/plugin-react@6.1.1
+
+# 3. Se quita react-scripts ANTES de instalar Vite (elimina el babel
+#    obsoleto que causaba el conflicto del paso 2)
+npm uninstall react-scripts
+# removed 1239 packages
+
+# 4. Segundo intento — falla por otra razón: Vite 8 exige @types/node
+#    moderno, el proyecto tenía la versión de la época de CRA (^16.18.97)
+npm install --save-dev vite @vitejs/plugin-react
+# npm error peerOptional @types/node@"^20.19.0 || >=22.12.0" from vite@8.3.0
+npm install --save-dev @types/node@latest   # -> 22.20.3
+
+# 5. Tercer intento — funciona
+npm install --save-dev vite @vitejs/plugin-react
+# added 15 packages (vite@8.3.0, @vitejs/plugin-react@6.1.1)
+
+# 6. TypeScript a la última — resuelve a la v7 (el compilador en Go)
+npm install --save-dev typescript@latest   # -> 7.0.2
+
+# 7. Vitest, el test runner hermano de Vite
+npm install --save-dev vitest jsdom
+
+# 8. Se construyen index.html (en la raíz), vite.config.ts, tsconfig.json/
+#    tsconfig.app.json/tsconfig.node.json, vite-env.d.ts, y se actualizan
+#    los scripts de package.json (ver 3.14.4)
+
+# 9. Instalar el stack de ESLint flat config — falla: typescript-eslint no
+#    soporta TypeScript 7 todavía
+npm install --save-dev eslint @eslint/js typescript-eslint \
+  eslint-plugin-react-hooks eslint-plugin-react-refresh globals
+# npm error peer typescript@">=4.8.4 <6.1.0" from typescript-eslint@8.70.0
+# npm error Found: typescript@7.0.2
+
+# 10. Se baja TypeScript a la última 5.x para poder instalar el linter
+npm view typescript-eslint peerDependencies   # typescript: ">=4.8.4 <6.1.0"
+npm view typescript@5 version                 # última 5.x: 5.9.3
+npm install --save-dev typescript@5.9.3
+npm install --save-dev eslint @eslint/js typescript-eslint \
+  eslint-plugin-react-hooks eslint-plugin-react-refresh globals
+# funciona
+
+# 11. Se escribe eslint.config.js; hace falta "type": "module" en
+#     package.json para que Node interprete su `import` como ESM
+
+# 12. Verificación de tipos — limpia
+npx tsc -b
+
+# 13. Primer arranque de Vite — falla: JSX en ficheros .js
+npm run dev
+# [PARSE_ERROR] Unexpected JSX expression, src/App.js:12
+# Help: JSX syntax is disabled and should be enabled via the parser options
+
+# 14. Se identifican los .js con JSX real (grep descartando falsos
+#     positivos como comentarios que mencionan <Provider>) y se renombran
+grep -lE "<[A-Za-z]|</[A-Za-z]" $(find src -name "*.js")
+git mv src/App.js src/App.jsx
+git mv src/components/RecruiterDashboard.js src/components/RecruiterDashboard.jsx
+git mv src/components/AddCandidateForm.js src/components/AddCandidateForm.jsx
+git mv src/components/FileUploader.js src/components/FileUploader.jsx
+git mv src/components/LanguageSwitcher.js src/components/LanguageSwitcher.jsx
+
+# 15. Segundo arranque — limpio; verificación completa en el navegador
+#     (dashboard, alta de candidato con validación ES/EN, listado de
+#     posiciones con datos reales, tablero "Ver proceso")
+npm run dev
+
+# 16. Build de producción — funciona, genera dist/ (antes build/ con CRA)
+npm run build
+npx vite preview --port 4173   # sirve el build, 200 OK
+
+# 17. El linter, ya con el stack completo instalado, encuentra 5 errores
+#     reales (no relacionados con la migración en sí, preexistentes):
+npx eslint .
+# preserve-caught-error: throw new Error(...) dentro de un catch sin
+# adjuntar la causa original -> se corrige añadiendo { cause: error } en
+# candidateService.js (x2) y positionService.js (x3)
+
+# 18. vitest sin tests configurados sale con código 1 (rompería CI); se
+#     añade --passWithNoTests al script "test" de package.json
+npx vitest run
+# No test files found, exiting with code 1
+
+# 19. A mitad de sesión, el usuario pregunta si TS6 también sería
+#     compatible con el stack — se comprueba y se corrige (ver 3.14.1)
+npm view typescript versions --json | grep '"6\.'   # 6.0.2, 6.0.3 estables
+npm install --save-dev typescript@6.0.3
+npx tsc -b   # sigue limpio
+
+# 20. Verificación final completa
+npx tsc -b && npx eslint . && npm run build && npm test
+cd ../backend && npx jest && npx tsc --noEmit   # backend intacto
+```
+
+### 3.14.3 Paquetes: qué se quitó, qué se añadió, y las versiones finales
+
+**Eliminado**: `react-scripts` (y con él, 1239 paquetes transitivos —
+todo el toolchain de Babel/webpack de CRA), `@types/jest` (ya no hace
+falta con Vitest, y podía chocar con los tipos globales de
+`vitest/globals`).
+
+| Paquete | Versión final | Por qué |
+|---|---|---|
+| `vite` | `8.3.0` | El bundler/dev server en sí. |
+| `@vitejs/plugin-react` | `6.1.1` | Soporte de React (Fast Refresh, JSX) para Vite. |
+| `typescript` | `6.0.3` | La versión estable más reciente compatible con `typescript-eslint` (ver 3.14.1) — ni la 7.0.2 "latest" (rompe el linter) ni quedarse en la 5.9.3 (había una 6.x estable más nueva). |
+| `@types/node` | `22.20.3` | La `^16.18.97` heredada de CRA no cumplía el peer de Vite 8 (`^20.19 \|\| >=22.12`). |
+| `vitest` | `5.0.1` | Test runner — sustituye a Jest (que además nunca llegó a configurarse: `npm test` apuntaba a un `jest.config.js` inexistente). |
+| `jsdom` | `30.0.1` | Entorno DOM simulado para que Vitest pueda ejecutar tests de componentes. |
+| `eslint` | `10.10.0` | ESLint 9+ con configuración plana (`eslint.config.js`), sustituye al `eslintConfig` de `package.json` que dependía de `eslint-config-react-app` (empaquetado por `react-scripts`, ya no disponible al quitarlo). |
+| `@eslint/js` + `typescript-eslint` | `10.0.1` / `8.70.0` | Reglas recomendadas de JS y de TypeScript para la config plana. |
+| `eslint-plugin-react-hooks` | `7.1.1` | Reglas de hooks de React (`rules-of-hooks`, `exhaustive-deps`). |
+| `eslint-plugin-react-refresh` | `0.5.7` | Avisa si un fichero exporta algo que rompería el Fast Refresh de Vite. |
+| `globals` | `17.12.0` | Define las globals del navegador (`window`, `document`...) para el linter. |
+
+### 3.14.4 Cómo cambió el código, fichero a fichero
+
+- **`frontend/public/index.html` → `frontend/index.html`** (movido a la
+  raíz, no a `public/`): Vite lo trata como el punto de entrada real, no
+  como una plantilla. Los 3 usos de `%PUBLIC_URL%/...` se convierten en
+  rutas normales (`/favicon.ico`), porque Vite sirve el contenido de
+  `public/` en la raíz automáticamente. Se añade
+  `<script type="module" src="/src/index.tsx"></script>` (con CRA esta
+  referencia era implícita, inyectada por `react-scripts`). De paso se
+  corrige el `<title>` genérico "React App" heredado del boilerplate por
+  "LTI - Talent Tracking System".
+- **`frontend/vite.config.ts` (nuevo)**: plugin de React,
+  `server.port: 3000` fijado explícitamente (el backend tiene
+  `cors({ origin: 'http://localhost:3000' })` hardcodeado — así no hace
+  falta tocar el backend, aunque el puerto por defecto de Vite sea 5173),
+  y la config de Vitest (`environment: 'jsdom'`, `globals: true`).
+- **`frontend/tsconfig.json`**: pasa de un único fichero con todas las
+  opciones a **project references** (`{ "files": [], "references": [...]
+  }`), el patrón que genera el propio scaffold oficial de Vite
+  (`npm create vite@latest`) — separa la config de "código de la app"
+  (`tsconfig.app.json`) de la de "config de Vite en sí"
+  (`tsconfig.node.json`, para que `vite.config.ts` se compile con un
+  target de Node, no de navegador). Cambios de fondo en
+  `tsconfig.app.json`: `moduleResolution: "node"` → `"bundler"` (el modo
+  recomendado cuando el bundler, no `tsc`, resuelve los módulos) y
+  `target: "es5"` → `"ES2022"` (Vite/esbuild no necesitan bajar a ES5;
+  los navegadores objetivo del `browserslist` ya son modernos).
+- **`frontend/src/react-app-env.d.ts` → `frontend/src/vite-env.d.ts`**:
+  `/// <reference types="react-scripts" />` → `/// <reference types="vite/client" />`.
+- **`frontend/eslint.config.js` (nuevo)**: configuración plana de ESLint
+  9, sustituye al campo `"eslintConfig": { "extends": ["react-app",
+  "react-app/jest"] }` de `package.json` (ese formato de configuración ya
+  ni siquiera lo lee ESLint 9 sin un plugin de compatibilidad).
+- **`frontend/src/App.jsx`, `RecruiterDashboard.jsx`,
+  `AddCandidateForm.jsx`, `FileUploader.jsx`, `LanguageSwitcher.jsx`**
+  (renombrados de `.js`): el motor de transformación de Vite 8 (`oxc`,
+  escrito en Rust) solo activa el parseo de JSX para ficheros `.jsx`/
+  `.tsx` por extensión — a diferencia de Babel (usado por CRA), que lo
+  detectaba dentro de cualquier `.js`. La solución correcta no es
+  configurar una excepción para `.js` (posible, pero un parche), sino
+  nombrar los ficheros según lo que contienen — la convención que ya
+  seguían `Positions.tsx`/`PositionProcess.tsx` en este mismo proyecto.
+- **`frontend/src/services/candidateService.js` y `positionService.js`**:
+  el linter recién configurado (regla `preserve-caught-error`) señaló que
+  los `throw new Error(mensaje)` dentro de un `catch (error)` perdían la
+  causa original. Se corrige añadiendo el segundo argumento estándar de
+  `Error` (`{ cause: error }`), sin cambiar el mensaje mostrado al
+  usuario — un hallazgo real del linter, no parte "planeada" de la
+  migración, corregido porque instalar un linter y no atender lo que
+  encuentra habría dejado el repositorio en un estado incoherente.
+- **`frontend/package.json`**: `"type": "module"` (necesario para que
+  Node interprete el `import` de `eslint.config.js`/`vite.config.ts` como
+  ESM); scripts `start`/`eject` → `dev`/`preview`; `build` pasa de
+  `react-scripts build` a `tsc -b && vite build` (type-check explícito
+  antes del build, algo que CRA hacía de forma menos visible vía
+  `fork-ts-checker-webpack-plugin`); `test` pasa de
+  `jest --config jest.config.js` (roto: el fichero no existía) a
+  `vitest run --passWithNoTests` (no falla con cero tests, que es el
+  estado real y honesto del proyecto ahora mismo) + un `test:watch`
+  nuevo para desarrollo local.
+- **`README.md`** (raíz, ES y EN) **y `frontend/README.md`**: los pasos
+  "construye el frontend" + "inicia el frontend" (`npm run build` +
+  `npm start`) se sustituyen por un único `npm run dev`. El
+  `frontend/README.md` generado por CRA (boilerplate nunca personalizado,
+  con enlaces a la documentación oficial de Create React App) se
+  reemplaza por uno breve y específico de este proyecto.
+- **`.gitignore`**: se añade `**/*.tsbuildinfo` (caché incremental de
+  `tsc -b`, generada al compilar, que no debe versionarse — no existía
+  antes porque CRA nunca usaba compilación incremental de `tsc` con
+  project references).
+
+### 3.14.5 Ventajas frente a Create React App
+
+| Aspecto | Create React App | Vite |
+|---|---|---|
+| Estado del proyecto | Descontinuado desde 2025; `react-scripts` sin versión mayor desde 2022 | Activamente mantenido, es el estándar de facto actual para React sin meta-framework |
+| Versión de TypeScript soportada | Como mucho TS4 (peer `^3.2.1 \|\| ^4`) | Sin opinión propia — la fija el proyecto; aquí TS6.0.3 |
+| Arranque del dev server | Empaqueta toda la app con webpack antes de servir nada (lento a partir de cierto tamaño) | Sirve los módulos ES nativos del navegador sin empaquetar en dev (arranque en ~150ms en este proyecto, medido) |
+| Motor de transformación | Babel (JS puro) | `oxc` (Rust) en dev / `esbuild`/`rolldown` en build — building notablemente más rápido |
+| Testing integrado | `react-scripts test` (Jest) — aquí ni siquiera estaba configurado de verdad | Vitest, comparte config y motor con Vite; mucho más rápido que Jest |
+| Configuración | Oculta (hay que `eject` para tocarla, "operación de un solo sentido") | `vite.config.ts` explícito, versionado, sin necesidad de "eyectar" nada |
+| Linter | `eslint-config-react-app`, formato de config legado (`.eslintrc`) | `eslint.config.js`, la configuración plana estándar de ESLint 9+ |
+| Salida de build | `build/` | `dist/` (y avisa de forma explícita de chunks grandes, cosa que CRA no hacía) |
+| Coste de mantener actualizado | Cada bump de una dependencia moderna choca con peers de 2022 (ya pasó con `react-i18next` en 3.13) | Las dependencias del ecosistema actual (react-i18next, etc.) se llevan bien con Vite/TS moderno de fábrica |
+
+La app en sí **se comporta exactamente igual** para quien la usa — mismo
+puerto, mismas rutas, mismo idioma, misma validación. Lo que cambia es
+que ahora se apoya en herramientas mantenidas activamente, en vez de en
+un proyecto retirado que solo podía ir acumulando fricción con cada
+dependencia nueva.
+
+## 7. Verificación de la migración a Vite (sección 3.14)
+
+```
+npm uninstall react-scripts        → -1239 paquetes
+npm install vite/@vitejs/plugin-react/typescript/vitest/jsdom/eslint...
+                                    → 3 intentos fallidos documentados en
+                                      3.14.2, resueltos uno a uno
+npx tsc -b (frontend)               → sin errores, con TS 6.0.3
+npx eslint . (frontend)             → 5 errores reales encontrados y
+                                       corregidos (preserve-caught-error),
+                                       luego limpio
+npm run build (frontend)            → dist/ generado, build de 441ms
+npx vite preview --port 4173        → sirve el build, 200 OK
+npm test (frontend)                 → vitest, 0 tests, sale con código 0
+                                       (--passWithNoTests)
+npx jest / npx tsc --noEmit (backend) → 5 suites, 11 tests, sin cambios
+                                       (rama solo de frontend)
+Navegador (npm run dev)             → dashboard, /add-candidate (mismo
+                                       caso del guión bajo, ES/EN), 
+                                       /positions (datos reales de la
+                                       API), /positions/:id (tablero
+                                       "Ver proceso" con los candidatos
+                                       del seed) — todo verificado sin
+                                       regresiones tras la migración
 ```

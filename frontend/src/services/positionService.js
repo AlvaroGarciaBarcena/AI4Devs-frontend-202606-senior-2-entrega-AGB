@@ -12,7 +12,7 @@ export const getPositions = async () => {
         const response = await axios.get(`${API_BASE_URL}/position`);
         return response.data;
     } catch (error) {
-        throw new Error(getErrorMessage(error, 'Error al obtener las posiciones'));
+        throw new Error(getErrorMessage(error, 'Error al obtener las posiciones'), { cause: error });
     }
 };
 
@@ -21,7 +21,7 @@ export const getCandidatesByPosition = async (positionId) => {
         const response = await axios.get(`${API_BASE_URL}/position/${positionId}/candidates`);
         return response.data;
     } catch (error) {
-        throw new Error(getErrorMessage(error, 'Error al obtener los candidatos de la posición'));
+        throw new Error(getErrorMessage(error, 'Error al obtener los candidatos de la posición'), { cause: error });
     }
 };
 
@@ -30,6 +30,6 @@ export const getInterviewFlowByPosition = async (positionId) => {
         const response = await axios.get(`${API_BASE_URL}/position/${positionId}/interviewflow`);
         return response.data.interviewFlow;
     } catch (error) {
-        throw new Error(getErrorMessage(error, 'Error al obtener el proceso de entrevista'));
+        throw new Error(getErrorMessage(error, 'Error al obtener el proceso de entrevista'), { cause: error });
     }
 };

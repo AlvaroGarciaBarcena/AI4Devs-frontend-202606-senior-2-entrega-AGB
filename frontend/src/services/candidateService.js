@@ -16,7 +16,7 @@ export const uploadCV = async (file) => {
         // (FileUploader.js) sabe en qué idioma traducirlo. El detalle en sí
         // (mensaje del servidor o de red) no está traducido — ver el límite
         // de alcance explicado en AddCandidateForm.js/candidateService.js.
-        throw new Error(error.response?.data?.error || error.message);
+        throw new Error(error.response?.data?.error || error.message, { cause: error });
     }
 };
 
@@ -38,6 +38,6 @@ export const sendCandidateData = async (candidateData) => {
 
         // Igual que en uploadCV: solo el detalle, sin prefijo. El prefijo
         // traducido lo añade AddCandidateForm.js con t('addCandidate.genericErrorPrefix').
-        throw new Error(responseData?.error || error.message);
+        throw new Error(responseData?.error || error.message, { cause: error });
     }
 };

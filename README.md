@@ -68,15 +68,11 @@ npm run build
 cd backend
 npm start
 ```
-5. In a new terminal window, build the frontend server:
+5. In a new terminal window, start the frontend dev server (built with
+   [Vite](https://vite.dev)):
 ```
 cd frontend
-npm run build
-```
-6. Start the frontend server
-```
-cd frontend
-npm start
+npm run dev
 ```
 
 The backend server will be running at http://localhost:3010, and the frontend will be available at http://localhost:3000.
@@ -235,15 +231,11 @@ npm run build
 cd backend
 npm start
 ```
-5. En una nueva ventana de terminal, construye el servidor frontend:
+5. En una nueva ventana de terminal, inicia el servidor de desarrollo del
+   frontend (construido con [Vite](https://vite.dev)):
 ```
 cd frontend
-npm run build
-```
-6. Inicia el servidor frontend:
-```
-cd frontend
-npm start
+npm run dev
 ```
 
 El servidor backend estará corriendo en http://localhost:3010 y el frontend estará disponible en http://localhost:3000.
