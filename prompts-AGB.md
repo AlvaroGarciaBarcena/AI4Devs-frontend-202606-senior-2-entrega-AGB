@@ -2016,3 +2016,328 @@ Frontend (npm test -- --run)  → 3 suites, 18 tests, verde (sin cambios:
 Backend  (npx jest)            → 5 suites, 19 tests, verde (no afectado,
                                   cambio es exclusivamente de frontend)
 ```
+
+## 3.17 Auditoría de ciberseguridad exhaustiva (`security-audit-AGB`)
+
+Prompt del usuario: *"¿Realizas ahora una auditoría de Ciberseguridad
+exhaustiva para verificar que no tenemos problemas en este ámbito?"*
+
+Rama nueva, creada desde `tests-AGB` (la rama más completa hasta ahora:
+incluye el validador estructurado, i18n con react-i18next, la migración a
+Vite y los tests automáticos).
+
+### 3.17.1 Metodología
+
+No se ha auditado "a ojo": cada hallazgo de esta sección está verificado
+de una de estas dos formas, indicada explícitamente en cada uno:
+
+1. **Con una prueba de concepto real** contra el backend arrancado
+   (`curl` con peticiones `multipart/form-data` fabricadas a mano), en el
+   mismo estilo que el resto de la sesión ha usado para verificar
+   arreglos: no basta con leer el código y sospechar, hay que
+   reproducirlo.
+2. **Leyendo el código fuente de la dependencia** en
+   `node_modules/` cuando la pregunta es "¿esta librería en concreto hace
+   lo que yo creo que hace?" (p. ej. `multer`/`busboy`), en vez de asumir
+   el comportamiento por el nombre del paquete.
+
+Alcance cubierto: inyección (SQL/NoSQL), control de acceso, subida de
+ficheros, cabeceras HTTP, gestión de dependencias (`npm audit` en ambos
+paquetes), XSS en el frontend, gestión de secretos/`.env`, CORS, y manejo
+de errores (fuga de información).
+
+### 3.17.2 Hallazgo principal: no existe autenticación ni autorización
+
+**Severidad: crítica. No corregido — es una decisión de producto, no un
+bug.**
+
+Ningún endpoint del backend (`POST /candidates`, `GET /candidates/:id`,
+`PUT /candidates/:id`, `POST /upload`, `GET /position`,
+`GET /position/:id/candidates`, `GET /position/:id/interviewflow`) exige
+identidad ni comprueba permisos. Cualquiera que alcance el puerto 3010
+puede leer y escribir datos personales de candidatos (nombre, email,
+teléfono, dirección, ruta del CV) y cambiar la fase de entrevista de
+cualquier candidatura, sin más que conocer un `id` numérico secuencial
+(no hay que adivinar nada: `GET /candidates/1`, `/2`, `/3`... enumera
+candidatos completos).
+
+Esto no es un fallo puntual corregible con un parche: no hay ningún
+concepto de usuario, sesión, rol o permiso en el código (el campo `role`
+que existe en `prisma/schema.prisma` pertenece al modelo `Employee` y no
+se usa en ninguna ruta ni middleware para autorizar nada). Añadirlo es un
+cambio de arquitectura — quién puede hacer qué — que le corresponde
+decidir al propietario del proyecto, no algo que este audit deba imponer
+sin más. Se documenta aquí con el detalle necesario para que la decisión
+se tome con la información completa; ver sección 3.17.6 para el resto de
+opciones que sí se han quedado fuera por el mismo motivo.
+
+### 3.17.3 Hallazgos confirmados con PoC, corregidos en esta rama
+
+**A. Subida de ficheros: el tipo de archivo solo se comprobaba por un
+dato que envía quien sube el fichero — severidad alta.**
+
+`fileUploadService.ts` filtraba por `file.mimetype`, que es literalmente
+la cabecera `Content-Type` de la parte del `multipart/form-data` —  la
+pone quien hace la petición, no el servidor. PoC:
+
+```bash
+printf '<html><body><script>alert(document.domain)</script></body></html>' > evil.html
+curl -X POST http://localhost:3010/upload \
+  -F "file=@evil.html;filename=evil.pdf;type=application/pdf"
+# → 200 OK, {"filePath":".../uploads/<ts>-evil.pdf","fileType":"application/pdf"}
+```
+
+El servidor aceptó y guardó en disco un fichero HTML con un `<script>`
+dentro, bajo extensión `.pdf` y reportando `fileType: application/pdf` —
+sin inspeccionar ni un solo byte del contenido real. Hoy no hay ninguna
+ruta que sirva `uploads/` de vuelta al navegador (se comprobó con `grep
+-rn "uploads"` sobre todo el repo: solo aparece en
+`fileUploadService.ts`, que lo escribe, no lo sirve), así que no hay XSS
+almacenado *hoy*; pero es el tipo de comprobación que falla en silencio
+el día que alguien añada esa ruta, o que un antivirus/gestor de
+documentos interno abra el fichero confiando en la extensión.
+**No se ha añadido una comprobación de contenido (magic bytes) en esta
+rama** — no había ninguna librería de ese tipo ya en el proyecto y
+añadir una nueva dependencia solo para esto se ha dejado como
+recomendación (sección 3.17.6) en vez de una decisión unilateral de qué
+librería usar.
+
+**B. Path traversal en el nombre de fichero: no explotable *hoy*, pero
+por una libería de terceros, no por el código propio — corregido como
+defensa en profundidad.**
+
+`filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)`
+usa `file.originalname` (controlado por quien sube el archivo) sin
+sanear, y `multer`'s `DiskStorage` hace literalmente
+`path.join(destination, filename)`
+(`node_modules/multer/storage/disk.js:37`) — sin comprobar que el
+resultado siga dentro de `destination`. Es el patrón exacto de CWE-22.
+
+Se probó con dos PoC:
+
+```bash
+# 1) el propio "../" queda pegado al timestamp (10 dígitos + guión), así
+#    que no es un segmento ".." puro y no escapa:
+curl ... -F "file=@x.pdf;filename=../poc.pdf;type=application/pdf"
+# → guardado como uploads/<ts>-..poc.pdf (sin escapar)
+
+# 2) con un segmento intermedio para que el ".." sí quede puro:
+curl ... -F "file=@x.pdf;filename=x/../../poc.pdf;type=application/pdf"
+# → guardado como uploads/<ts>-poc.pdf — el nombre no escapó
+```
+
+En ambos casos el fichero se quedó dentro de `uploads/`. Inspeccionando
+por qué (`node_modules/busboy/lib/utils.js`), la versión instalada de
+`busboy` (1.6.0, dependencia transitiva de `multer`) ya normaliza el
+nombre de fichero del `multipart/form-data` antes de que la aplicación
+lo vea, y descarta los componentes de ruta. **Es decir: hoy no es
+explotable, pero por una protección de una dependencia de tercer nivel
+que el código de la aplicación desconoce por completo** — si algún día
+se cambia de librería de subida de ficheros, o esa versión de `busboy`
+deja de sanear (no está documentado como parte de su contrato público),
+el `path.join` de `multer` volvería a ser alcanzable con un
+`file.originalname` malicioso. Se ha añadido `path.basename()` explícito
+en [`fileUploadService.ts`](backend/src/application/services/fileUploadService.ts)
+para que la protección no dependa de un comportamiento no documentado de
+una dependencia transitiva:
+
+```ts
+const safeOriginalName = path.basename(file.originalname);
+cb(null, uniqueSuffix + '-' + safeOriginalName);
+```
+
+Verificado de nuevo tras el cambio con las mismas dos PoC: el
+comportamiento es idéntico (el fichero se queda en `uploads/`), y una
+subida normal (`filename=cv.pdf`) se sigue guardando y devolviendo
+igual que antes — no hay regresión funcional.
+
+**C. Dependencias con vulnerabilidades conocidas, alcanzables en
+producción — severidad alta (backend) / moderada (frontend).**
+
+`npm audit` antes de esta rama:
+
+| Paquete | Dónde entra | Severidad | Alcanzable en producción |
+|---|---|---|---|
+| `path-to-regexp <=0.1.12` | `express@4.19.2` (dependencia directa) | alta (ReDoS) | Sí — enrutamiento de todas las peticiones |
+| `qs <=6.15.3` | `express@4.19.2` → `body-parser` | moderada (DoS) | Sí — parseo de query string/body |
+| `send <0.19.0` / `serve-static` | `express@4.19.2` | alta (XSS por plantilla) | Sí |
+| `validator <=13.15.20` | `swagger-jsdoc` (nunca importado en el código, ver más abajo) | alta | No — dependencia muerta |
+| `micromatch`/`minimatch`/`picomatch` | `jest`/`eslint` (herramientas de desarrollo) | alta/moderada | No — solo en `devDependencies`, nunca se despliegan |
+| `@remix-run/router <=1.23.2` (frontend) | `react-router-dom@6.23.1` (dependencia directa, va al bundle del navegador) | alta (XSS por *open redirect*) | Sí |
+
+Se trazó cada paquete con `npm ls <paquete>` (no asumido) para separar lo
+que de verdad corre en el servidor/navegador de lo que solo vive en
+herramientas de desarrollo — la tabla de arriba es el resultado de eso,
+no de leer directamente la salida de `npm audit`.
+
+Corregido con `npm audit fix` (sin `--force`, todo dentro del rango
+`^semver` ya declarado en `package.json`, cero cambios de API):
+
+```
+backend  : npm audit fix → 20 vulnerabilidades → 0
+           express 4.19.2 → 4.22.3 (arrastra path-to-regexp 0.1.13,
+           qs 6.16.0, send 0.19.2 — todos ya fuera de rango vulnerable)
+frontend : npm audit fix → 3 altas → 0 altas (2 moderadas nuevas, ver 3.17.6)
+           react-router-dom 6.23.1 → 6.30.6
+```
+
+**D. Dependencias declaradas y nunca usadas — código muerto que
+además arrastraba una dependencia vulnerable.**
+
+`swagger-jsdoc` y `swagger-ui-express` estaban en `dependencies` del
+backend desde el primer commit, pero no se importan en ningún fichero de
+`src/` (comprobado con `grep -rn "swagger" .` sobre todo el repo, aparte
+de `package.json`) — no hay ninguna ruta de documentación Swagger
+montada en `index.ts`. Eliminadas junto con sus `@types/*`:
+
+```bash
+npm uninstall swagger-jsdoc swagger-ui-express @types/swagger-jsdoc @types/swagger-ui-express
+```
+
+Esto también elimina la única vía por la que la vulnerabilidad de
+`validator` (fila de la tabla de arriba) llegaba al árbol de
+dependencias.
+
+**E. Sin cabeceras de seguridad ni límite de peticiones — severidad
+moderada (superficie de ataque general, agravada por el hallazgo
+3.17.2: no hay autenticación que frene un abuso automatizado).**
+
+Añadido en [`index.ts`](backend/src/index.ts):
+
+```ts
+app.use(helmet());
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeaders: true, legacyHeaders: false }));
+```
+
+Verificado en caliente contra el servidor de desarrollo ya arrancado
+(`ts-node-dev --respawn` lo recargó solo al guardar el fichero):
+
+```
+curl -D - http://localhost:3010/
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+RateLimit-Limit: 300
+RateLimit-Remaining: 298
+RateLimit-Reset: 900
+```
+
+**F. Sin límite en el tamaño de los arrays `educations`/`workExperiences`
+— severidad baja, agrava el impacto de E si alguien lo satura.**
+
+`validateCandidateData` recorría `data.educations`/`data.workExperiences`
+sin límite de longitud; `express.json()` limita el *tamaño en bytes* del
+body (100kb por defecto) pero no el número de elementos de un array
+dentro de él, y no había ningún otro punto del sistema que lo acotara.
+Añadido un límite de 20 entradas en
+[`validator.ts`](backend/src/application/validator.ts), con un código de
+error nuevo (`tooManyEntries`) en vez de reutilizar `tooLong` (que dice
+"caracteres", no "entradas" — habría sido un mensaje traducido pero
+incorrecto):
+
+```ts
+const MAX_ARRAY_ENTRIES = 20;
+if (data.educations.length > MAX_ARRAY_ENTRIES) {
+    issues.push({ field: 'educations', code: 'tooManyEntries', params: { max: MAX_ARRAY_ENTRIES } });
+}
+```
+
+Traducido en ambos idiomas
+([`es.json`](frontend/src/i18n/locales/es.json)/[`en.json`](frontend/src/i18n/locales/en.json)):
+*"Educación no puede tener más de 20 entradas."* / *"Education cannot
+have more than 20 entries."* — reutilizando la etiqueta de sección ya
+traducida (`validation.sections.educations`) en vez de duplicarla, dado
+que este `issue.field` llega sin índice (`'educations'`, no
+`'educations[3]...'`), un caso que
+[`validationMessages.js`](frontend/src/i18n/validationMessages.js) no
+contemplaba todavía.
+
+### 3.17.4 Descartado tras comprobarlo: inyección SQL
+
+Se revisó cómo construye sus consultas cada modelo de dominio
+(`Candidate.ts`, `Education.ts`, `WorkExperience.ts`, `Application.ts`):
+todas usan el *query builder* de Prisma (`prisma.candidate.create({...})`,
+`.update({...})`, `.findUnique({...})`) — no hay una sola llamada a
+`$queryRaw`/`$executeRaw`/`$queryRawUnsafe` en todo el backend
+(`grep -rn "queryRaw\|executeRaw" src/` → sin resultados). Prisma
+parametriza estas llamadas por construcción; no hay superficie de
+inyección SQL en este código tal y como está escrito.
+
+### 3.17.5 Descartado tras comprobarlo: XSS en el frontend
+
+`grep -rn "dangerouslySetInnerHTML\|innerHTML\|eval(\|new Function("` sobre
+todo `frontend/src` no encontró ningún resultado: React escapa por
+defecto todo lo que se renderiza como texto, y el código no usa ninguno
+de los escapes habituales a ese comportamiento. El único uso de
+`localStorage` es el de `i18next-browser-languagedetector` para
+recordar el idioma elegido (`es`/`en`) — no hay ningún dato personal ni
+sensible ahí.
+
+### 3.17.6 Dejado fuera, a propósito, para que lo decida el propietario del proyecto
+
+- **Autenticación/autorización** (3.17.2): el cambio de arquitectura más
+  grande posible en esta aplicación. No se ha implementado nada aquí.
+- **`react-router-dom` a la v7**: quedan 2 vulnerabilidades moderadas
+  (`GHSA-wrjc-x8rr-h8h6`, *open redirect* vía barra invertida en
+  `<Link>`/`useNavigate`; `GHSA-337j-9hxr-rhxg`, solo aplica a
+  *SSR hydration*, que esta app no usa — es una SPA servida por Vite,
+  sin renderizado en servidor). La única corrección disponible es
+  `react-router-dom@7.18.4`, un salto de versión mayor con cambios de
+  API. Se revisó el uso real de navegación en el código
+  (`grep -rn "useNavigate\|<Link\|navigate("`): las dos únicas
+  apariciones (`RecruiterDashboard.jsx`) usan destinos fijos
+  (`to="/add-candidate"`, `to="/positions"`), nunca un valor que venga
+  del usuario o de la URL — así que el *open redirect* no es explotable
+  con el código actual, aunque la dependencia en sí siga vulnerable.
+  Migrar a v7 es una decisión deliberada, del mismo tipo que la
+  migración de CRA a Vite documentada en la sección 3.14: se ha dejado
+  fuera de esta rama para no mezclar un cambio de API mayor con una
+  auditoría de seguridad.
+- **Comprobación de contenido real (magic bytes) en la subida de CVs**
+  (hallazgo A): requeriría añadir una dependencia nueva no evaluada
+  todavía (p. ej. `file-type`).
+- **Escaneo de malware/macros en PDF/DOCX subidos**: fuera del alcance
+  de lo que resuelve código de aplicación; requeriría un servicio
+  externo.
+- **Mensajes de error que devuelven `error.message` tal cual** (p. ej.
+  `positionController.ts`, ramas `catch` de `addCandidateController`):
+  en algunos casos es intencionado y necesario para la UX (p. ej. *"The
+  email already exists in the database"*, cubierto explícitamente por
+  `candidateController.test.ts:79-89` — cambiarlo a un mensaje genérico
+  rompería ese test y una funcionalidad real), y en otros casos
+  (excepciones no controladas de Prisma/red) sí podría filtrar detalle
+  interno. Distinguir un caso de otro con fiabilidad requiere introducir
+  una jerarquía de errores "seguros de mostrar" vs. "internos" en toda la
+  capa de controladores — un refactor más amplio que no se ha hecho aquí
+  para no arriesgar una regresión de comportamiento a cambio de una
+  fuga de información de severidad baja/moderada, no confirmada con
+  ningún caso real hoy.
+
+## 11. Verificación de la auditoría de ciberseguridad (sección 3.17)
+
+```
+Backend
+  npm audit                    → 20 vulnerabilidades → 0
+  npx tsc --noEmit              → sin errores
+  npx tsc (build)                → sin errores
+  npx jest                      → 5 suites, 21 tests (antes 19; +2 nuevos), verde
+  Cabeceras (curl -D -)         → Strict-Transport-Security, X-Content-Type-Options,
+                                   X-Frame-Options, RateLimit-* presentes
+  PoC path traversal (repetida  → fichero se queda dentro de uploads/,
+    tras el fix)                  igual que antes del fix (ya lo bloqueaba busboy;
+                                   ahora también lo bloquea el propio código)
+  Subida normal (regresión)     → sigue devolviendo 200 y la misma forma de
+                                   respuesta ({filePath, fileType})
+
+Frontend
+  npm audit                    → 3 altas → 0 altas (2 moderadas no explotables
+                                   con el código actual, ver 3.17.6)
+  npx tsc -b                    → sin errores
+  npx eslint .                  → sin errores
+  npm test -- --run             → 3 suites, 19 tests (antes 18; +1 nuevo), verde
+  npm run build                 → 2773 módulos, verde
+
+Descartado sin cambios         → inyección SQL (Prisma parametriza todo),
+                                   XSS en frontend (sin dangerouslySetInnerHTML/
+                                   innerHTML/eval, sin datos sensibles en localStorage)
+```

@@ -23,6 +23,13 @@ const getFieldLabel = (field) => {
             subfield: i18n.t(`validation.subfields.${subfield}`),
         });
     }
+    // 'educations'/'workExperiences' a secas (sin índice) llegan cuando el
+    // propio array supera el límite de entradas (código 'tooManyEntries'),
+    // no un campo dentro de una entrada concreta — reutiliza la misma
+    // etiqueta de sección que en el caso anterior.
+    if (field === 'educations' || field === 'workExperiences') {
+        return i18n.t(`validation.sections.${field}`);
+    }
     return i18n.t(`validation.fields.${field}`, { defaultValue: field });
 };
 

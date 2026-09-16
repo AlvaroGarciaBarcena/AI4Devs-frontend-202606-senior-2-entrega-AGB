@@ -14,7 +14,7 @@ const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 // en vez de un "Invalid name" genérico que no dice ni el campo ni el motivo.
 export type ValidationIssue = {
     field: string;
-    code: 'required' | 'tooShort' | 'tooLong' | 'invalidCharacters' | 'invalidFormat' | 'invalid';
+    code: 'required' | 'tooShort' | 'tooLong' | 'tooManyEntries' | 'invalidCharacters' | 'invalidFormat' | 'invalid';
     params?: Record<string, string | number>;
 };
 
@@ -160,12 +160,27 @@ export const validateCandidateData = (data: any) => {
     validatePhone(data.phone, issues);
     validateAddress(data.address, issues);
 
+    // Límite de entradas por candidato: sin él, un payload con miles de
+    // objetos en `educations`/`workExperiences` fuerza a validar y, si pasara
+    // la validación, a persistir miles de filas por una sola petición —  no
+    // hay límite de tamaño de array en express.json() ni rate limiting por
+    // candidato, así que esto queda como única cota de ese vector.
+    const MAX_ARRAY_ENTRIES = 20;
+
     if (data.educations) {
-        data.educations.forEach((education: any, index: number) => validateEducation(education, index, issues));
+        if (data.educations.length > MAX_ARRAY_ENTRIES) {
+            issues.push({ field: 'educations', code: 'tooManyEntries', params: { max: MAX_ARRAY_ENTRIES } });
+        } else {
+            data.educations.forEach((education: any, index: number) => validateEducation(education, index, issues));
+        }
     }
 
     if (data.workExperiences) {
-        data.workExperiences.forEach((experience: any, index: number) => validateExperience(experience, index, issues));
+        if (data.workExperiences.length > MAX_ARRAY_ENTRIES) {
+            issues.push({ field: 'workExperiences', code: 'tooManyEntries', params: { max: MAX_ARRAY_ENTRIES } });
+        } else {
+            data.workExperiences.forEach((experience: any, index: number) => validateExperience(experience, index, issues));
+        }
     }
 
     if (data.cv && Object.keys(data.cv).length > 0) {

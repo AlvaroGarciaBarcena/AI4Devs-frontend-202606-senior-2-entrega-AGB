@@ -53,6 +53,16 @@ describe('translateValidationIssue', () => {
         expect(translateValidationIssue({ field: 'address', code: 'tooLong', params: { max: 100 } }))
             .toBe('La dirección no puede superar los 100 caracteres.');
     });
+
+    // Caso añadido en la auditoría de ciberseguridad (security-audit-AGB):
+    // el backend ahora limita educations/workExperiences a 20 entradas
+    // (backend/src/application/validator.ts) para acotar el coste de
+    // validar/persistir un array sin límite; el issue llega con el nombre
+    // del array a secas (sin índice), no como campo dentro de una entrada.
+    it('labels the array itself (not one of its entries) when it has too many entries', () => {
+        const message = translateValidationIssue({ field: 'educations', code: 'tooManyEntries', params: { max: 20 } });
+        expect(message).toBe('Educación no puede tener más de 20 entradas.');
+    });
 });
 
 describe('translateValidationIssues', () => {

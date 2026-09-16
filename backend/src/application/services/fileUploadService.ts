@@ -17,7 +17,14 @@ const storage = multer.diskStorage({
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now();
-        cb(null, uniqueSuffix + '-' + file.originalname);
+        // file.originalname lo controla quien sube el archivo (es el nombre
+        // que traiga el multipart/form-data) y multer/busboy no garantizan
+        // en todas sus versiones que esté libre de componentes de ruta
+        // (`../`, `/`). path.basename() se queda solo con el nombre de
+        // fichero final, para que la ruta de escritura no pueda salir nunca
+        // de `uploadDir` sea cual sea el valor recibido.
+        const safeOriginalName = path.basename(file.originalname);
+        cb(null, uniqueSuffix + '-' + safeOriginalName);
     }
 });
 

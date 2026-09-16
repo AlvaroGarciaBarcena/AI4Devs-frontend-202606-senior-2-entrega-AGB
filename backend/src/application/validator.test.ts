@@ -40,4 +40,25 @@ describe('validateCandidateData', () => {
         const error = getValidationError({ ...baseCandidate, email: 'not-an-email' });
         expect(error.issues).toContainEqual({ field: 'email', code: 'invalidFormat' });
     });
+
+    it('rejects more than 20 educations instead of validating an unbounded array', () => {
+        const educations = Array.from({ length: 21 }, () => ({
+            institution: 'MIT',
+            title: 'BSc',
+            startDate: '2020-01-01',
+        }));
+        const error = getValidationError({ ...baseCandidate, educations });
+        expect(error.issues).toContainEqual({ field: 'educations', code: 'tooManyEntries', params: { max: 20 } });
+        // Con el límite superado, no se valida (ni se procesa) cada entrada individual.
+        expect(error.issues.some(issue => issue.field.startsWith('educations['))).toBe(false);
+    });
+
+    it('accepts exactly 20 educations (the boundary is inclusive)', () => {
+        const educations = Array.from({ length: 20 }, () => ({
+            institution: 'MIT',
+            title: 'BSc',
+            startDate: '2020-01-01',
+        }));
+        expect(() => validateCandidateData({ ...baseCandidate, educations })).not.toThrow();
+    });
 });

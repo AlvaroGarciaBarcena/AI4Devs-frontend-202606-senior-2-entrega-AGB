@@ -6,6 +6,8 @@ import candidateRoutes from './routes/candidateRoutes';
 import positionRoutes from './routes/positionRoutes';
 import { uploadFile } from './application/services/fileUploadService';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 
 // Extender la interfaz Request para incluir prisma
 declare global {
@@ -21,6 +23,24 @@ const prisma = new PrismaClient();
 
 export const app = express();
 export default app;
+
+// Cabeceras de seguridad estándar (X-Content-Type-Options, evita MIME-sniffing;
+// CSP/HSTS/X-Frame-Options por defecto, etc.). No hay vistas HTML servidas por
+// este backend (API pura), por lo que la CSP por defecto de helmet no choca
+// con nada existente.
+app.use(helmet());
+
+// Límite de peticiones por IP: sin esto, cualquier ruta (en particular
+// POST /upload, que acepta hasta 10MB por petición, y POST /candidates)
+// puede saturarse por fuerza bruta o denegación de servicio, ya que la API
+// no requiere autenticación. 300 peticiones/15 min es holgado para un uso
+// normal del formulario y del panel de reclutador.
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+}));
 
 // Middleware para parsear JSON. Asegúrate de que esto esté antes de tus rutas.
 app.use(express.json());

@@ -99,6 +99,7 @@
       "required": "{{field}} es obligatorio.",
       "tooShort": "{{field}} debe tener al menos {{min}} caracteres.",
       "tooLong": "{{field}} no puede superar los {{max}} caracteres.",
+      "tooManyEntries": "{{field}} no puede tener más de {{max}} entradas.",
       "invalidCharacters": "{{field}} contiene un carácter no permitido: \"{{char}}\". Solo se admiten letras y espacios.",
       "invalidCharactersGeneric": "{{field}} contiene caracteres no permitidos. Solo se admiten letras y espacios.",
       "invalidFormat": "{{field}} no tiene un formato válido.",
