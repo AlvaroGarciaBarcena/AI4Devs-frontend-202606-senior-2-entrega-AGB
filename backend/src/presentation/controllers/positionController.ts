@@ -4,6 +4,9 @@ import { getCandidatesByPositionService, getInterviewFlowByPositionService } fro
 export const getCandidatesByPosition = async (req: Request, res: Response) => {
     try {
         const positionId = parseInt(req.params.id);
+        if (isNaN(positionId)) {
+            return res.status(400).json({ message: 'Invalid position ID format' });
+        }
         const candidates = await getCandidatesByPositionService(positionId);
         res.status(200).json(candidates);
     } catch (error) {
@@ -18,6 +21,9 @@ export const getCandidatesByPosition = async (req: Request, res: Response) => {
 export const getInterviewFlowByPosition = async (req: Request, res: Response) => {
     try {
         const positionId = parseInt(req.params.id);
+        if (isNaN(positionId)) {
+            return res.status(400).json({ message: 'Invalid position ID format' });
+        }
         const interviewFlow = await getInterviewFlowByPositionService(positionId);
         res.status(200).json({ interviewFlow });
     } catch (error) {

@@ -212,6 +212,12 @@ paths:
                       type: string
                     averageScore:
                       type: number
+                    id:
+                      type: integer
+                      description: Candidate ID
+                    applicationId:
+                      type: integer
+                      description: Application ID, needed to update the candidate's interview stage via PUT /candidates/{id}
         '404':
           description: Position not found
         '500':

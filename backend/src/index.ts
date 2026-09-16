@@ -37,6 +37,15 @@ app.use(cors({
   credentials: true
 }));
 
+// Middleware de logging de peticiones. Debe ir antes de las rutas para
+// registrar TODAS las peticiones entrantes (antes vivía después de las
+// rutas y nunca llegaba a ejecutarse para /candidates, /upload o /position,
+// ya que esos handlers ya habían respondido la petición).
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
+
 // Import and use candidateRoutes
 app.use('/candidates', candidateRoutes);
 
@@ -45,11 +54,6 @@ app.post('/upload', uploadFile);
 
 // Route to get candidates by position
 app.use('/position', positionRoutes);
-
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  next();
-});
 
 const port = 3010;
 

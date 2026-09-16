@@ -6,11 +6,7 @@ import { Resume } from '../../domain/models/Resume';
 import { Application } from '../../domain/models/Application';
 
 export const addCandidate = async (candidateData: any) => {
-    try {
-        validateCandidateData(candidateData); // Validar los datos del candidato
-    } catch (error: any) {
-        throw new Error(error);
-    }
+    validateCandidateData(candidateData); // Validar los datos del candidato (lanza su propio Error con mensaje claro si falla)
 
     const candidate = new Candidate(candidateData); // Crear una instancia del modelo Candidate
     try {
@@ -66,20 +62,16 @@ export const findCandidateById = async (id: number): Promise<Candidate | null> =
 };
 
 export const updateCandidateStage = async (id: number, applicationIdNumber: number, currentInterviewStep: number) => {
-    try {
-        const application = await Application.findOneByPositionCandidateId(applicationIdNumber, id);
-        if (!application) {
-            throw new Error('Application not found');
-        }
-
-        // Actualizar solo la etapa de la entrevista actual de la aplicación específica
-        application.currentInterviewStep = currentInterviewStep;
-
-        // Guardar la aplicación actualizada
-        await application.save();
-
-        return application;
-    } catch (error: any) {
-        throw new Error(error);
+    const application = await Application.findOneByPositionCandidateId(applicationIdNumber, id);
+    if (!application) {
+        throw new Error('Application not found');
     }
+
+    // Actualizar solo la etapa de la entrevista actual de la aplicación específica
+    application.currentInterviewStep = currentInterviewStep;
+
+    // Guardar la aplicación actualizada
+    await application.save();
+
+    return application;
 };

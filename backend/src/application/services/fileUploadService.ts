@@ -1,9 +1,19 @@
 import multer from 'multer';
 import { Request, Response } from 'express';
+import path from 'path';
+import fs from 'fs';
+
+// Antes se usaba una ruta relativa ('../uploads/'), que dependía del cwd desde
+// el que se lanzara el proceso de node y fallaba con ENOENT si el directorio
+// no existía. Se ancla al cwd del proceso backend y se crea si hace falta.
+const uploadDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, '../uploads/');
+        cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now();

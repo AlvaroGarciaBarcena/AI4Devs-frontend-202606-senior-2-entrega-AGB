@@ -78,12 +78,12 @@ const validateCV = (cv: any) => {
 };
 
 export const validateCandidateData = (data: any) => {
-    if (data.id) {
-        // If id is provided, we are editing an existing candidate, so fields are not mandatory
-        return;
-    }
-
-    validateName(data.firstName); 
+    // NOTA: antes, si el payload incluía un `id`, se saltaba TODA la validación
+    // (nombre, email, teléfono, fechas...). Como este validador solo se invoca
+    // desde el alta de candidatos (POST /candidates), bastaba con enviar
+    // cualquier `id` en el cuerpo de la petición para eludir por completo la
+    // validación de entrada. Se valida siempre.
+    validateName(data.firstName);
     validateName(data.lastName); 
     validateEmail(data.email);
     validatePhone(data.phone);
