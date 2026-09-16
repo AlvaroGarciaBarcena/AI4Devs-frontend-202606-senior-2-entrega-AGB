@@ -615,92 +615,297 @@ Navegador            → GET /position con datos reales del seed (2
 
 ## 3.13 Migración a `react-i18next`: cómo se hace "bien"
 
-- **Por qué esta rama y no seguir ampliando el sistema casero**: el
-  sistema anterior (`locale.js` + `LocaleContext.js` + `translations.js`)
-  funcionaba, pero reinventaba a mano cosas que una librería de i18n
-  resuelve de forma probada: detección de idioma del navegador con
-  fallbacks, persistencia, interpolación de parámetros, y ningún soporte
-  para pluralización ni formato de fechas/números — problemas reales en
-  cuanto la app creciera más allá de 2 idiomas o de frases sin plural.
+Esta sección documenta con el máximo detalle posible la migración del
+sistema de i18n hecho a mano (rama `candidate-validation-i18n-a11y-AGB`)
+a `react-i18next`, la librería estándar del ecosistema React para
+internacionalización: la filosofía detrás de la decisión, cada comando
+ejecutado (incluidos los que fallaron, porque el porqué de un fallo es
+tan importante como el resultado final), los paquetes instalados y por
+qué esas versiones concretas, cómo cambió el código fichero a fichero, y
+las ventajas reales frente a la versión anterior.
 
-- **Dependencias instaladas**: `react-i18next`, `i18next`,
-  `i18next-browser-languagedetector`.
-  - **Problema real encontrado al instalar**: la versión más reciente de
-    `react-i18next` (17.x) exige TypeScript 5+ como *peer dependency*, y
-    este proyecto usa TypeScript 4.9.5 (`tsconfig.json`). `npm install` lo
-    rechazó por conflicto de peer dependencies.
-  - Se probó fijar `react-i18next@15.5.0` (la última versión de la rama
-    15.x sin ese peer requirement) junto con `i18next@23.16.8` — pero
-    `npx tsc --noEmit` seguía fallando, esta vez con errores de sintaxis
-    reales (`TS1139: Type parameter declaration expected`, etc.) al leer
-    los `.d.ts` de `react-i18next@15.5.0`: **no era solo un peer
-    dependency estricto de más — esa versión usa sintaxis de tipos que
-    TypeScript 4.9 literalmente no puede parsear**. Se bajó a
-    `react-i18next@14.1.3` (última de la rama 14.x), que sí compila
-    limpio con TS 4.9. Lección: cuando un peer dependency de tipos falla,
-    hay que comprobar si es solo una advertencia conservadora o una
-    incompatibilidad real de sintaxis — aquí resultó ser lo segundo.
+### 3.13.1 Filosofía: por qué sustituir algo que ya funcionaba
 
-- **Ficheros nuevos**:
-  - `frontend/src/i18n/locales/es.json` y `en.json`: los mismos textos que
-    antes vivían en `translations.js` (un objeto JS con claves planas
-    `'addCandidate.firstName'`), ahora como JSON **anidado**
-    (`{ "addCandidate": { "firstName": "..." } }`) — el formato
-    recomendado por i18next, que además usa por defecto `.` como
-    separador de claves, así que `t('addCandidate.firstName')` sigue
-    funcionando exactamente igual desde los componentes sin tocar ni una
-    sola llamada a `t()`. También incluyen ahora un namespace
-    `validation.*` con las etiquetas de campo y plantillas de mensaje que
-    antes vivían como objetos JS dentro de `validationMessages.js`.
-  - `frontend/src/i18n/i18n.js`: configuración e inicialización de
-    i18next. Se importa una sola vez, como efecto secundario, desde
-    `index.tsx` antes de renderizar `<App />` — el patrón estándar de
-    `react-i18next`, que no necesita un `<Provider>` explícito envolviendo
-    la app porque el hook `useTranslation()` lee la instancia global.
-    Configuración relevante:
-    - `LanguageDetector` con `order: ['localStorage', 'navigator']` y
-      `lookupLocalStorage: 'lti_error_locale'` (la misma clave que ya
-      usaba el sistema casero, para no perder la preferencia de quien ya
-      la había elegido) — sustituye por completo la función
-      `detectBrowserLocale()` escrita a mano que recorría
-      `navigator.languages`.
-    - `load: 'languageOnly'`: hace que `'en-US'` se resuelva como `'en'`
-      automáticamente, sustituyendo el bucle manual que hacíamos antes.
-    - Un listener `i18n.on('languageChanged', lng => document.documentElement.lang = lng)`:
-      esto es la mejora 2 de la lista anterior (`<html lang>` dinámico) —
-      antes quedaba fijo en `"es"` tras mi arreglo puntual; ahora seguirá
-      al idioma activo automáticamente, para siempre.
-- **Ficheros eliminados**: `frontend/src/i18n/locale.js`,
-  `frontend/src/i18n/LocaleContext.js`, `frontend/src/i18n/translations.js`
-  — toda su funcionalidad la cubre ahora `react-i18next` + `i18n.js`.
-- **`validationMessages.js` reescrito**: en vez de objetos JS
-  (`SIMPLE_FIELD_LABELS`, `MESSAGE_TEMPLATES`...) con plantillas
-  interpoladas a mano (`` `${field} es obligatorio.` ``), ahora compone
-  los mensajes con `i18n.t('validation.messages.required', { field })`,
-  usando la interpolación `{{field}}`/`{{min}}`/`{{max}}`/`{{char}}` nativa
-  de i18next. Ya no necesita recibir el `locale` como parámetro explícito
-  (`translateValidationIssue(issue, locale)` → `translateValidationIssue(issue)`):
-  usa el idioma activo de la instancia global de i18next directamente,
-  igual que se haría fuera de un componente React (`i18n.t(...)` en vez
-  del hook `useTranslation()`, que solo hace falta dentro de JSX).
-- **Componentes migrados** (`useLocale()` → `useTranslation()` de
-  `react-i18next`): `RecruiterDashboard.js`, `FileUploader.js`,
-  `AddCandidateForm.js`, `Positions.tsx`, `PositionProcess.tsx`,
-  `LanguageSwitcher.js`. En `LanguageSwitcher.js`, `setLocale(code)` pasa a
-  ser `i18n.changeLanguage(code)` (la API estándar de i18next, que ya
-  persiste en `localStorage` vía el `LanguageDetector` sin código extra),
-  y la comparación de idioma activo usa `i18n.resolvedLanguage` (el
-  idioma realmente resuelto tras aplicar `load: 'languageOnly'`, más
-  fiable que `i18n.language` para este propósito). Se añade también
-  `lang={code}` a cada botón del selector, para que un lector de pantalla
-  pronuncie "Español"/"English" con las reglas fonéticas del idioma que
-  nombran, no las de la página.
+El sistema anterior (`locale.js` + `LocaleContext.js` + `translations.js`,
+~150 líneas en total) **funcionaba correctamente** — estaba verificado,
+probado en el navegador, con tests indirectos vía la UI. La pregunta no
+era "¿funciona?" sino "¿es así como se construye esto en un proyecto
+real, en equipo, a largo plazo?". Tres ideas concretas guiaron la
+migración:
+
+1. **No reinventar problemas ya resueltos.** Detectar el idioma del
+   navegador con fallbacks razonables, persistir una preferencia,
+   interpolar parámetros en una frase, pluralizar correctamente según el
+   idioma (las reglas de plural varían radicalmente entre idiomas — no es
+   "singular o plural", en algunos idiomas hay 3, 4 o 6 formas distintas)
+   son problemas que miles de proyectos ya resolvieron, testearon contra
+   casos borde durante años, y empaquetaron en una librería. Escribirlo a
+   mano es empezar de cero en un problema ya resuelto, y cada edge case
+   nuevo (un tercer idioma, una frase con plural, RTL) sería código nuevo
+   a escribir, testear y mantener nosotros mismos.
+2. **Adoptar el formato idiomático desbloquea herramientas gratis.** Un
+   JSON anidado por idioma (`es.json`/`en.json`) no es solo "otra forma
+   de guardar lo mismo": es el formato que entienden `i18next-parser`
+   (extrae claves usadas en el código automáticamente), los plugins de
+   VSCode para i18next, y plataformas de gestión de traducciones como
+   Lokalise o Crowdin (a las que un traductor no-programador podría subir
+   directamente estos ficheros). Un objeto JS con claves planas hecho a
+   mano no es compatible con nada de eso.
+3. **El estado del idioma debe vivir fuera de React.** El sistema casero
+   guardaba el `locale` como estado de un `React.Context` — lo cual
+   obligaba a cualquier código que necesitara traducir algo *fuera* de un
+   componente (como `validationMessages.js`, invocado desde un `catch` de
+   un `handleSubmit`) a recibir el `locale` como parámetro explícito en
+   cada función. i18next mantiene el idioma activo como un singleton
+   global fuera de React; cualquier módulo puede llamar a `i18n.t(...)`
+   directamente, sin necesidad de que el idioma "le llegue" desde algún
+   sitio. Esto simplificó de verdad `validationMessages.js` (ver 3.13.4).
+
+### 3.13.2 Pasos ejecutados, en orden, con los comandos exactos
+
+```bash
+# 1. Nueva rama desde la que ya tenía todo integrado
+git checkout -b i18n-react-i18next-AGB
+
+# 2. Primer intento de instalación — falla
+cd frontend
+npm install react-i18next i18next i18next-browser-languagedetector
+# npm error ERESOLVE unable to resolve dependency tree
+# npm error peerOptional typescript@"^5 || ^6 || ^7" from react-i18next@17.0.14
+# (el proyecto usa typescript@^4.9.5 en tsconfig.json/package.json)
+
+# 3. Investigar qué versiones de react-i18next NO exigen TypeScript 5
+npm view react-i18next versions --json
+npm view react-i18next@13 peerDependencies   # sin peer de typescript
+npm view react-i18next@14 peerDependencies   # sin peer de typescript
+npm view react-i18next@15 peerDependencies   # 15.0.0–15.5.0 sin peer;
+                                              # 15.5.1+ ya exige typescript ^5
+
+# 4. Segundo intento, fijando react-i18next@15.5.0 — falla igualmente,
+#    esta vez por i18next (su última versión también exige TS5)
+npm install react-i18next@15.5.0 i18next i18next-browser-languagedetector
+# npm error peerOptional typescript@"^5 || ^6 || ^7" from i18next@26.4.2
+
+# 5. Repetir la misma investigación para i18next
+npm view i18next@23 peerDependencies   # sin peer de typescript
+npm view i18next@24 peerDependencies   # ya exige typescript ^5
+npm view i18next@23 version            # última 23.x: 23.16.8
+
+# 6. Tercer intento, fijando ambos paquetes — funciona
+npm install react-i18next@15.5.0 i18next@23.16.8 i18next-browser-languagedetector
+# added 5 packages, removed 1 package, changed 1 package
+
+# 7. Se construyen los ficheros nuevos (locales/es.json, locales/en.json,
+#    i18n.js) y se reescriben los componentes (ver 3.13.3-3.13.4)
+
+# 8. Verificación de tipos — falla de nuevo, con react-i18next@15.5.0 esta vez
+npx tsc --noEmit
+# node_modules/react-i18next/index.d.ts(100,3): error TS1139:
+#   Type parameter declaration expected.
+# (+ una docena de errores de sintaxis más en el mismo fichero de tipos)
+# → No es un peer dependency mal declarado: los .d.ts de esta versión
+#   usan sintaxis de TypeScript 5 que el compilador 4.9.5 no puede ni
+#   parsear. Hay que bajar react-i18next también.
+
+# 9. Cuarto y último intento — funciona y compila limpio
+npm install react-i18next@14.1.3
+npx tsc --noEmit   # sin salida = sin errores
+
+# 10. Verificación completa: backend sin cambios, frontend en el navegador
+cd ../backend && npx jest && npx tsc --noEmit
+cd ../frontend && npx tsc --noEmit
+
+# 11. Commit
+git add ...
+git commit -m "refactor(i18n): migra del sistema casero a react-i18next"
+```
+
+**Por qué se documentan también los pasos 2, 4 y 8 (los que fallaron)**:
+en un proyecto real, el primer intento de instalar una librería rara vez
+es el definitivo — hay que fijar versiones compatibles con el resto del
+stack (aquí, TypeScript 4.9.5, heredado del resto del proyecto). Sirve
+como referencia de "qué hacer cuando `npm install` falla por peer
+dependencies": primero investigar con `npm view <paquete>@<major>
+peerDependencies` qué versión concreta dejó de exigir el requisito
+conflictivo, y solo si eso no basta (como pasó aquí en el paso 8),
+verificar con `tsc` que los tipos realmente son compatibles y no solo que
+`npm install` no proteste.
+
+### 3.13.3 Paquetes instalados (versiones finales)
+
+| Paquete | Versión final | Por qué esa versión concreta |
+|---|---|---|
+| `react-i18next` | `14.1.3` | Última de la rama 14.x; ni exige TypeScript 5 como peer dependency ni sus `.d.ts` usan sintaxis de TS5 (a diferencia de la 15.5.0, que solo cumplía lo primero). |
+| `i18next` | `23.16.8` | Última de la rama 23.x, la última sin exigir TypeScript 5. |
+| `i18next-browser-languagedetector` | `8.2.1` (resuelta automáticamente, sin conflicto) | Detecta el idioma del navegador con una cadena de estrategias configurables (`localStorage`, `navigator`, `querystring`, `cookie`, `htmlTag`...); sustituye el bucle manual sobre `navigator.languages` del sistema anterior. |
+
+Estos tres paquetes sustituyen por completo la lógica que antes vivía en
+`locale.js` (detección + persistencia) y `translations.js` (diccionario +
+interpolación) — ver 3.13.4 para el detalle fichero a fichero.
+
+### 3.13.4 Cómo cambió el código, fichero a fichero
+
+**Ficheros eliminados** (su funcionalidad la cubre ahora la librería):
+- `frontend/src/i18n/locale.js` — detección de `navigator.languages`,
+  lectura/escritura de `localStorage`.
+- `frontend/src/i18n/LocaleContext.js` — el `React.Context` +
+  `LocaleProvider` + hook `useLocale()` caseros.
+- `frontend/src/i18n/translations.js` — el diccionario plano
+  `{ 'addCandidate.firstName': '...' }` + la función `translate()` que
+  hacía `dict[key]` y un `.replace()` manual por cada `{{param}}`.
+
+**Ficheros nuevos**:
+- `frontend/src/i18n/locales/es.json` y `en.json` — el mismo contenido
+  que antes vivía en `translations.js`, pero como JSON **anidado**
+  (`{ "addCandidate": { "firstName": "Nombre" } }` en vez de
+  `{ 'addCandidate.firstName': 'Nombre' }`). i18next usa `.` como
+  separador de claves por defecto, así que `t('addCandidate.firstName')`
+  sigue funcionando exactamente igual desde los componentes — no hizo
+  falta tocar ni una sola llamada a `t()` en el JSX por este cambio de
+  formato. También incorporan un namespace nuevo `validation.*` con las
+  etiquetas de campo (`validation.fields.firstName`) y las plantillas de
+  mensaje (`validation.messages.required`) que antes eran objetos JS
+  (`SIMPLE_FIELD_LABELS`, `MESSAGE_TEMPLATES`) dentro de
+  `validationMessages.js`.
+- `frontend/src/i18n/i18n.js` — la configuración e inicialización de
+  i18next. Se importa **una sola vez**, como efecto secundario
+  (`import './i18n/i18n'`), desde `index.tsx`, antes de renderizar
+  `<App />`. Esto basta para que cualquier componente use
+  `useTranslation()` sin necesidad de un `<Provider>` explícito envolviendo
+  la app — a diferencia del `LocaleProvider` casero, que si se te olvidaba
+  envolver un árbol de componentes rompía el hook con una excepción en
+  tiempo de ejecución. Contenido relevante:
+  ```js
+  i18n
+    .use(LanguageDetector)
+    .use(initReactI18next)
+    .init({
+      resources: { es: { translation: es }, en: { translation: en } },
+      fallbackLng: 'es',
+      supportedLngs: ['es', 'en'],
+      load: 'languageOnly',   // 'en-US' -> 'en'
+      detection: {
+        order: ['localStorage', 'navigator'],
+        caches: ['localStorage'],
+        lookupLocalStorage: 'lti_error_locale', // misma clave que el sistema anterior
+      },
+      interpolation: { escapeValue: false }, // React ya escapa por defecto
+    });
+
+  i18n.on('languageChanged', (lng) => {
+    document.documentElement.lang = lng; // <html lang> ahora reactivo
+  });
+  ```
+  Nótese `lookupLocalStorage: 'lti_error_locale'`: se reutiliza
+  deliberadamente la misma clave que usaba el sistema casero, así que
+  cualquier preferencia de idioma que un usuario ya hubiera elegido antes
+  de esta migración se respeta automáticamente, sin necesidad de
+  migración de datos.
+
+- **`frontend/src/i18n/validationMessages.js` (reescrito por completo)**:
+
+  *Antes* — objetos JS con plantillas interpoladas a mano, y el `locale`
+  viajando como parámetro explícito por cada función:
+  ```js
+  const MESSAGE_TEMPLATES = {
+    es: {
+      required: (field) => `${field} es obligatorio.`,
+      tooShort: (field, params) => `${field} debe tener al menos ${params.min} caracteres.`,
+      // ...
+    },
+    en: { /* lo mismo en inglés */ },
+  };
+
+  export const translateValidationIssue = (issue, locale = getLocale()) => {
+    const fieldLabel = getFieldLabel(issue.field, locale);
+    const templates = MESSAGE_TEMPLATES[locale] || MESSAGE_TEMPLATES[DEFAULT_LOCALE];
+    return templates[issue.code](fieldLabel, issue.params || {});
+  };
+  ```
+
+  *Después* — delega la composición e interpolación en i18next, sin
+  necesidad de recibir el idioma como parámetro (usa el idioma activo de
+  la instancia global directamente):
+  ```js
+  import i18n from './i18n';
+
+  const getFieldLabel = (field) => {
+    const match = field.match(ARRAY_FIELD_REGEX);
+    if (match) {
+      const [, section, index, subfield] = match;
+      return i18n.t('validation.arrayFieldLabel', {
+        section: i18n.t(`validation.sections.${section}`),
+        position: Number(index) + 1,
+        subfield: i18n.t(`validation.subfields.${subfield}`),
+      });
+    }
+    return i18n.t(`validation.fields.${field}`, { defaultValue: field });
+  };
+
+  export const translateValidationIssue = (issue) => {
+    const field = getFieldLabel(issue.field);
+    return i18n.t(`validation.messages.${issue.code}`, { field, ...(issue.params || {}) });
+  };
+  ```
+  La firma pasó de `translateValidationIssue(issue, locale)` a
+  `translateValidationIssue(issue)` — una simplificación real, no
+  cosmética: ya no hay que acordarse de propagar el `locale` por cada
+  punto de la cadena de llamadas.
+
+- **Componentes migrados** (`useLocale()` de `LocaleContext.js` →
+  `useTranslation()` de `react-i18next`): `RecruiterDashboard.js`,
+  `FileUploader.js`, `AddCandidateForm.js`, `Positions.tsx`,
+  `PositionProcess.tsx`, `LanguageSwitcher.js`. El cambio en cada uno fue
+  mínimo — literalmente la línea de import y la línea del hook — porque
+  las claves de traducción ya usaban el mismo formato de puntos:
+  ```diff
+  - import { useLocale } from '../i18n/LocaleContext';
+  + import { useTranslation } from 'react-i18next';
+
+  - const { t } = useLocale();
+  + const { t } = useTranslation();
+  ```
+  `LanguageSwitcher.js` cambió algo más: `setLocale(code)` pasó a ser
+  `i18n.changeLanguage(code)` (la API estándar de i18next, que ya
+  persiste en `localStorage` vía `LanguageDetector` sin código adicional
+  nuestro), y la comparación de idioma activo pasó a usar
+  `i18n.resolvedLanguage` en vez de un `locale` de estado propio — el
+  idioma realmente resuelto tras aplicar `load: 'languageOnly'`. Se
+  añadió también `lang={code}` a cada botón del selector, para que un
+  lector de pantalla pronuncie "Español"/"English" con las reglas
+  fonéticas del idioma que nombran, no las de la página en la que están.
+
 - **Ajuste en los `useEffect` de `Positions.tsx`/`PositionProcess.tsx`**:
   antes incluían `t` en el array de dependencias (necesario con el `t`
   "casero", recreado en cada cambio de idioma vía `useMemo`), lo que
   volvía a pedir los datos a la API cada vez que alguien cambiaba de
-  idioma. Se corrige a `[]`/`[id]`: los datos solo se piden una vez, y el
-  texto se re-traduce en cada render sin necesidad de refetch.
+  idioma — un efecto secundario no intencionado del diseño anterior.
+  `useTranslation()` de `react-i18next` también provoca un re-render al
+  cambiar de idioma (así el texto se re-traduce), pero ya no hacía falta
+  meter `t` en las dependencias del *fetch*: se corrigió a `[]`/`[id]`,
+  de modo que los datos solo se piden una vez y el texto se re-traduce en
+  cada render sin necesidad de volver a llamar a la API.
+
+### 3.13.5 Ventajas frente al sistema anterior
+
+| Aspecto | Sistema casero (`candidate-validation-i18n-a11y-AGB`) | `react-i18next` |
+|---|---|---|
+| Detección de idioma | Bucle manual sobre `navigator.languages`, escrito y testeado por nosotros | `LanguageDetector`, usado y probado en miles de proyectos en producción |
+| Persistencia de preferencia | `localStorage.getItem`/`setItem` manual con `try/catch` propio | Gestionada por `LanguageDetector` (`caches: ['localStorage']`), cero código nuestro |
+| Interpolación de parámetros | `String.replace()` manual por cada `{{param}}` | Motor de interpolación nativo, con opciones de escapado/formato |
+| Pluralización | Sin soporte — habría que escribirlo desde cero para el primer `"1 candidato"` vs `"2 candidatos"` | Soporte nativo vía `t('key', { count })`, con las reglas de plural correctas por idioma |
+| Uso fuera de componentes React | Cada función debía recibir `locale` como parámetro explícito | `i18n.t(...)` global, mismo resultado sin parámetros adicionales |
+| `<html lang>` reactivo | Había que cablearlo a mano (y de hecho fue un fallo real detectado en esta misma sesión, ver sección 3.7/3.3.1) | Una línea: `i18n.on('languageChanged', ...)` |
+| Formato de recursos | Objeto JS con claves planas, sin convención externa | JSON anidado, el formato que esperan `i18next-parser` y plataformas de traducción (Lokalise, Crowdin...) |
+| Añadir un idioma nuevo | Un objeto JS más en `translations.js` + otro en `validationMessages.js`, mantenidos a mano en paralelo | Un fichero `xx.json` más; toda la lógica de resolución/fallback ya está resuelta |
+| Mantenimiento a largo plazo | Cada caso nuevo (RTL, formato de fecha, plural, un tercer idioma) es código nuestro a escribir y testear | Ya resuelto por la librería; se actualiza con `npm update` |
+| Superficie de código propio | ~150 líneas de lógica de i18n hecha a mano, a mantener indefinidamente | ~40 líneas de configuración declarativa (`i18n.js`); el resto lo mantiene la librería |
+
+La funcionalidad visible para el usuario final **no cambió en nada** — es
+exactamente el mismo comportamiento (detección automática, selector
+explícito que la anula, persistencia, re-traducción en caliente) que ya
+se había verificado con el usuario. Lo que cambió es *qué tan sostenible*
+es ese comportamiento a partir de aquí.
 
 ## 6. Verificación de la migración a react-i18next (sección 3.13)
 
