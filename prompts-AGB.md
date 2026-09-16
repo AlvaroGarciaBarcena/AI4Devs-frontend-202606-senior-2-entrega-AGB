@@ -1923,3 +1923,96 @@ Aislamiento           → bug real de mocks sin limpiar entre tests
                         y candidateController.test.ts (beforeEach +
                         jest.clearAllMocks())
 ```
+
+## 3.16 `FileUploader`: traducir "Browse…" / "No file selected"
+
+Prompt del usuario: *"Un detalle, ¿puedes conseguir que en la pantalla
+add-candidate el botón de apertura del navegador de archivos se traduzca
+'Browse...' y 'No file selected' al español cuando estamos en este
+idioma?"*
+
+### 3.16.1 Por qué no es un problema de i18n
+
+Todo el resto de la aplicación ya estaba traducido desde
+`i18n-react-i18next-AGB`. Este texto concreto es distinto: **"Browse…" y
+"No file selected" no los pinta React**, los pinta el propio navegador
+como parte del *chrome* nativo del elemento `<input type="file">` — cada
+navegador los renderiza en el idioma de su configuración (sistema
+operativo/navegador), no en el de la página, y no son accesibles ni desde
+CSS (`content`, pseudo-elementos) ni desde JS (no existe ningún atributo
+ni prop que los sobrescriba). Por eso ninguna clave de `es.json`/`en.json`
+los estaba cubriendo: no hay clave posible que un `<input type="file">`
+nativo vaya a leer.
+
+### 3.16.2 El arreglo: ocultar el input, controlarlo con un botón propio
+
+Patrón estándar (usado por Bootstrap y la mayoría de librerías de UI)
+en [`FileUploader.jsx`](frontend/src/components/FileUploader.jsx):
+
+1. El `<input type="file">` se mantiene en el DOM y en el orden de
+   tabulación (accesible por teclado y lectores de pantalla), pero se
+   oculta visualmente con la clase `visually-hidden` de Bootstrap —
+   **no** `display: none`, que lo sacaría del árbol de accesibilidad y
+   rompería la navegación por teclado.
+2. Se le añade una `ref` (`inputRef`).
+3. Un botón propio, ya traducido (`t('fileUploader.browse')`), dispara
+   `inputRef.current?.click()` — el clic sintético sobre el input oculto
+   abre el diálogo nativo de selección de archivo exactamente igual que
+   si se hubiera clicado el input original.
+4. El texto de estado ("Ningún archivo seleccionado" / nombre del
+   archivo elegido) ya no lo pinta el navegador: se pinta con un `<p>`
+   propio controlado por el estado `fileName`, así que se traduce como
+   cualquier otro texto de la aplicación.
+
+Claves nuevas en
+[`es.json`](frontend/src/i18n/locales/es.json)/[`en.json`](frontend/src/i18n/locales/en.json)
+(dentro de `fileUploader`): `browse` ("Seleccionar archivo" / "Browse…")
+y `noFileSelected` ("Ningún archivo seleccionado" / "No file selected").
+Las claves `ariaLabel`, `selectedFile`, `upload` y `success` ya existían.
+
+### 3.16.3 Hallazgo: falsos positivos en consola por caché de dependencias de Vite
+
+Al probar el botón nuevo en el navegador, la consola mostraba errores
+("Invalid hook call", "Cannot read properties of null (reading
+'useContext')") señalando a `LanguageSwitcher.jsx` y
+`RecruiterDashboard.jsx` — componentes que este cambio no toca. La
+sospecha inicial (copias duplicadas de React) se descartó con `npm ls
+react react-dom`: una sola copia de `react@18.3.1` en todo el árbol de
+dependencias, todo `deduped`.
+
+La causa real: la pestaña del navegador llevaba horas abierta durante la
+sesión, y en ese tiempo `npm install` se había ejecutado varias veces
+(subidas de versión de `@testing-library/*` en la sección 3.15). Cada
+`npm install` invalida la caché de pre-bundling de Vite
+(`node_modules/.vite`), y el registro de red de la pestaña mostraba **dos
+grupos distintos de hashes** `?v=...` para `react.js`/`react-dom_client.js`
+en la misma cadena de peticiones — restos de la pestaña sirviendo módulos
+de dos generaciones distintas de esa caché a la vez. Se confirmó
+cerrando la pestaña por completo y abriendo una nueva contra el mismo
+servidor (`preview_stop` no fue necesario; bastó `tabs_close` +
+`preview_start` reutilizando el proceso): consola limpia, sin ningún
+error, en español y en inglés. **No era un bug del código — era estado
+obsoleto de una pestaña de depuración de larga duración**, la misma
+categoría de falso positivo que ya había aparecido en el prompt 5 de la
+sección 1 (Firefox con hot-reloads acumulados).
+
+## 9. Verificación del arreglo de `FileUploader` (sección 3.16)
+
+```
+Visual (navegador, pestaña nueva)
+  Español → "Seleccionar archivo" / "Subir Archivo" /
+            "Ningún archivo seleccionado"                        OK
+  English → "Browse…" / "Upload File" / "No file selected"       OK
+  Consola → sin errores en ninguno de los dos idiomas             OK
+  DOM     → input oculto: display:block, visibility:visible,
+            1px×1px, tabIndex:0 (patrón .visually-hidden
+            correcto, no display:none)                            OK
+
+Frontend (npm test -- --run)  → 3 suites, 18 tests, verde (sin cambios:
+                                  no se ha tocado ningún test)
+                                 npx tsc -b       → sin errores
+                                 npx eslint .     → sin errores
+                                 npm run build    → 2773 módulos, verde
+Backend  (npx jest)            → 5 suites, 19 tests, verde (no afectado,
+                                  cambio es exclusivamente de frontend)
+```

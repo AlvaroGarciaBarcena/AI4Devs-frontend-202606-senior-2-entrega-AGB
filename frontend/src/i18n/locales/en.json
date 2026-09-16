@@ -38,6 +38,8 @@
   },
   "fileUploader": {
     "ariaLabel": "File",
+    "browse": "Browse…",
+    "noFileSelected": "No file selected",
     "selectedFile": "Selected file:",
     "upload": "Upload File",
     "success": "File uploaded successfully"

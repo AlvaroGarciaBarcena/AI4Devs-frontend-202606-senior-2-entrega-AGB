@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Button, InputGroup, FormControl, Spinner } from 'react-bootstrap';
 import { uploadCV } from '../services/candidateService';
 import { useTranslation } from 'react-i18next';
 
 const FileUploader = ({ onChange, onUpload }) => {
   const { t } = useTranslation();
+  // El <input type="file"> nativo pinta su propio botón y su propio texto
+  // de "ningún archivo seleccionado" en el idioma del sistema operativo/
+  // navegador, no en el de la página — no hay forma de traducirlo desde
+  // React/CSS. Se oculta visualmente (sin quitarlo del DOM ni del orden de
+  // tabulación, para que siga siendo accesible por teclado) y se controla
+  // por completo con un botón propio, con su propio texto ya traducido.
+  const inputRef = useRef(null);
   const [file, setFile] = useState(null);
   const [fileName, setFileName] = useState('');
   const [fileData, setFileData] = useState(null);
@@ -38,11 +45,16 @@ const FileUploader = ({ onChange, onUpload }) => {
     <div>
       <InputGroup className="mb-3">
         <FormControl
+          ref={inputRef}
           type="file"
           onChange={handleFileChange}
           aria-label={t('fileUploader.ariaLabel')}
           aria-describedby="basic-addon2"
+          className="visually-hidden"
         />
+        <Button variant="outline-secondary" onClick={() => inputRef.current?.click()}>
+          {t('fileUploader.browse')}
+        </Button>
         <Button variant="outline-secondary" onClick={handleFileUpload}>
           {loading ? (
             <Spinner animation="border" role="status" size="sm" />
@@ -51,7 +63,9 @@ const FileUploader = ({ onChange, onUpload }) => {
           )}
         </Button>
       </InputGroup>
-      <p className="mb-0">{t('fileUploader.selectedFile')} {fileName}</p>
+      <p className="mb-0">
+        {fileName ? `${t('fileUploader.selectedFile')} ${fileName}` : t('fileUploader.noFileSelected')}
+      </p>
       {fileData && (
         <p className="mt-2">
           {t('fileUploader.success')}
