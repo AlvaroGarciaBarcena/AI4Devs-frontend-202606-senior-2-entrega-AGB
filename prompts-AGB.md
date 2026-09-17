@@ -1,33 +1,36 @@
-# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests (rama `tests-AGB`)
+# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests + seguridad (rama `react-router-v7-AGB`)
 
 Autor: garciabarcenaalvaro@gmail.com
 Asistente: Claude Code (Sonnet 5)
 Fecha: 2026-09-16 / 2026-09-17
 
-Rama base: `vite-migration-AGB` (commit `84cf836`), que ya reunía
-`backend-AGB` + `frontend-AGB` + `candidate-validation-i18n-a11y-AGB` +
-`positions-proceso-AGB` + la migración de i18n a `react-i18next` + la
-migración de Create React App a Vite. Esta rama no fusiona nada nuevo —
-añade **tests automáticos** que codifican las verificaciones que hasta
-ahora solo se habían hecho a mano (`curl` y navegador) a lo largo de toda
-la sesión.
+Rama base: `security-audit-AGB` (commit `8b31eb5`), que ya reunía todo lo
+anterior (`backend-AGB` + `frontend-AGB` +
+`candidate-validation-i18n-a11y-AGB` + `positions-proceso-AGB` + la
+migración de i18n a `react-i18next` + la migración de Create React App a
+Vite + tests automáticos) más una auditoría de ciberseguridad exhaustiva.
+Esta rama no fusiona nada nuevo — cierra el único punto que esa auditoría
+había dejado pendiente por ser un salto de versión mayor: migrar
+`react-router-dom` de v6 a v7.
 
 > Nota: las secciones 1-13 de este documento son el historial heredado de
 > `i18n-react-i18next-AGB`/`all-fixes-AGB` sin modificar — validación,
-> i18n con `react-i18next`, accesibilidad. La sección 14 documenta la
-> migración de CRA a Vite, y la sección 15 la incorporación de tests
-> automáticos. El histórico de `positions-proceso-AGB` sigue en
-> [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el de
+> i18n con `react-i18next`, accesibilidad. La sección 3.14 documenta la
+> migración de CRA a Vite, la 3.15 la incorporación de tests automáticos,
+> la 3.16 la traducción del selector de fichero nativo, la 3.17 la
+> auditoría de ciberseguridad, y la 3.18 la migración de
+> `react-router-dom` a v7. El histórico de `positions-proceso-AGB` sigue
+> en [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el de
 > `backend-AGB`/`frontend-AGB` en
 > [`prompts-AGB-backend.md`](./prompts-AGB-backend.md) /
 > [`prompts-AGB-frontend.md`](./prompts-AGB-frontend.md).
 
 ## 0. Resumen ejecutivo: el camino completo, de un vistazo
 
-Esta sesión generó **8 ramas** a partir de `main`, en varias oleadas. Esta
-sección existe para poder entender el conjunto sin tener que leer las
-~1600 líneas de detalle de más abajo — cada punto enlaza a la sección
-donde está el porqué completo.
+Esta sesión generó **10 ramas** a partir de `main`, en varias oleadas.
+Esta sección existe para poder entender el conjunto sin tener que leer
+las más de 2300 líneas de detalle de más abajo — cada punto enlaza a la
+sección donde está el porqué completo.
 
 ### 0.1 Mapa de ramas
 
@@ -57,9 +60,27 @@ main (8025b6f) — estado original del repo, sin tocar
             └── vite-migration-AGB (6b25e95)
                 │  = Create React App sustituido por Vite
                 │
-                └── tests-AGB  ← RAMA ACTUAL, la más completa
-                     = tests automáticos (backend y frontend) que
-                       codifican las verificaciones hechas a mano
+                └── tests-AGB (97c58a3 + d5a4328)
+                    │  = tests automáticos (backend y frontend) que
+                    │    codifican las verificaciones hechas a mano
+                    │  + traducción del selector de fichero nativo
+                    │    ("Browse…"/"No file selected")
+                    │
+                    └── security-audit-AGB (8b31eb5)
+                        │  = auditoría de ciberseguridad exhaustiva:
+                        │    20 vulnerabilidades de npm audit → 0 en
+                        │    backend, helmet + rate limiting, filtro de
+                        │    subida de ficheros endurecido, límite de
+                        │    entradas por candidato. La ausencia total
+                        │    de autenticación queda documentada como el
+                        │    hallazgo más severo, sin corregir.
+                        │
+                        └── react-router-v7-AGB (64b4d19)  ← RAMA ACTUAL
+                             = react-router-dom v6 → v7 (cierra las 2
+                               vulnerabilidades moderadas que quedaban
+                               abiertas) + fix de un bug de configuración
+                               de Jest encontrado de camino (dist/ con
+                               tests compilados duplicando ejecuciones)
 ```
 
 Cada rama tiene su propio commit y su propia sección de detalle en este
@@ -83,6 +104,10 @@ integrarlas).
 | 9 | "¿Qué mejorarías [del i18n]?" → "Implementa el 1 [librería estándar]" | `i18n-react-i18next-AGB` | 3.13 |
 | 10 | "¿Por qué no TS5?" → "CRA está descontinuado, analiza migrar a Vite" → "Vamos a por ello" | `vite-migration-AGB` | 3.14 |
 | 11 | "¿Añades todos los Tests para que tengamos las mismas pruebas de validación que en las primeras ramas?" | `tests-AGB` | 3.15 |
+| 12 | "¿Puedes conseguir que el botón del selector de fichero se traduzca ('Browse...'/'No file selected')?" | *(misma rama, `tests-AGB`)* | 3.16 |
+| 13 | "¿Realizas ahora una auditoría de Ciberseguridad exhaustiva para verificar que no tenemos problemas en este ámbito?" | `security-audit-AGB` | 3.17 |
+| 14 | "¿La razón de no migrar react-router-dom v7 era el linter, o no había impedimento y eso era solo para TS7?" → "Sí, porfa, en una rama nueva" | `react-router-v7-AGB` | 3.18 |
+| 15 | "Documéntalo todo bien, incluyendo los porqués de TS7 y react-router-dom v7, y vamos después, en otra rama nueva, a incluir la autenticación de las APIs" | *(esta actualización de la sección 0)* + próxima rama de autenticación | 0 (este resumen) |
 
 ### 0.3 Qué se hizo, paso a paso, en cada rama
 
@@ -144,11 +169,28 @@ fragmentos de código, verificaciones) está en la sección referenciada.
 7. Vitest configurado (`npm test` estaba roto desde antes, apuntaba a un `jest.config.js` inexistente).
 8. `README.md` (raíz y frontend) actualizados para reflejar los comandos nuevos.
 
-**`tests-AGB`** (detalle en 3.15, rama actual):
+**`tests-AGB`** (detalle en 3.15-3.16):
 1. Backend: nuevos tests para `addCandidateController` (alta con éxito, con el caso del guión bajo, con varios campos acumulados, y error no relacionado con validación) y para `getCandidatesByPosition`/`getInterviewFlowByPosition` (id no numérico, posición inexistente) — huecos reales de cobertura, no cubiertos hasta ahora pese a haberse verificado a mano muchas veces con `curl`.
 2. Bug de aislamiento entre tests encontrado al escribirlos: sin `jest.clearAllMocks()` en un `beforeEach`, el recuento de llamadas de un mock se acumulaba entre `it()` distintos, dando falsos negativos.
 3. Frontend: primeros tests del proyecto (antes, cero). `i18n/validationMessages.test.js` (composición de mensajes, español/inglés, campos de array), `services/candidateService.test.js` (propagación de issues, el arreglo del doble prefijo, fallo de red sin `TypeError`) y `components/AddCandidateForm.test.jsx` (el flujo completo del guión bajo en el navegador, ahora automatizado).
 4. `@testing-library/react`/`user-event`/`jest-dom`, heredados de CRA en versiones antiguas (`user-event@13`, sin `.setup()`), actualizados a las versiones actuales; movidos de `dependencies` a `devDependencies` (nunca debieron ir a producción).
+5. `FileUploader.jsx`: "Browse…"/"No file selected" son *chrome* nativo del navegador para `<input type="file">`, no texto de React — imposible de traducir con i18n. Input oculto con `.visually-hidden` (mantiene el foco por teclado) + botón propio ya traducido.
+
+**`security-audit-AGB`** (detalle en 3.17):
+1. Metodología: cada hallazgo verificado con una PoC real (`curl` con `multipart/form-data` fabricado a mano) o leyendo el código fuente de la dependencia en `node_modules/`, nunca solo "a ojo".
+2. **Hallazgo principal, sin corregir**: ningún endpoint exige autenticación ni autorización — cualquiera puede leer/escribir PII de candidatos con solo un id numérico secuencial. Documentado como decisión de arquitectura para el propietario del proyecto, no como bug.
+3. Subida de CVs: el filtro de tipo de archivo solo miraba el `Content-Type` que envía el cliente — PoC confirmó que aceptaba y guardaba un HTML con `<script>` bajo extensión `.pdf`.
+4. Path traversal en el nombre de fichero: no explotable hoy (protegido por una versión concreta de `busboy`, no documentada como su contrato), pero el propio código nunca saneaba `file.originalname` — añadido `path.basename()` explícito como defensa en profundidad.
+5. Dependencias vulnerables alcanzables en producción: `express` (ReDoS/DoS/XSS transitivos) y `react-router-dom` (open redirect) — `npm audit fix` dentro del rango semver ya declarado, sin `--force`: backend 20→0 vulnerabilidades, frontend 3 altas→0.
+6. `swagger-jsdoc`/`swagger-ui-express`, declaradas pero nunca importadas, eliminadas (arrastraban una dependencia vulnerable de `validator`).
+7. Añadidos `helmet` (cabeceras de seguridad) y `express-rate-limit` (300 peticiones/15 min); límite de 20 entradas en `educations`/`workExperiences`.
+8. Descartado tras comprobarlo, no solo asumido: inyección SQL (Prisma parametriza todo, sin `$queryRaw`) y XSS en frontend (sin `dangerouslySetInnerHTML`/`innerHTML`/`eval`).
+
+**`react-router-v7-AGB`** (detalle en 3.18, rama actual):
+1. Aclaración previa: el impedimento de TS7 (peer dependency de `typescript-eslint`) y la decisión de no migrar `react-router-dom` a v7 el día anterior (para no mezclar un salto de versión mayor con el alcance de una auditoría de seguridad) eran dos cosas sin relación — verificado con `npm view react-router-dom@7.18.4 peerDependencies` antes de responder: sin impedimento técnico real.
+2. `react-router-dom` 6.23.1 → 7.18.4. Cero cambios de código: la app solo usa el subconjunto declarativo de la API (`BrowserRouter`/`Routes`/`Route`/`Link`/`useParams`), idéntico entre ambas versiones.
+3. `npm audit` → 0 vulnerabilidades (cierra las 2 moderadas que quedaban de `security-audit-AGB`).
+4. Hallazgo incidental: `npm run build` del backend compilaba también los `*.test.ts` a `dist/`, y Jest los recogía duplicados junto a los `src/*.test.ts` originales — 14 de 42 tests fallaban en falso tras cualquier build previo a `npx jest`. Corregido excluyendo los tests del `include` de `tsconfig.json`.
 
 ### 0.4 Decisiones clave y por qué (el hilo conductor)
 
@@ -188,34 +230,54 @@ fragmentos de código, verificaciones) está en la sección referenciada.
   momento**, aunque no fuera el objetivo de la rama: el test
   `id`/`applicationId` desactualizado (3.1 del trabajo de posiciones), el
   bug de `instanceof` con `target: es5` (3.1), el `<html lang>` estático
-  (3.7), y los `throw new Error()` sin `cause` que encontró ESLint recién
-  instalado (3.14.4) — todos se arreglaron in situ en vez de ignorarlos o
-  abrirlos como tareas aparte.
+  (3.7), los `throw new Error()` sin `cause` que encontró ESLint recién
+  instalado (3.14.4), y el `dist/` de Jest duplicando tests tras un build
+  (3.18.4) — todos se arreglaron in situ en vez de ignorarlos o abrirlos
+  como tareas aparte.
+- **Un bloqueo técnico se verifica por librería concreta, nunca se
+  generaliza a otra por el número de versión.** TypeScript 7 sí bloqueaba
+  la migración de herramientas en `vite-migration-AGB` (peer dependency
+  real de `typescript-eslint`, 3.14.1); eso no significaba que
+  "cualquier versión 7" fuera a bloquear algo — `react-router-dom` v7 no
+  tenía ningún impedimento equivalente (3.18.1), y solo se dejó fuera de
+  `security-audit-AGB` por alcance, no por compatibilidad. La respuesta
+  se verificó con `npm view <paquete> peerDependencies` en ambos casos
+  antes de decidir, no por analogía entre los dos "v7".
 
-### 0.5 Dónde estamos ahora (estado de `tests-AGB`)
+### 0.5 Dónde estamos ahora (estado de `react-router-v7-AGB`)
 
 **Verificado y funcionando**, de extremo a extremo, en el navegador, por
-línea de comandos y ahora también con tests automáticos:
-- Backend: Express + TypeScript + Prisma, con validación estructurada,
-  endpoint de listado de posiciones, `isNaN` en todos los `:id`. 5 suites
-  / **19 tests** en verde (`npx jest`), `tsc --noEmit` limpio.
-- Frontend: React + TypeScript sobre **Vite** (ya no Create React App),
-  con **react-i18next** (español/inglés, detección automática +
-  selector, persistido) en toda la interfaz, formulario de alta de
-  candidato con mensajes de validación específicos por campo y
-  accesibles (`aria-invalid`, `aria-describedby`, `role="alert"`),
-  listado de posiciones con datos reales de la API, y el tablero "Ver
-  proceso" agrupando candidatos por fase de entrevista. **3 suites /
-  18 tests** en verde (`npm test`, Vitest) — antes de esta rama, cero.
-- `npx tsc -b`, `npx eslint .` y `npm run build` (con `vite preview`
-  sirviendo el resultado) limpios en el frontend.
+línea de comandos y con tests automáticos:
+- Backend: Express 4.22.3 + TypeScript + Prisma, con validación
+  estructurada (incluido un límite de 20 entradas por
+  `educations`/`workExperiences`), endpoint de listado de posiciones,
+  `isNaN` en todos los `:id`, `helmet` + `express-rate-limit`, subida de
+  CVs con el nombre de fichero saneado. 5 suites / **21 tests** en verde
+  (`npx jest`), `tsc --noEmit` limpio, **`npm audit` → 0
+  vulnerabilidades**.
+- Frontend: React + TypeScript sobre **Vite**, con **react-i18next**
+  (español/inglés, detección automática + selector, persistido) en toda
+  la interfaz — incluido ya el selector de fichero nativo del CV
+  ("Browse…"/"No file selected", chrome del navegador sustituido por un
+  botón propio) —, formulario de alta de candidato con mensajes de
+  validación específicos por campo y accesibles (`aria-invalid`,
+  `aria-describedby`, `role="alert"`), listado de posiciones con datos
+  reales de la API, el tablero "Ver proceso" agrupando candidatos por
+  fase de entrevista, y **`react-router-dom` v7**. 3 suites / **19
+  tests** en verde (`npm test`, Vitest), `tsc -b`/`eslint .`/`npm run
+  build` limpios, **`npm audit` → 0 vulnerabilidades**.
 - Nada de esto ha tocado la base de datos de forma permanente: los
-  candidatos de prueba creados durante las verificaciones manuales se
-  borraron después de cada comprobación; los tests automáticos no tocan
-  la base de datos real en ningún caso (todo mockeado).
+  candidatos de prueba creados durante las verificaciones manuales (y los
+  ficheros subidos como PoC de la auditoría de seguridad) se borraron
+  después de cada comprobación; los tests automáticos no tocan la base de
+  datos real en ningún caso (todo mockeado).
 
 **Deuda conocida, documentada pero no resuelta** (todas mencionadas donde
 se detectaron, ninguna oculta):
+- **Sin autenticación ni autorización en ningún endpoint** (hallazgo
+  principal de 3.17.2) — es la pieza de deuda más importante de toda la
+  sesión, y es precisamente lo que se aborda a continuación, en una rama
+  nueva a partir de aquí.
 - El botón **"Editar"** de una posición está deshabilitado a propósito
   (`positions.editNotImplemented`) — nunca se pidió implementarlo.
 - La cobertura de tests se centra en **validación** (que es lo que se
@@ -224,22 +286,30 @@ se detectaron, ninguna oculta):
   posiciones (mock de UI sin lógica que probar todavía) y el tablero "Ver
   proceso" — no se ha fabricado cobertura de esas partes por iniciativa
   propia.
-- El build de producción del frontend avisa de un chunk único de ~650KB
+- El build de producción del frontend avisa de un chunk único de ~650-670KB
   sin *code splitting* — funcional, pero no optimizado; no se ha tocado
   porque no formaba parte de ninguna petición.
 - Los mensajes de error **no estructurados** (caída de red, backend
   caído, mensajes ya hechos que vienen directos de un `Error` de
   servicio) siguen sin traducirse — solo los errores de validación tienen
-  el tratamiento de códigos que permite traducirlos (ver 3.11).
+  el tratamiento de códigos que permite traducirlos (ver 3.11). Algunos de
+  esos mensajes sin traducir devuelven `error.message` tal cual al
+  cliente; se revisó caso por caso en 3.17.6 y se dejó así a propósito
+  donde es necesario para la UX (p. ej. email duplicado), documentando el
+  riesgo de fuga de información donde no lo es.
+- No hay comprobación de contenido real (*magic bytes*) en los CVs
+  subidos, solo de extensión/`Content-Type` (3.17.3.A) — requeriría una
+  dependencia nueva no evaluada todavía.
 - La contraseña de la base de datos de desarrollo, aunque ya no se lee
   del `schema.prisma` (arreglado en `backend-AGB`), sigue existiendo en
   el **historial** de git del commit inicial — no se ha purgado el
   historial por ser una operación destructiva que no se ha pedido.
 
-**Nada se ha subido a `origin`** en ningún momento de esta sesión — las 8
-ramas son enteramente locales. Si se quiere consolidar, el camino natural
-sería fusionar `tests-AGB` sobre `main` (o sustituir `main` por ella)
-cuando el usuario lo decida explícitamente.
+**Nada se ha subido a `origin`** en ningún momento de esta sesión — las
+10 ramas son enteramente locales. Si se quiere consolidar, el camino
+natural sería fusionar `react-router-v7-AGB` (o la rama de autenticación
+que se construya sobre ella) sobre `main` cuando el usuario lo decida
+explícitamente.
 
 ### 0.6 Análisis de ventajas: por qué esto debería haber sido así desde el principio
 
