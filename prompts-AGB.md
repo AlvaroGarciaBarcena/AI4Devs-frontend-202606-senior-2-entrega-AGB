@@ -2341,3 +2341,91 @@ Descartado sin cambios         → inyección SQL (Prisma parametriza todo),
                                    XSS en frontend (sin dangerouslySetInnerHTML/
                                    innerHTML/eval, sin datos sensibles en localStorage)
 ```
+
+## 3.18 Migración de `react-router-dom` v6 → v7 (`react-router-v7-AGB`)
+
+Prompt del usuario: primero una pregunta de aclaración — *"La razón de no
+migrar a react-router-dom v7 era que el linter no la soportaba, ¿no? ¿O
+no hay impedimento en el stack tecnológico aquí, y eso era sólo para
+TS7?"* — y, tras la respuesta, *"Sí, porfa, en una rama nueva."*
+
+### 3.18.1 Aclaración previa: dos decisiones distintas, sin relación entre sí
+
+El usuario recordaba correctamente que hubo un impedimento técnico real
+con una versión "7", pero lo atribuía a la librería equivocada:
+
+- **TypeScript 7** (`vite-migration-AGB`, sección 3.14): impedimento
+  **real**. `typescript@latest` resolvía a la 7.0.2 (el compilador
+  nuevo, en Go), y `typescript-eslint@8.70.0` exige
+  `typescript ">=4.8.4 <6.1.0"` como *peer dependency* — TS 7.0.2 queda
+  fuera de ese rango y el linter dejaba de funcionar directamente. Por
+  eso se aterrizó en TypeScript 6.0.3.
+- **react-router-dom v7** (`security-audit-AGB`, sección 3.17.6): **sin
+  impedimento técnico**. El motivo de no migrarlo el día anterior fue
+  no mezclar un salto de versión mayor (con cambios de API) dentro del
+  alcance de una auditoría de seguridad — el mismo criterio que separó
+  la migración de CRA a Vite en su propia rama —, no una incompatibilidad
+  real. Se comprobó explícitamente antes de responder:
+  `npm view react-router-dom@7.18.4 peerDependencies` → solo exige
+  `react >=18`/`react-dom >=18` (el proyecto ya usa React 18.3.1), y
+  `npm view eslint-plugin-react-hooks@latest peerDependencies` → acepta
+  hasta `eslint ^10.0.0` (el proyecto ya usa ESLint 10) sin conflicto.
+
+### 3.18.2 Por qué el riesgo de la migración era bajo, verificado antes de tocar nada
+
+Antes de instalar nada se revisó qué API de `react-router-dom` usa
+realmente la aplicación (`grep -rln "react-router" src`): solo 4
+ficheros, y solo estas importaciones —
+[`App.jsx`](frontend/src/App.jsx): `BrowserRouter`, `Routes`, `Route`;
+[`RecruiterDashboard.jsx`](frontend/src/components/RecruiterDashboard.jsx)/[`Positions.tsx`](frontend/src/components/Positions.tsx):
+`Link`; [`PositionProcess.tsx`](frontend/src/components/PositionProcess.tsx):
+`Link`, `useParams`. Es el modo "declarativo" más simple de la librería
+(sin *data routers*, sin `loader`/`action`/`fetcher`, sin rutas con
+comodín `*`) — exactamente el subconjunto de la API que v7 mantiene
+sin cambios respecto a v6 para no romper a quien no usa las
+funcionalidades nuevas. Node.js (`node --version` → v26.8.2) también
+supera de sobra el mínimo de v7 (`engines.node: >=20.0.0`).
+
+### 3.18.3 La migración en sí
+
+```bash
+npm install react-router-dom@^7.18.4
+```
+
+`package.json`: `"react-router-dom": "^6.23.1"` → `"^7.18.4"`. **Cero
+cambios de código** — ni en `App.jsx` ni en ningún componente que use
+`Link`/`useParams`: la API que usa la aplicación es idéntica en ambas
+versiones.
+
+### 3.18.4 Verificación
+
+No solo build/tests: dado que es un cambio que toca el enrutado de toda
+la aplicación, se verificó también navegando de verdad en el navegador
+(pestaña nueva, caché de pre-bundling de Vite —
+`node_modules/.vite` — borrada primero, misma precaución aprendida en la
+sección 3.16.3 tras un salto de dependencia):
+
+```
+npx tsc -b            → sin errores
+npx eslint .           → sin errores
+npm test -- --run      → 3 suites, 19 tests, verde (sin cambios: no se ha
+                          tocado ningún test, ninguno dependía de la
+                          versión de react-router-dom)
+npm run build          → 2777 módulos, verde
+npm audit               → 0 vulnerabilidades (cierra las 2 moderadas que
+                          quedaban abiertas desde la sección 3.17.3.C)
+
+Navegador (consola limpia en todo momento):
+  Dashboard → clic en "Ir a Posiciones" (<Link>)         → OK
+  Posiciones → clic en "Ver proceso" (<Link> + useParams  → OK, position
+              a "/positions/:id")                            id resuelto
+  "← Volver a posiciones" (<Link> de vuelta)              → OK
+  Enlace profundo directo a /add-candidate (BrowserRouter,
+              sin pasar por la SPA)                        → OK
+```
+
+Con esto, `security-audit-AGB` queda completamente cerrada: de los dos
+puntos que se dejaron explícitamente pendientes en la sección 3.17.6, la
+autenticación sigue siendo una decisión de arquitectura del propietario
+del proyecto (sin tocar), y la migración de `react-router-dom` está
+hecha y verificada.
