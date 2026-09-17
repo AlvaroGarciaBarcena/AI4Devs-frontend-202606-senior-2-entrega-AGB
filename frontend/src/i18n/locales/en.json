@@ -2,6 +2,17 @@
   "languageSwitcher": {
     "label": "Language:"
   },
+  "login": {
+    "title": "Log in",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Log in",
+    "submitting": "Logging in…",
+    "genericErrorPrefix": "Error logging in: "
+  },
+  "userMenu": {
+    "logout": "Log out"
+  },
   "dashboard": {
     "title": "Recruiter Dashboard",
     "logoAlt": "LTI Logo",

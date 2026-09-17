@@ -4,16 +4,22 @@ import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
 import candidateRoutes from './routes/candidateRoutes';
 import positionRoutes from './routes/positionRoutes';
+import authRoutes from './routes/authRoutes';
 import { uploadFile } from './application/services/fileUploadService';
+import { requireAuth } from './presentation/middleware/authMiddleware';
+import { AuthTokenPayload } from './application/services/authService';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
-// Extender la interfaz Request para incluir prisma
+// Extender la interfaz Request para incluir prisma y, tras pasar por
+// requireAuth, el empleado autenticado (payload del JWT: id, role,
+// companyId — nunca el hash de la contraseña).
 declare global {
   namespace Express {
     interface Request {
       prisma: PrismaClient;
+      employee?: AuthTokenPayload;
     }
   }
 }
@@ -42,6 +48,18 @@ app.use(rateLimit({
   legacyHeaders: false,
 }));
 
+// Límite específico y más estricto para el login: sin cuentas que se
+// bloqueen tras varios intentos fallidos (no hay ese concepto en el
+// modelo Employee), este es el único freno real contra probar
+// contraseñas por fuerza bruta contra un email conocido.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Demasiados intentos de inicio de sesión. Inténtalo de nuevo más tarde.' },
+});
+
 // Middleware para parsear JSON. Asegúrate de que esto esté antes de tus rutas.
 app.use(express.json());
 
@@ -66,14 +84,22 @@ app.use((req, res, next) => {
   next();
 });
 
-// Import and use candidateRoutes
-app.use('/candidates', candidateRoutes);
+// Ruta de login, sin autenticar (es la que la concede) pero con su propio
+// límite de intentos.
+app.use('/auth', loginLimiter, authRoutes);
+
+// A partir de aquí, toda ruta exige un JWT válido (ver
+// presentation/middleware/authMiddleware.ts) — antes de esta rama,
+// cualquiera que alcanzara el puerto del backend podía leer y escribir
+// datos de candidatos sin identificarse (ver prompts-AGB.md, sección
+// 3.17.2).
+app.use('/candidates', requireAuth, candidateRoutes);
 
 // Route for file uploads
-app.post('/upload', uploadFile);
+app.post('/upload', requireAuth, uploadFile);
 
 // Route to get candidates by position
-app.use('/position', positionRoutes);
+app.use('/position', requireAuth, positionRoutes);
 
 const port = 3010;
 

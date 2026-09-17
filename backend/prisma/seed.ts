@@ -1,6 +1,14 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+
+// Contraseña de desarrollo para ambos empleados sembrados — solo para
+// entornos locales, documentada tal cual en prompts-AGB.md junto con el
+// resto de credenciales de ejemplo del proyecto (DB_PASSWORD=changeme en
+// .env.example). Nunca se usa en producción: no hay endpoint de registro
+// (ver authController.ts), los empleados se dan de alta a mano.
+const DEV_PASSWORD_HASH = bcrypt.hashSync('Changeme123!', 10);
 
 async function main() {
   // Create Companies
@@ -247,6 +255,7 @@ async function main() {
       companyId: company1.id,
       name: 'Alice Johnson',
       email: 'alice.johnson@lti.com',
+      password: DEV_PASSWORD_HASH,
       role: 'Interviewer',
     },
   });
@@ -256,6 +265,7 @@ async function main() {
       companyId: company1.id,
       name: 'Bob Miller',
       email: 'bob.miller@lti.com',
+      password: DEV_PASSWORD_HASH,
       role: 'Hiring Manager',
     },
   });

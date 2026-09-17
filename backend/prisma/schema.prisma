@@ -70,6 +70,13 @@ model Employee {
   company   Company  @relation(fields: [companyId], references: [id])
   name      String
   email     String   @unique
+  // Hash de bcrypt (nunca la contraseña en claro). Nullable porque los
+  // Employee ya existentes en bases de datos previas a esta migración no
+  // tienen contraseña: sin ella no pueden autenticarse (ver
+  // authService.ts), pero la fila sigue siendo válida para el resto de la
+  // aplicación (interviews, etc.) en vez de forzar un valor por defecto
+  // inventado.
+  password  String?  @db.VarChar(255)
   role      String
   isActive  Boolean  @default(true)
   interviews Interview[]

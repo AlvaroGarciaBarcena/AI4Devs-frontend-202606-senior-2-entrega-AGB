@@ -1,35 +1,36 @@
-# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests + seguridad (rama `react-router-v7-AGB`)
+# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests + seguridad + auth (rama `api-auth-AGB`)
 
 Autor: garciabarcenaalvaro@gmail.com
 Asistente: Claude Code (Sonnet 5)
 Fecha: 2026-09-16 / 2026-09-17
 
-Rama base: `security-audit-AGB` (commit `8b31eb5`), que ya reunía todo lo
-anterior (`backend-AGB` + `frontend-AGB` +
+Rama base: `react-router-v7-AGB` (commit `0ab68a0`), que ya reunía todo
+lo anterior (`backend-AGB` + `frontend-AGB` +
 `candidate-validation-i18n-a11y-AGB` + `positions-proceso-AGB` + la
 migración de i18n a `react-i18next` + la migración de Create React App a
-Vite + tests automáticos) más una auditoría de ciberseguridad exhaustiva.
-Esta rama no fusiona nada nuevo — cierra el único punto que esa auditoría
-había dejado pendiente por ser un salto de versión mayor: migrar
-`react-router-dom` de v6 a v7.
+Vite + tests automáticos + una auditoría de ciberseguridad exhaustiva +
+la migración de `react-router-dom` a v7). Esta rama no fusiona nada
+nuevo — cierra el hallazgo más severo que dejó pendiente esa auditoría:
+ningún endpoint del backend exigía autenticación.
 
 > Nota: las secciones 1-13 de este documento son el historial heredado de
 > `i18n-react-i18next-AGB`/`all-fixes-AGB` sin modificar — validación,
 > i18n con `react-i18next`, accesibilidad. La sección 3.14 documenta la
 > migración de CRA a Vite, la 3.15 la incorporación de tests automáticos,
 > la 3.16 la traducción del selector de fichero nativo, la 3.17 la
-> auditoría de ciberseguridad, y la 3.18 la migración de
-> `react-router-dom` a v7. El histórico de `positions-proceso-AGB` sigue
-> en [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el de
+> auditoría de ciberseguridad, la 3.18 la migración de `react-router-dom`
+> a v7, y la 3.19 la autenticación de las APIs. El histórico de
+> `positions-proceso-AGB` sigue en
+> [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el de
 > `backend-AGB`/`frontend-AGB` en
 > [`prompts-AGB-backend.md`](./prompts-AGB-backend.md) /
 > [`prompts-AGB-frontend.md`](./prompts-AGB-frontend.md).
 
 ## 0. Resumen ejecutivo: el camino completo, de un vistazo
 
-Esta sesión generó **10 ramas** a partir de `main`, en varias oleadas.
+Esta sesión generó **11 ramas** a partir de `main`, en varias oleadas.
 Esta sección existe para poder entender el conjunto sin tener que leer
-las más de 2300 líneas de detalle de más abajo — cada punto enlaza a la
+las más de 2700 líneas de detalle de más abajo — cada punto enlaza a la
 sección donde está el porqué completo.
 
 ### 0.1 Mapa de ramas
@@ -75,12 +76,20 @@ main (8025b6f) — estado original del repo, sin tocar
                         │    de autenticación queda documentada como el
                         │    hallazgo más severo, sin corregir.
                         │
-                        └── react-router-v7-AGB (64b4d19)  ← RAMA ACTUAL
-                             = react-router-dom v6 → v7 (cierra las 2
-                               vulnerabilidades moderadas que quedaban
-                               abiertas) + fix de un bug de configuración
-                               de Jest encontrado de camino (dist/ con
-                               tests compilados duplicando ejecuciones)
+                        └── react-router-v7-AGB (0ab68a0)
+                            │  = react-router-dom v6 → v7 (cierra las 2
+                            │    vulnerabilidades moderadas que quedaban
+                            │    abiertas) + fix de un bug de
+                            │    configuración de Jest encontrado de
+                            │    camino (dist/ con tests compilados
+                            │    duplicando ejecuciones)
+                            │
+                            └── api-auth-AGB  ← RAMA ACTUAL
+                                 = autenticación JWT en todas las rutas
+                                   del backend (antes abiertas por
+                                   completo) + login/logout real en el
+                                   frontend — cierra el hallazgo más
+                                   severo de security-audit-AGB
 ```
 
 Cada rama tiene su propio commit y su propia sección de detalle en este
@@ -107,7 +116,8 @@ integrarlas).
 | 12 | "¿Puedes conseguir que el botón del selector de fichero se traduzca ('Browse...'/'No file selected')?" | *(misma rama, `tests-AGB`)* | 3.16 |
 | 13 | "¿Realizas ahora una auditoría de Ciberseguridad exhaustiva para verificar que no tenemos problemas en este ámbito?" | `security-audit-AGB` | 3.17 |
 | 14 | "¿La razón de no migrar react-router-dom v7 era el linter, o no había impedimento y eso era solo para TS7?" → "Sí, porfa, en una rama nueva" | `react-router-v7-AGB` | 3.18 |
-| 15 | "Documéntalo todo bien, incluyendo los porqués de TS7 y react-router-dom v7, y vamos después, en otra rama nueva, a incluir la autenticación de las APIs" | *(esta actualización de la sección 0)* + próxima rama de autenticación | 0 (este resumen) |
+| 15 | "Documéntalo todo bien, incluyendo los porqués de TS7 y react-router-dom v7, y vamos después, en otra rama nueva, a incluir la autenticación de las APIs" | *(actualización de esta sección 0)* | 0 (este resumen) |
+| 16 | Aclaración de alcance (backend+frontend vs. solo backend; empleados ya sembrados vs. registro público) → "Backend + login en el frontend" + "Los Employee ya sembrados" | `api-auth-AGB` | 3.19 |
 
 ### 0.3 Qué se hizo, paso a paso, en cada rama
 
@@ -186,11 +196,19 @@ fragmentos de código, verificaciones) está en la sección referenciada.
 7. Añadidos `helmet` (cabeceras de seguridad) y `express-rate-limit` (300 peticiones/15 min); límite de 20 entradas en `educations`/`workExperiences`.
 8. Descartado tras comprobarlo, no solo asumido: inyección SQL (Prisma parametriza todo, sin `$queryRaw`) y XSS en frontend (sin `dangerouslySetInnerHTML`/`innerHTML`/`eval`).
 
-**`react-router-v7-AGB`** (detalle en 3.18, rama actual):
+**`react-router-v7-AGB`** (detalle en 3.18):
 1. Aclaración previa: el impedimento de TS7 (peer dependency de `typescript-eslint`) y la decisión de no migrar `react-router-dom` a v7 el día anterior (para no mezclar un salto de versión mayor con el alcance de una auditoría de seguridad) eran dos cosas sin relación — verificado con `npm view react-router-dom@7.18.4 peerDependencies` antes de responder: sin impedimento técnico real.
 2. `react-router-dom` 6.23.1 → 7.18.4. Cero cambios de código: la app solo usa el subconjunto declarativo de la API (`BrowserRouter`/`Routes`/`Route`/`Link`/`useParams`), idéntico entre ambas versiones.
 3. `npm audit` → 0 vulnerabilidades (cierra las 2 moderadas que quedaban de `security-audit-AGB`).
 4. Hallazgo incidental: `npm run build` del backend compilaba también los `*.test.ts` a `dist/`, y Jest los recogía duplicados junto a los `src/*.test.ts` originales — 14 de 42 tests fallaban en falso tras cualquier build previo a `npx jest`. Corregido excluyendo los tests del `include` de `tsconfig.json`.
+
+**`api-auth-AGB`** (detalle en 3.19, rama actual):
+1. Alcance acordado antes de escribir código: JWT + login real en el frontend (no solo backend), contra los `Employee` ya sembrados (sin registro público).
+2. `Employee` gana un campo `password` (hash de bcrypt, nullable) vía migración de Prisma; `authService.ts` (backend) hace login con un único mensaje de error genérico para los cuatro motivos de rechazo posibles (evita enumerar correos dados de alta); `requireAuth` protege `/candidates`, `/upload` y `/position`; límite de intentos propio (10/15 min) solo para `/auth/login`.
+3. Hallazgos incidentales: no existía ningún `.env` en el repo (había que crearlo) y, al hacerlo, se comprobó que `.env.example` usaba una interpolación de variables (`${DB_USER}`) que el `dotenv` del proyecto no soporta — corregido con valores ya resueltos; varios servidores de backend zombis de sesiones anteriores seguían corriendo (matados, uno solo arrancado limpio).
+4. Frontend: interceptor global de axios (no una instancia `axios.create()` nueva, para no romper los tests existentes que mockean `axios` directamente) + `AuthContext`/`Login`/`RequireAuth`/`UserMenu`, con el mismo patrón de accesibilidad ya establecido en `AddCandidateForm`.
+5. Hallazgo al testear: auto-mockear `authService.ts` entero también sustituye la clase `AuthError` por una versión simulada sin `.message` real — corregido acotando el mock a solo la función `login`.
+6. +15 tests backend (21→36), +10 tests frontend (19→29); verificado de extremo a extremo en el navegador (login correcto/incorrecto, ambos empleados sembrados, cierre de sesión, redirección tras acceso directo a una ruta protegida sin sesión) y con `curl` para `/upload` (sin equivalente de UI, el navegador no puede pilotar el selector nativo de archivos).
 
 ### 0.4 Decisiones clave y por qué (el hilo conductor)
 
@@ -234,6 +252,15 @@ fragmentos de código, verificaciones) está en la sección referenciada.
   instalado (3.14.4), y el `dist/` de Jest duplicando tests tras un build
   (3.18.4) — todos se arreglaron in situ en vez de ignorarlos o abrirlos
   como tareas aparte.
+- **Una decisión de arquitectura con varias formas razonables de
+  implementarse se confirma antes de escribir código, no se asume.**
+  "Añadir autenticación" podía ser solo backend (verificable con `curl`,
+  dejando el frontend roto) o backend+frontend; podía admitir registro
+  público o solo los empleados ya sembrados. Se preguntó explícitamente
+  por los dos ejes (3.19.1) antes de tocar una sola línea — evita
+  construir 2-3 veces más de lo necesario, o en la dirección equivocada,
+  por dar algo por sentado en una decisión que no era técnica sino de
+  producto.
 - **Un bloqueo técnico se verifica por librería concreta, nunca se
   generaliza a otra por el número de versión.** TypeScript 7 sí bloqueaba
   la migración de herramientas en `vite-migration-AGB` (peer dependency
@@ -244,15 +271,18 @@ fragmentos de código, verificaciones) está en la sección referenciada.
   se verificó con `npm view <paquete> peerDependencies` en ambos casos
   antes de decidir, no por analogía entre los dos "v7".
 
-### 0.5 Dónde estamos ahora (estado de `react-router-v7-AGB`)
+### 0.5 Dónde estamos ahora (estado de `api-auth-AGB`)
 
 **Verificado y funcionando**, de extremo a extremo, en el navegador, por
 línea de comandos y con tests automáticos:
 - Backend: Express 4.22.3 + TypeScript + Prisma, con validación
   estructurada (incluido un límite de 20 entradas por
   `educations`/`workExperiences`), endpoint de listado de posiciones,
-  `isNaN` en todos los `:id`, `helmet` + `express-rate-limit`, subida de
-  CVs con el nombre de fichero saneado. 5 suites / **21 tests** en verde
+  `isNaN` en todos los `:id`, `helmet` + `express-rate-limit` (general y
+  uno más estricto solo para `/auth/login`), subida de CVs con el nombre
+  de fichero saneado, y **autenticación JWT exigida en `/candidates`,
+  `/upload` y `/position`** contra los `Employee` ya sembrados (email +
+  contraseña con hash de bcrypt). 8 suites / **36 tests** en verde
   (`npx jest`), `tsc --noEmit` limpio, **`npm audit` → 0
   vulnerabilidades**.
 - Frontend: React + TypeScript sobre **Vite**, con **react-i18next**
@@ -263,30 +293,31 @@ línea de comandos y con tests automáticos:
   validación específicos por campo y accesibles (`aria-invalid`,
   `aria-describedby`, `role="alert"`), listado de posiciones con datos
   reales de la API, el tablero "Ver proceso" agrupando candidatos por
-  fase de entrevista, y **`react-router-dom` v7**. 3 suites / **19
-  tests** en verde (`npm test`, Vitest), `tsc -b`/`eslint .`/`npm run
-  build` limpios, **`npm audit` → 0 vulnerabilidades**.
-- Nada de esto ha tocado la base de datos de forma permanente: los
-  candidatos de prueba creados durante las verificaciones manuales (y los
-  ficheros subidos como PoC de la auditoría de seguridad) se borraron
-  después de cada comprobación; los tests automáticos no tocan la base de
-  datos real en ningún caso (todo mockeado).
+  fase de entrevista, **`react-router-dom` v7**, y un **flujo de
+  login/logout real** (`/login` pública, el resto de rutas protegidas
+  con `RequireAuth`, token adjunto automáticamente a toda petición vía
+  un interceptor de axios). 6 suites / **29 tests** en verde (`npm
+  test`, Vitest), `tsc -b`/`eslint .`/`npm run build` limpios,
+  **`npm audit` → 0 vulnerabilidades**.
+- Nada de esto ha tocado la base de datos de forma permanente más allá de
+  lo esperado: los candidatos de prueba creados durante las
+  verificaciones manuales (y los ficheros subidos como PoC de la
+  auditoría de seguridad y de esta rama) se borraron después de cada
+  comprobación; la única escritura permanente es la contraseña de
+  desarrollo asignada a los dos `Employee` ya sembrados (sección 3.19.5,
+  necesaria para que el login sea probable); los tests automáticos no
+  tocan la base de datos real en ningún caso (todo mockeado).
 
 **Deuda conocida, documentada pero no resuelta** (todas mencionadas donde
 se detectaron, ninguna oculta):
-- **Sin autenticación ni autorización en ningún endpoint** (hallazgo
-  principal de 3.17.2) — es la pieza de deuda más importante de toda la
-  sesión, y es precisamente lo que se aborda a continuación, en una rama
-  nueva a partir de aquí.
 - El botón **"Editar"** de una posición está deshabilitado a propósito
   (`positions.editNotImplemented`) — nunca se pidió implementarlo.
-- La cobertura de tests se centra en **validación** (que es lo que se
-  pidió): alta de candidato, códigos de error, `isNaN` de posiciones.
-  Quedan sin test automático el dashboard, el listado/filtros de
-  posiciones (mock de UI sin lógica que probar todavía) y el tablero "Ver
-  proceso" — no se ha fabricado cobertura de esas partes por iniciativa
-  propia.
-- El build de producción del frontend avisa de un chunk único de ~650-670KB
+- La cobertura de tests se centra en **validación** y, desde esta rama,
+  **autenticación** (que es lo que se pidió en cada caso). Quedan sin
+  test automático el dashboard, el listado/filtros de posiciones (mock de
+  UI sin lógica que probar todavía) y el tablero "Ver proceso" — no se ha
+  fabricado cobertura de esas partes por iniciativa propia.
+- El build de producción del frontend avisa de un chunk único de ~670KB
   sin *code splitting* — funcional, pero no optimizado; no se ha tocado
   porque no formaba parte de ninguna petición.
 - Los mensajes de error **no estructurados** (caída de red, backend
@@ -300,16 +331,25 @@ se detectaron, ninguna oculta):
 - No hay comprobación de contenido real (*magic bytes*) en los CVs
   subidos, solo de extensión/`Content-Type` (3.17.3.A) — requeriría una
   dependencia nueva no evaluada todavía.
+- **Sin registro de empleados ni gestión de contraseñas** (cambiar la
+  propia, recuperar una olvidada, expirar tokens antes de las 8h de
+  vigencia) — a propósito, según el alcance acordado en 3.19.1: los
+  `Employee` se dan de alta a mano, no hay flujo de autoservicio.
+- El JWT no se puede revocar antes de que caduque (sin lista de
+  revocación ni sesiones del lado del servidor) — limitación conocida de
+  cualquier JWT sin estado; con una vigencia de 8h y sin la opción de
+  invalidar tokens robados al momento, es una cesión consciente de
+  seguridad a cambio de simplicidad, razonable para el alcance actual del
+  proyecto pero a tener en cuenta si se maneja información más sensible.
 - La contraseña de la base de datos de desarrollo, aunque ya no se lee
   del `schema.prisma` (arreglado en `backend-AGB`), sigue existiendo en
   el **historial** de git del commit inicial — no se ha purgado el
   historial por ser una operación destructiva que no se ha pedido.
 
 **Nada se ha subido a `origin`** en ningún momento de esta sesión — las
-10 ramas son enteramente locales. Si se quiere consolidar, el camino
-natural sería fusionar `react-router-v7-AGB` (o la rama de autenticación
-que se construya sobre ella) sobre `main` cuando el usuario lo decida
-explícitamente.
+11 ramas son enteramente locales. Si se quiere consolidar, el camino
+natural sería fusionar `api-auth-AGB` sobre `main` cuando el usuario lo
+decida explícitamente.
 
 ### 0.6 Análisis de ventajas: por qué esto debería haber sido así desde el principio
 
@@ -2499,3 +2539,363 @@ puntos que se dejaron explícitamente pendientes en la sección 3.17.6, la
 autenticación sigue siendo una decisión de arquitectura del propietario
 del proyecto (sin tocar), y la migración de `react-router-dom` está
 hecha y verificada.
+
+## 3.19 Autenticación de las APIs (`api-auth-AGB`)
+
+Prompt del usuario: *"Documéntalo todo bien, incluyendo los porqués de
+TS7 y react-router-dom v7 y vamos después, en otra rama nueva, a incluir
+la autenticación de las APIs, porfa"*. Cierra el hallazgo más severo de
+`security-audit-AGB` (sección 3.17.2): antes de esta rama, cualquiera que
+alcanzara el puerto del backend podía leer y escribir datos de
+candidatos sin identificarse.
+
+### 3.19.1 Alcance acordado antes de tocar código
+
+Dado que "añadir autenticación" es una decisión de arquitectura con
+varias formas razonables de implementarse (y una elección equivocada
+aquí se paga con mucho trabajo rehecho), se preguntó explícitamente por
+dos ejes antes de escribir una sola línea:
+
+1. **¿Solo backend, o también login en el frontend?** — se eligió
+   **ambos**: JWT contra el modelo `Employee` ya existente + middleware
+   protegiendo todas las rutas + una pantalla de login real en React.
+   La alternativa (solo backend, verificable con `curl`) habría dejado
+   el frontend actual completamente roto (401 en cada petición) hasta
+   una rama futura — rompe la práctica de esta sesión de verificar
+   siempre de extremo a extremo en el navegador.
+2. **¿Quién puede iniciar sesión?** — se eligió **los `Employee` ya
+   sembrados** por `prisma/seed.ts` (sin registro público): es una
+   herramienta interna de reclutadores, no una aplicación con alta de
+   usuarios propia, y un `POST /auth/register` sin restricciones
+   añadiría superficie de ataque que no hace falta.
+
+### 3.19.2 Backend: de dónde sale la identidad
+
+El modelo `Employee` (`prisma/schema.prisma`) ya existía — con `email`
+único y un campo `role` — pero nunca se había usado para nada de
+autenticación, solo como dato asociado a entrevistas. Es el candidato
+natural: el "Dashboard del Reclutador" es literalmente la herramienta de
+estos empleados.
+
+```prisma
+model Employee {
+  ...
+  // Hash de bcrypt (nunca la contraseña en claro). Nullable: un Employee
+  // sin contraseña sigue siendo válido para el resto de la app (p. ej.
+  // como entrevistador), pero no puede iniciar sesión.
+  password  String?  @db.VarChar(255)
+  ...
+}
+```
+
+Migración aplicada con `npx prisma migrate dev --name add_employee_password`
+(`prisma/migrations/20260917055210_add_employee_password/migration.sql`:
+`ALTER TABLE "Employee" ADD COLUMN "password" VARCHAR(255)`).
+`Employee.ts` (dominio) gana `password` en el constructor/`save()` y un
+`static findByEmail()` nuevo (no existía; hacía falta para el login).
+
+### 3.19.3 Backend: `authService.ts`, `authMiddleware.ts`, `authController.ts`
+
+- **`authService.ts`**: `login(email, password)` busca por email
+  (`Employee.findByEmail`), y si el empleado no existe, está desactivado
+  (`isActive: false`) o no tiene contraseña asignada, **o** la
+  contraseña no coincide (`bcrypt.compare`), lanza siempre el mismo
+  `AuthError('Email o contraseña incorrectos')` — un único mensaje
+  genérico para los cuatro casos, a propósito: distinguirlos permitiría
+  a quien ataca enumerar qué correos están dados de alta (probar
+  `alice.johnson@lti.com` con cualquier contraseña y ver si el mensaje
+  cambia). `AuthError` sigue el mismo patrón que `ValidationError`
+  (`Object.setPrototypeOf`, ver 3.1) para que `instanceof` funcione bajo
+  `target: es5`. `signToken`/`verifyToken` envuelven `jsonwebtoken`, con
+  el payload mínimo (`sub`, `role`, `companyId` — nunca el hash de la
+  contraseña) y expiración de 8h. `getJwtSecret()` lanza en el momento en
+  que se necesita la clave si `JWT_SECRET` no está en el entorno, en vez
+  de dejar que `jsonwebtoken` firme con `undefined` (que produciría
+  tokens válidos para cualquiera que probara literalmente el string
+  `"undefined"` como secreto).
+- **`authMiddleware.ts`** (`requireAuth`): exige
+  `Authorization: Bearer <token>`, adjunta el payload decodificado a
+  `req.employee` (extensión de `Express.Request`, mismo patrón que ya
+  existía para `req.prisma`). Sin cabecera, con esquema distinto de
+  `Bearer`, o con un token inválido/caducado: siempre el mismo `401
+  {"message": "Unauthorized"}` — el motivo real solo se registra en el
+  log del servidor (`console.error`), nunca en la respuesta.
+- **`authController.ts`** + **`authRoutes.ts`**: `POST /auth/login`,
+  sin proteger con `requireAuth` (es la ruta que lo concede), pero con
+  su propio límite de intentos (ver 3.19.4).
+
+En `index.ts`, todo lo que antes estaba abierto pasa a exigir el
+middleware:
+
+```ts
+app.use('/auth', loginLimiter, authRoutes);
+app.use('/candidates', requireAuth, candidateRoutes);
+app.post('/upload', requireAuth, uploadFile);
+app.use('/position', requireAuth, positionRoutes);
+```
+
+### 3.19.4 Límite de intentos específico para el login
+
+El límite general de 300 peticiones/15 min (sección 3.17.3.E) sigue
+existiendo, pero sin ningún concepto de bloqueo de cuenta tras varios
+intentos fallidos (no lo hay en el modelo `Employee`), un atacante con
+un email conocido podría probar 300 contraseñas en 15 minutos contra
+ese único endpoint. Se añadió un límite propio, más estricto, solo para
+`/auth/login`:
+
+```ts
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, ... });
+app.use('/auth', loginLimiter, authRoutes);
+```
+
+### 3.19.5 Seed: contraseña de desarrollo para los dos empleados existentes
+
+`prisma/seed.ts` no es idempotente (usa `create`, no `upsert`), y ya
+había sido ejecutado antes en esta sesión — volver a lanzarlo entero
+habría fallado por las restricciones `@unique` (email de `Company`,
+`Candidate`, `Employee`) sobre filas que ya existían. En vez de resetear
+la base de datos de desarrollo entera (`prisma migrate reset`, una
+operación destructiva no pedida), se escribió un script de una sola vez
+(`tmp-set-dev-passwords.ts`, ejecutado con `ts-node` y borrado
+inmediatamente después) que solo actualiza la contraseña de
+`alice.johnson@lti.com`/`bob.miller@lti.com` a
+`bcrypt.hashSync('Changeme123!', 10)` — el mismo hash que
+`prisma/seed.ts` ya genera para nuevas bases de datos (`DEV_PASSWORD_HASH`,
+con un comentario explicando que es solo para desarrollo, sin endpoint de
+registro que la use como valor por defecto real). Verificado con
+`Updated 2 employee(s)`.
+
+**Credenciales de desarrollo** (documentadas aquí, igual que
+`DB_PASSWORD=changeme` ya lo estaba en `.env.example`):
+`alice.johnson@lti.com` / `bob.miller@lti.com`, contraseña
+`Changeme123!` para ambos.
+
+### 3.19.6 Hallazgo incidental: no existía ningún `.env`, y el que hay que crear tenía una plantilla rota
+
+Al intentar ejecutar la migración de Prisma, falló con
+`Environment variable not found: DATABASE_URL` — no había ningún fichero
+`.env` en todo el repositorio (`find / -iname ".env" -not -path
+"*/node_modules/*"` → sin resultados), pese a que el backend llevaba toda
+la sesión respondiendo peticiones reales contra la base de datos. Se
+investigó por qué antes de asumir cualquier cosa: `process.env.FOO = x`
+dentro de un proceso Node **no** se refleja en `/proc/<pid>/environ`
+(ese fichero es una foto del entorno en el momento del `exec()`, no se
+actualiza con mutaciones posteriores hechas desde dentro del propio
+proceso) — así que inspeccionar el proceso del servidor en marcha por
+esa vía no podía confirmar ni descartar nada; fue un callejón sin salida,
+no una respuesta. Lo único verificable con certeza es que, ahora mismo,
+no hay ningún `.env`, y hacía falta uno tanto para la migración como
+para que el servidor (que se iba a reiniciar de todas formas al tocar
+`index.ts`) siguiera arrancando.
+
+Se creó `backend/.env` (gitignorado, nunca trackeado) con las
+credenciales reales del contenedor de PostgreSQL en marcha
+(`docker inspect ... --format '{{range .Config.Env}}...'`) y un
+`JWT_SECRET` generado con `crypto.randomBytes(48).toString('hex')`. Al
+escribirlo, y precisamente para evitar el mismo problema en quien lo
+configure después, se comprobó algo que `.env.example` daba por sentado
+sin verificar: **el paquete `dotenv` (sin `dotenv-expand`, no instalado)
+no interpola `${DB_USER}` dentro del propio fichero**:
+
+```bash
+node -e "require('dotenv').config({ path: '.env.example' }); console.log(process.env.DATABASE_URL)"
+# → postgresql://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}
+#   (literal, sin resolver — no es el valor que nadie querría en producción)
+```
+
+Copiar `.env.example` tal cual a `.env` produce, para el propio proceso
+Node (`index.ts`), un `DATABASE_URL` roto — aunque `npx prisma migrate
+dev` funcione igualmente con ese mismo fichero, porque el CLI de Prisma
+tiene su propia resolución de variables de entorno, independiente de
+`dotenv`. Es un bug real y confuso: la migración funcionaría, y el
+servidor no arrancaría con conexión a base de datos. Corregido en ambos
+`.env.example` (raíz y `backend/`) escribiendo `DATABASE_URL` ya
+resuelto, con un comentario explicando por qué.
+
+### 3.19.7 Hallazgo incidental: varios servidores de backend zombis acumulados
+
+Al probar el login por primera vez, `/auth/login` devolvía
+`Cannot POST /auth/login` y `/position` seguía respondiendo 200 sin
+token — el código nuevo no se había cargado. `lsof -i :3010` señalaba un
+único proceso en escucha, pero `ps aux` reveló **cuatro instancias**
+adicionales de `ts-node-dev --respawn` de sesiones anteriores del mismo
+día, ninguna de ellas realmente sirviendo el puerto activo — arrancadas
+en distintos momentos de esta larguísima sesión (una por cada vez que se
+lanzó el servidor en segundo plano para verificar una rama distinta) y
+nunca cerradas. Mismo síntoma que el ya documentado en la sección 3.16.3
+(caché de Vite obsoleta en el frontend), pero en el backend: se
+mataron las cinco (la que escuchaba y las cuatro zombis) y se arrancó una
+única instancia limpia.
+
+### 3.19.8 Frontend: por qué un interceptor global de axios, no una instancia propia
+
+La forma "de manual" de adjuntar un token a todas las peticiones sería
+una instancia propia (`const api = axios.create({ baseURL: ... })`) y
+migrar `candidateService.js`/`positionService.js` a usarla. Se descartó
+a propósito: los tests existentes (`candidateService.test.js`) hacen
+`vi.mock('axios')` y manipulan `axios.post.mockResolvedValue(...)`
+directamente sobre el módulo por defecto — una instancia nueva creada
+con `axios.create()` sería, bajo ese mock, `undefined` (el mock
+automático de Vitest no sabe qué debería devolver `create()`), y los 6
+tests de ese fichero se habrían roto sin que el cambio tuviera nada que
+ver con lo que esos tests verifican.
+
+En su lugar, [`apiClient.js`](frontend/src/services/apiClient.js) registra
+dos interceptores **sobre la instancia por defecto** de axios
+(`axios.interceptors.request.use(...)`/`response.use(...)`), importado
+una sola vez como efecto secundario al arrancar la app (`import
+'./services/apiClient'` en `App.jsx`, mismo patrón que ya usaba `import
+'./i18n/i18n'` en `index.tsx`). Resultado: `candidateService.js` y
+`positionService.js` no cambian ni una línea, sus tests siguen pasando
+sin tocarlos, y toda petición axios de la aplicación (las ya existentes
+incluidas) gana la cabecera `Authorization` automáticamente.
+
+- **Request**: si hay una sesión guardada (`getStoredAuth()`), añade
+  `Authorization: Bearer <token>`.
+- **Response**: un `401` con sesión guardada significa "el token ya no
+  vale" (caducado, o el backend se reinició con otro `JWT_SECRET`) — se
+  limpia la sesión y se fuerza `window.location.assign('/login')`. No es
+  lo mismo que un intento de login fallido (ese lo maneja
+  `authService.login` por separado, antes de que exista ningún token).
+
+### 3.19.9 Frontend: `authService.js`, `AuthContext`, `Login`, `RequireAuth`, `UserMenu`
+
+- **`services/authService.js`**: `login`/`logout`/`getStoredAuth`, guarda
+  `{ token, employee }` en `localStorage` bajo la clave `lti_auth` (texto
+  plano en el navegador — mismo mecanismo que ya usaba
+  `i18next-browser-languagedetector` para el idioma, documentado aquí como
+  decisión consciente, no accidental: esta es una SPA sin cookies de
+  servidor, `localStorage` es lo estándar para JWT en ese contexto; el
+  cambio frente a una cookie `httpOnly` sería resistencia a robo del token
+  por XSS, y la sección 3.17.5 ya confirmó que no hay ningún
+  `dangerouslySetInnerHTML`/`innerHTML`/`eval` en todo el frontend). Igual
+  que `candidateService`/`uploadCV`: lanza solo el detalle del servidor,
+  sin prefijo propio.
+- **`context/AuthContext.jsx`**: `AuthProvider` + `useAuth()`. Arranca
+  leyendo `getStoredAuth()` (si había sesión de una visita anterior, la
+  app no muestra el login un instante de más). Único sitio de la sesión
+  actual que reintroduce `React.Context` desde que `candidate-validation-
+  i18n-a11y-AGB` lo sustituyó por `react-i18next` (sección 3.13) — no es
+  una contradicción: aquella sustitución fue específicamente "no
+  reinventar i18n cuando existe una librería estándar para ello"; para
+  estado de sesión compartido entre componentes, `Context` es
+  exactamente la herramienta idiomática de React, no algo casero que
+  reimplemente lo que ya hace otra librería.
+- **`components/Login.jsx`**: formulario con `email`/`password`,
+  mismo patrón de accesibilidad que `AddCandidateForm` (`role="alert"
+  aria-live="assertive"` para el error, `aria-invalid`). Al autenticar,
+  vuelve a la ruta que se intentaba visitar antes de ser redirigido aquí
+  (`location.state.from`, ver `RequireAuth`) en vez de ir siempre al
+  dashboard.
+- **`components/RequireAuth.jsx`**: envuelve cada ruta protegida;
+  sin `employee` en el contexto, `<Navigate to="/login" state={{from:
+  location}} replace />`.
+- **`components/UserMenu.jsx`**: nombre del empleado + botón "Cerrar
+  sesión", solo visible autenticado (`employee` nulo en `/login` →
+  no renderiza nada).
+- **`App.jsx`**: `<AuthProvider>` envolviendo todo; `/login` como única
+  ruta pública; las cuatro rutas existentes (`/`, `/add-candidate`,
+  `/positions`, `/positions/:id`) envueltas en `<RequireAuth>`.
+- **i18n**: claves nuevas `login.*`/`userMenu.logout` en
+  [`es.json`](frontend/src/i18n/locales/es.json)/[`en.json`](frontend/src/i18n/locales/en.json).
+
+### 3.19.10 Hallazgo al escribir los tests: auto-mockear un módulo también sustituye sus clases de error
+
+`authController.test.ts` empezó con `jest.mock('../../application/services/authService')`
+(auto-mock completo, el mismo patrón que ya usan
+`candidateController.test.ts`/`positionController.test.ts` sobre sus
+respectivos servicios) y `new AuthError('Email o contraseña incorrectos')`
+llegaba al test con `.message === ''`. Causa: `AuthError` vive en el
+**mismo módulo** que se está auto-mockeando (`authService.ts`) — Jest
+sustituye también la clase por una versión simulada que no ejecuta el
+constructor real. Es la razón por la que `candidateController.test.ts`
+nunca tropezó con esto: `ValidationError` vive en `validator.ts`, un
+módulo *distinto* del que mockea (`candidateService.ts`), así que nunca
+quedó auto-mockeada. Corregido acotando el mock a solo `login`:
+
+```ts
+jest.mock('../../application/services/authService', () => ({
+    ...jest.requireActual('../../application/services/authService'),
+    login: jest.fn(),
+}));
+```
+
+### 3.19.11 Cobertura de tests añadida
+
+**Backend (+15, 21→36)**: `authService.test.ts` (8 — login con éxito sin
+filtrar el hash en la respuesta, mismo mensaje genérico para email
+inexistente/contraseña incorrecta/empleado desactivado/sin contraseña,
+`bcrypt.compare` ni se llega a invocar cuando ya se sabe que no puede
+autenticarse, `signToken`/`verifyToken` van y vuelven, un token firmado
+con otro secreto no verifica), `authMiddleware.test.ts` (4 — token válido
+adjunta `req.employee` y llama a `next()`, sin cabecera/esquema
+incorrecto/token inválido son siempre 401 sin llamar a `next()`),
+`authController.test.ts` (3 — 200 con token+employee, 401 con el mensaje
+de `AuthError`, 500 genérico — nunca el error crudo — para un fallo
+inesperado).
+
+**Frontend (+10, 19→29)**: `authService.test.js` (6 — guarda
+sesión y devuelve el empleado, no guarda nada si falla, `logout` limpia,
+`getStoredAuth` lee/no revienta con JSON corrupto), `RequireAuth.test.jsx`
+(2 — redirige sin sesión guardada, renderiza el contenido protegido con
+sesión guardada, sembrando `localStorage` directamente en vez de mockear
+`authService`, para probar el camino real de `AuthProvider` de principio
+a fin), `Login.test.jsx` (2 — envía las credenciales y navega a `/` al
+autenticar, muestra el error accesible con el prefijo traducido y no
+navega si falla).
+
+## 12. Verificación de la autenticación de las APIs (sección 3.19)
+
+```
+Backend
+  npx tsc --noEmit    → sin errores
+  npx jest             → 8 suites, 36 tests (antes 21; +15 nuevos), verde
+  npm run build        → sin errores, dist/ sin ficheros *.test.js
+
+Frontend
+  npx tsc -b           → sin errores
+  npx eslint .          → sin errores (1 warning inocuo de react-refresh
+                          en AuthContext.jsx por exportar el hook junto
+                          al provider — patrón estándar, no afecta a HMR
+                          de producción)
+  npm test -- --run     → 6 suites, 29 tests (antes 19; +10 nuevos), verde
+  npm run build         → 2783 módulos, verde
+
+Navegador (pestaña nueva, consola limpia salvo los 401 esperados de las
+pruebas deliberadas de credenciales incorrectas):
+  Visita a "/" sin sesión              → redirige a /login
+  Login con contraseña incorrecta       → alerta accesible (role="alert"):
+                                           "Error al iniciar sesión: Email
+                                           o contraseña incorrectos"
+  Login con alice.johnson@lti.com /
+    Changeme123!                        → dashboard, "Alice Johnson" +
+                                           "Cerrar sesión" en la barra
+  "Ir a Posiciones"                     → datos reales de la API con el
+                                           token adjunto automáticamente
+  "Cerrar sesión"                       → localStorage.getItem('lti_auth')
+                                           → null; redirige a /login
+  Navegación directa a /positions
+    tras cerrar sesión                  → redirige a /login (RequireAuth)
+  Login con bob.miller@lti.com /
+    Changeme123! (segundo empleado)     → OK
+  Alta de candidato completa (nombre/
+    apellido/email/enviar), autenticado → "Candidato añadido con éxito"
+                                           (POST /candidates con el token
+                                           adjunto), candidato de prueba
+                                           borrado tras verificar
+
+curl (endpoint de subida de ficheros, sin equivalente de UI para
+probarlo — la pestaña del navegador no puede pilotar el selector nativo
+de archivos del sistema operativo):
+  POST /upload sin token                → 401
+  POST /upload con token válido          → 200, mismo formato de
+                                           respuesta que antes de esta
+                                           rama ({filePath, fileType}),
+                                           fichero de prueba borrado tras
+                                           verificar
+```
+
+Con esto, el hallazgo más severo de `security-audit-AGB` (sección
+3.17.2, ausencia total de autenticación) queda cerrado: toda ruta de
+negocio del backend exige un JWT válido, y el frontend tiene un flujo de
+login/logout real y verificado de principio a fin.
