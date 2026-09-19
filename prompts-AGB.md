@@ -122,10 +122,13 @@ main (8025b6f) — estado original del repo, sin tocar
                                             │
                                             └── openspec-adoption-AGB  ← RAMA ACTUAL
                                                  = adopción retroactiva de
-                                                   OpenSpec: 10 specs por
-                                                   capacidad, 38 requisitos,
+                                                   OpenSpec: 11 specs por
+                                                   capacidad, 41 requisitos,
                                                    cada uno trazable a la
                                                    rama que lo implementó
+                                                   (incluida developer-tooling,
+                                                   añadida tras la corrección
+                                                   del usuario de 3.24.1)
 ```
 
 Cada rama tiene su propio commit y su propia sección de detalle en este
@@ -160,6 +163,7 @@ integrarlas).
 | 20 | "Acabo de lograr añadir un candidato con éxito, pero opino que deberían haberse borrado los valores tras ello, pero se mantienen. ¿Coincides?" | *(misma rama)* | 3.22 |
 | 21 | "El formulario actual permite el registro del candidato sin CV y sin experiencia... ¿El código actual contempla analizar el CV o la experiencia para asignar el candidato a la posición?" → "Añade porfa primero el campo de elección a la candidatura... ¿Sólo el desplegable ahora." | `position-selector-AGB` | 3.23 |
 | 22 | "Querría darle mayor trazabilidad a todo el proceso. ¿Cómo ves que llevemos todo lo hecho hasta ahora, las 14 ramas, a openspec?" → "Sí, perfecto, specs por capacidad, pero granulariza bien y deja registrado... la rama dónde se implementó" | `openspec-adoption-AGB` | 3.24 |
+| 23 | "Pero el cambio de cómo está construido el sistema es un cambio real. Opino que ha de estar documentado también" | *(misma rama)* | 3.24.1 |
 
 ### 0.3 Qué se hizo, paso a paso, en cada rama
 
@@ -278,6 +282,7 @@ fragmentos de código, verificaciones) está en la sección referenciada.
 2. 38 requisitos en total, cada uno con una línea `_Rama: \`nombre\` (commit \`hash\`)_` verificada contra `git log` real antes de darla por buena — la trazabilidad que pidió explícitamente el usuario.
 3. Decisión explícita, documentada en `design.md`: los cambios de solo herramientas sin comportamiento observable (`vite-migration-AGB`, `react-router-v7-AGB`, `tests-AGB`) no generan spec propia — no cambian qué hace el sistema, y forzar una capacidad para ellos habría producido requisitos sin ningún escenario real que verificar.
 4. Change archivado (`openspec archive`) tras validar en limpio (`openspec validate --strict` y `openspec validate --specs --strict`, 10/10). `openspec/specs/` queda como la referencia de "qué hace el sistema hoy"; `prompts-AGB.md` sigue siendo la referencia del "por qué" — no se sustituyen.
+5. El usuario corrigió la decisión del punto 3: un cambio de herramientas también es un cambio real y debe documentarse. Se relee el criterio (un requisito de OpenSpec no exige que el actor sea un usuario final, puede ser "quien ejecuta el build") y se añade, con un segundo change (`add-developer-tooling-capability`, también archivado), la capacidad `developer-tooling` — 3 requisitos más, con sus propios escenarios verificables por comando (`npm run build`, `npx jest`, una auditoría de dependencias). 11 capacidades y 41 requisitos en total, 11/11 en `openspec validate --specs --strict`.
 
 ### 0.4 Decisiones clave y por qué (el hilo conductor)
 
@@ -343,13 +348,14 @@ fragmentos de código, verificaciones) está en la sección referenciada.
 ### 0.5 Dónde estamos ahora (estado de `openspec-adoption-AGB`)
 
 Además de todo lo de más abajo: el repo tiene ahora `openspec/specs/`
-con 10 capacidades documentadas (`candidate-intake`,
+con 11 capacidades documentadas (`candidate-intake`,
 `candidate-validation`, `file-upload`, `position-catalog`,
 `hiring-pipeline`, `authentication`, `internationalization`,
-`accessibility`, `security-hardening`, `frontend-performance`), 38
-requisitos en total, cada uno trazable a la rama y commit que lo
-implementó — consultable con `openspec spec show <capacidad>` sin tener
-que leer este documento entero (sección 3.24).
+`accessibility`, `security-hardening`, `frontend-performance`,
+`developer-tooling`), 41 requisitos en total, cada uno trazable a la
+rama y commit que lo implementó — consultable con `openspec spec show
+<capacidad>` sin tener que leer este documento entero (sección 3.24,
+con la corrección de alcance en 3.24.1).
 
 **Verificado y funcionando**, de extremo a extremo, en el navegador, por
 línea de comandos y con tests automáticos:
@@ -3605,3 +3611,32 @@ capacidad y no por rama, por qué esas 10 capacidades y no otras, el
 formato exacto de la línea de trazabilidad) queda en
 `openspec/changes/archive/2026-09-19-adopt-openspec-baseline/design.md`,
 sin duplicarlo aquí.
+
+### 3.24.1 Corrección del usuario: los cambios de herramientas también son un cambio real
+
+Tras revisar el resultado, el usuario señaló un punto justo: *"Pero el
+cambio de cómo está construido el sistema es un cambio real. Opino que
+ha de estar documentado también."* — la decisión de dejar
+`vite-migration-AGB`, `react-router-v7-AGB` y `tests-AGB` fuera de
+OpenSpec (3.24) no estaba mal razonada del todo, pero sí incompleta: es
+cierto que estos cambios no tienen un `WHEN` protagonizado por un
+usuario de la aplicación, pero un requisito de OpenSpec no exige que el
+actor sea un usuario final — puede ser "quien ejecuta el build" o "quien
+ejecuta la suite de tests", y con esa relectura los tres encajan sin
+forzar el esquema.
+
+Se añadió, con un segundo change de OpenSpec (`add-developer-tooling-capability`,
+también archivado), la capacidad `developer-tooling` — 3 requisitos más
+(construcción del frontend con Vite sobre la versión de TypeScript que
+sostiene su *linter*, cobertura de tests automáticos sin que `dist/`
+duplique los resultados, y `react-router-dom` sin vulnerabilidades
+conocidas), cada uno con su propia línea de trazabilidad. Su `## Purpose`
+deja explícito que sus escenarios se verifican con comandos
+(`npm run build`, `npx jest`, una auditoría de dependencias), no con
+acciones de un usuario final — para que quien lea la spec entienda por
+qué el formato difiere del resto de capacidades, en vez de parecer una
+inconsistencia. El razonamiento completo de por qué se revisa el
+criterio (no solo qué se añade) queda en
+`openspec/changes/archive/2026-09-19-add-developer-tooling-capability/design.md`.
+`openspec/specs/` queda ahora con **11 capacidades y 41 requisitos**,
+validados en limpio (`openspec validate --specs --strict` → 11/11).
