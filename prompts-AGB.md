@@ -132,8 +132,9 @@ integrarlas).
 | 14 | "¿La razón de no migrar react-router-dom v7 era el linter, o no había impedimento y eso era solo para TS7?" → "Sí, porfa, en una rama nueva" | `react-router-v7-AGB` | 3.18 |
 | 15 | "Documéntalo todo bien, incluyendo los porqués de TS7 y react-router-dom v7, y vamos después, en otra rama nueva, a incluir la autenticación de las APIs" | *(actualización de esta sección 0)* | 0 (este resumen) |
 | 16 | Aclaración de alcance (backend+frontend vs. solo backend; empleados ya sembrados vs. registro público) → "Backend + login en el frontend" + "Los Employee ya sembrados" | `api-auth-AGB` | 3.19 |
-| 17 | "¿Qué es el estado `<Suspense>`?" → "¿Creas porfa una nueva rama y aplicas el code splitting, que quiero ver la diferencia del código y cómo afecta a la experiencia de usuario el resultado final?" | `code-splitting-AGB` | 3.20 |
-| 18 | "Después de un error de entrada en 'Agregar Candidato' no me recarga los valores corregidos. Tampoco da información de porqué el tfno tiene formato inválido a pesar de haber introducido sólo 9 números. ¿Lo mejoras, porfa?" | `candidate-form-ux-fixes-AGB` | 3.21 |
+| 17 | "¿Cómo generaste esas credenciales que me dijiste... y dónde se almacenan?" → "¿Haces una recopilación de los secretos del sistema... en un fichero unificado, tipo secrets.md?" | `api-auth-AGB` (mismo commit `73731bf`) | 3.19.12 |
+| 18 | "¿Qué es el estado `<Suspense>`?" → "¿Creas porfa una nueva rama y aplicas el code splitting, que quiero ver la diferencia del código y cómo afecta a la experiencia de usuario el resultado final?" | `code-splitting-AGB` | 3.20 |
+| 19 | "Después de un error de entrada en 'Agregar Candidato' no me recarga los valores corregidos. Tampoco da información de porqué el tfno tiene formato inválido a pesar de haber introducido sólo 9 números. ¿Lo mejoras, porfa?" | `candidate-form-ux-fixes-AGB` | 3.21 |
 
 ### 0.3 Qué se hizo, paso a paso, en cada rama
 
@@ -2879,6 +2880,36 @@ sesión guardada, sembrando `localStorage` directamente en vez de mockear
 a fin), `Login.test.jsx` (2 — envía las credenciales y navega a `/` al
 autenticar, muestra el error accesible con el prefijo traducido y no
 navega si falla).
+
+### 3.19.12 Recopilación de secretos (`SECRETS.md`)
+
+Ya con `api-auth-AGB` terminada y documentada, dos preguntas de
+seguimiento en una sesión posterior: *"¿Cómo generaste esas
+credenciales que me dijiste en el último mensaje y dónde se
+almacenan?"* y, tras la respuesta, *"¿Haces una recopilación de los
+secretos del sistema, como las credenciales de acceso a la BBDD que
+metiste en la variable 'DATABASE_URL' y lo guardas en un fichero
+unificado, tipo secrets.md o similar, o ya lo tenemos así?"*
+
+No lo teníamos — los secretos reales vivían repartidos entre
+`backend/.env` (no trackeado) y el literal `Changeme123!` de
+`prisma/seed.ts` (sí trackeado, pero es una contraseña de desarrollo a
+propósito, no un secreto de infraestructura). Antes de escribir el
+fichero unificado que se pidió, se añadió `**/SECRETS.md` a
+`.gitignore` — **y se commiteó esa regla primero** — precisamente
+porque un fichero de ese nombre con valores reales es el tipo de cosa
+que se termina subiendo a git por accidente; con la regla ya en su
+sitio antes de que existiera contenido que proteger, se comprobó con
+`git status`/`git check-ignore -v` que nunca podía aparecer como "para
+confirmar".
+
+`SECRETS.md` (raíz del repo, gitignorado, nunca en git) recopila:
+credenciales de PostgreSQL (verificadas contra el contenedor Docker real
+en marcha, no copiadas de memoria), `JWT_SECRET`, las credenciales de
+login de desarrollo (`alice.johnson@lti.com`/`bob.miller@lti.com` +
+`Changeme123!`, ver 3.19.5), y una nota de cómo rotar cada una. Es
+contenido puramente local — no aparece en ningún commit de esta rama
+más allá de la línea añadida a `.gitignore`.
 
 ## 12. Verificación de la autenticación de las APIs (sección 3.19)
 
