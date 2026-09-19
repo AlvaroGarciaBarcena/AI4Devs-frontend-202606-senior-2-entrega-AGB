@@ -3763,3 +3763,109 @@ Queda como prueba de concepto de un único escenario, a propósito — la
 traducción del resto de los 56 escenarios de `openspec/specs/` a
 `.feature` + *steps* reales es trabajo real por delante (3.25 lo deja
 listo, no lo agota).
+
+## 3.26 Alcance del resto de la suite E2E y capacidad `authentication` completa
+
+Prompt del usuario, tras preguntar directamente *"¿Qué problema tendría
+sólo los E2E de navegador por ahora?"* (pregunta que dejé sin resolver
+en el turno anterior por ir directa a plantear un plan de fases en vez
+de responderla): **"Mete también los de security-hardening"**.
+
+Alcance confirmado para el resto de esta rama: todos los escenarios de
+`openspec/specs/` cuyo `THEN` es observable end-to-end desde
+Playwright — navegador o API vía el *fixture* `request` — más los 4
+escenarios de `security-hardening` (nivel API), **excluyendo**
+explícitamente `candidate-validation` (ya cubierto por Jest,
+`backend/src/application/__tests__/`) y `developer-tooling` (no es
+trabajo de Playwright — son comandos de shell, `npx tsc --noEmit`,
+`npm run build`, etc., no comportamiento de la aplicación en
+ejecución).
+
+### 3.26.1 Los 6 escenarios restantes de `authentication`
+
+Con la prueba de concepto de 3.25 en verde, se completan los 7
+escenarios del requisito `authentication` de
+`openspec/specs/authentication/spec.md` (rama `api-auth-AGB`, commit
+`bb94850`):
+
+- **Credenciales incorrectas**: reutiliza el mismo `Given` que
+  "Credenciales correctas" (mismo texto Gherkin, mismo *step*
+  enlazado); el `Then` comprueba el mensaje de error genérico exacto
+  que compone `Login.jsx` (`t('login.genericErrorPrefix')` + el mensaje
+  del backend) y que la URL sigue en `/login`.
+- **Petición sin token** y **Token caducado**: van directos contra la
+  API con el *fixture* `request` de Playwright (`GET
+  http://localhost:3010/position`, con o sin cabecera `Authorization`),
+  sin pasar por el navegador — la `baseURL` del config apunta al
+  frontend (`:3000`), así que estos dos *steps* usan la URL absoluta
+  del backend. El token caducado se firma de verdad con
+  `jsonwebtoken.sign()` usando el mismo `JWT_SECRET` real de
+  `backend/.env` (cargado con `dotenv`, nunca hardcodeado ni
+  committeado) y un campo `exp` ya en el pasado, para que el backend lo
+  rechace específicamente por caducidad y no por firma inválida.
+- **Muchos intentos seguidos**: dispara 10 intentos de login fallidos
+  por `request.post` antes del intento 11 (el límite real es
+  10/15min, `loginLimiter` en `backend/src/index.ts`), y comprueba que
+  ese intento adicional responde `429`. Este escenario tiene un efecto
+  secundario real y deliberado: agota el limitador de verdad para la
+  IP de esta máquina durante 15 minutos reales — asumido a propósito
+  (3.25 número, ver más abajo cómo se limpia después de ejecutar la
+  suite).
+- **Cierre de sesión manual**: necesita su propio `Given` (texto
+  Gherkin distinto al de los otros escenarios, así que no puede
+  reutilizar el *step* existente) que hace un login real por interfaz;
+  el `When` pulsa "Cerrar sesión" (`UserMenu.jsx`); el `Then` comprueba
+  la URL y que `localStorage.getItem('lti_auth')` quede en `null`.
+- **Sesión caducada durante el uso**: siembra directamente en
+  `localStorage` un token con firma inválida (no el mismo caducado de
+  antes, para no acoplar este escenario al orden de ejecución del
+  anterior) antes de navegar a `/positions`; el `Then` comprueba que el
+  interceptor de `apiClient.js` limpia la sesión y redirige a
+  `/login` sin ninguna acción del usuario — verificando en la práctica
+  el comportamiento ya descrito en el requisito "Cierre de sesión y
+  expiración manejados en el cliente".
+
+### 3.26.2 Orden de ejecución no paralelo, a propósito
+
+`playwright.config.ts` fija `fullyParallel: false` y `workers: 1`
+específicamente por "Muchos intentos seguidos": a diferencia de una
+suite de UI pura, estos escenarios comparten estado real del lado del
+servidor (el limitador de intentos de login, la base de datos de
+desarrollo) — en paralelo, ese escenario podría agotar el límite de
+login antes de que "Credenciales correctas" o "Cierre de sesión
+manual" necesitaran iniciar sesión de verdad.
+
+### 3.26.3 Verificación
+
+```
+npx bddgen && npx playwright test
+  → 7 passed (7.6s), primer intento, sin fallos reales que corregir
+    (a diferencia de 3.25, aquí no hubo ningún hallazgo tipo "bug de
+    entorno" — los 6 steps nuevos funcionaron a la primera)
+```
+
+Tras la ejecución, y precisamente porque "Muchos intentos seguidos"
+agota el limitador real:
+
+```
+kill -9 <pids de ts-node-dev>   → incluyendo un par de procesos
+                                   zombis de una sesión anterior,
+                                   detectados con `ps aux` antes de
+                                   matar nada
+npm run dev (backend, en segundo plano)
+curl .../position (token inválido)      → 401 (servidor arriba)
+curl -X POST .../auth/login (correcto)  → 200 (limitador reiniciado,
+                                            ya no hereda los 10
+                                            intentos fallidos de la
+                                            suite)
+```
+
+Reiniciar el proceso del backend es la forma correcta de limpiar un
+limitador en memoria (no hay persistencia entre reinicios) — no un
+truco, es exactamente lo mismo que haría cualquiera que se topara con
+un 429 real durante desarrollo manual.
+
+Queda pendiente, dentro del mismo alcance confirmado, el resto de
+capacidades: `candidate-intake`, `internationalization`,
+`accessibility`, `hiring-pipeline`, `position-catalog`,
+`frontend-performance` y los 4 escenarios de `security-hardening`.

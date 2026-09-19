@@ -12,7 +12,13 @@ const testDir = defineBddConfig({
 
 export default defineConfig({
   testDir,
-  fullyParallel: true,
+  // En serie, a propósito: a diferencia de una suite de UI pura, estos
+  // escenarios comparten estado real del lado del servidor (el límite de
+  // intentos de login, la base de datos de desarrollo) -- en paralelo,
+  // "Muchos intentos seguidos" podría agotar el límite de login antes de
+  // que otro escenario necesite iniciar sesión de verdad.
+  fullyParallel: false,
+  workers: 1,
   reporter: 'list',
   use: {
     // El backend solo permite CORS desde este origen exacto (ver
