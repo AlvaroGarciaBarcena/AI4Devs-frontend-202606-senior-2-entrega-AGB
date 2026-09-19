@@ -135,6 +135,7 @@ integrarlas).
 | 17 | "¿Cómo generaste esas credenciales que me dijiste... y dónde se almacenan?" → "¿Haces una recopilación de los secretos del sistema... en un fichero unificado, tipo secrets.md?" | `api-auth-AGB` (mismo commit `73731bf`) | 3.19.12 |
 | 18 | "¿Qué es el estado `<Suspense>`?" → "¿Creas porfa una nueva rama y aplicas el code splitting, que quiero ver la diferencia del código y cómo afecta a la experiencia de usuario el resultado final?" | `code-splitting-AGB` | 3.20 |
 | 19 | "Después de un error de entrada en 'Agregar Candidato' no me recarga los valores corregidos. Tampoco da información de porqué el tfno tiene formato inválido a pesar de haber introducido sólo 9 números. ¿Lo mejoras, porfa?" | `candidate-form-ux-fixes-AGB` | 3.21 |
+| 20 | "Acabo de lograr añadir un candidato con éxito, pero opino que deberían haberse borrado los valores tras ello, pero se mantienen. ¿Coincides?" | *(misma rama)* | 3.22 |
 
 ### 0.3 Qué se hizo, paso a paso, en cada rama
 
@@ -233,11 +234,12 @@ fragmentos de código, verificaciones) está en la sección referenciada.
 3. Verificado con tráfico de red real (no con los nombres de fichero): `vite preview` en el puerto 3000 (no el 4173 por defecto, para que el CORS del backend lo aceptase), confirmando con `read_network_requests` que cada chunk se pide exactamente la primera vez que su ruta se visita.
 4. Hallazgo incidental durante la demo en directo: un JWT de dos días caducó a mitad de la verificación, y el interceptor de `apiClient.js` (3.19.8) cerró la sesión y redirigió a `/login` solo, exactamente como estaba diseñado — la primera vez que ese camino se observa en acción sin forzarlo.
 
-**`candidate-form-ux-fixes-AGB`** (detalle en 3.21, rama actual):
+**`candidate-form-ux-fixes-AGB`** (detalle en 3.21-3.22, rama actual):
 1. Reproducido en el navegador antes de tocar nada; un primer intento salió engañoso por una condición de carrera del propio tooling (clic sobre una captura tomada mientras `/add-candidate` aún mostraba el `Suspense` de "Cargando página…") combinada con una entrada de red residual de una pestaña de larga duración — investigado hasta confirmar que no era un bug de la app, no asumido.
 2. Bug A: `issues` (los errores por campo) solo se actualizaba en `handleSubmit`, nunca al cambiar un campo — corregir un valor no limpiaba su error hasta el siguiente envío. Arreglado con `clearFieldIssue(field)`, sin revalidar en el cliente (esa lógica se queda solo en `validator.ts`).
 3. Bug B: un teléfono de 9 dígitos con el prefijo equivocado daba el código genérico `invalidFormat` ("no tiene un formato válido"), sin explicar la regla real. Nuevo código específico `invalidPhoneFormat`, con un mensaje que sí la explica, en los dos idiomas.
 4. +3 tests backend (36→39), +3 tests frontend (29→32) — incluido uno que codifica exactamente el bug A reportado (corregir sin reenviar hace desaparecer el error). Verificado también en caliente contra el backend de desarrollo real (`curl`) y en el navegador de principio a fin.
+5. Bug C, reportado por el usuario probando por su cuenta: el formulario no se vaciaba tras un alta con éxito. Dos causas: `candidate` nunca se reseteaba, y los 5 campos nunca habían tenido `value=` (no controlados de verdad, así que resetear el estado no habría bastado). Arreglado con `value={candidate.X}` en los 5 campos, reseteo a `EMPTY_CANDIDATE` tras el éxito, y una `key` en `FileUploader` para que también olvide el fichero ya subido. +1 test frontend (32→33).
 
 ### 0.4 Decisiones clave y por qué (el hilo conductor)
 
@@ -323,15 +325,17 @@ línea de comandos y con tests automáticos:
   botón propio) —, formulario de alta de candidato con mensajes de
   validación específicos por campo y accesibles (`aria-invalid`,
   `aria-describedby`, `role="alert"`) que además **se actualizan al
-  instante al corregir un campo**, sin esperar a un nuevo envío, listado
-  de posiciones con datos reales de la API, el tablero "Ver proceso"
+  instante al corregir un campo**, sin esperar a un nuevo envío, y **se
+  vacía por completo tras un alta con éxito** (incluido el selector de
+  CV, que se remonta para olvidar el fichero ya subido), listado de
+  posiciones con datos reales de la API, el tablero "Ver proceso"
   agrupando candidatos por fase de entrevista, **`react-router-dom` v7**,
   un **flujo de login/logout real** (`/login` pública, el resto de rutas
   protegidas con `RequireAuth`, token adjunto automáticamente a toda
   petición vía un interceptor de axios), y **las 4 rutas protegidas
   cargadas bajo demanda** (`React.lazy` + `Suspense`): el build pasa de 1
   fichero JS (674.25 kB) a 10, con un 52% menos de JS en la carga en frío
-  de `/login` (sección 3.20). 6 suites / **32 tests** en verde (`npm
+  de `/login` (sección 3.20). 6 suites / **33 tests** en verde (`npm
   test`, Vitest), `tsc -b`/`eslint .`/`npm run build` limpios,
   **`npm audit` → 0 vulnerabilidades**.
 - Nada de esto ha tocado la base de datos de forma permanente más allá de
@@ -3252,4 +3256,86 @@ sección 3.21.1):
   Enviar tras la corrección         → "Candidato añadido con éxito"
                                        (candidato de prueba borrado tras
                                        verificar)
+```
+
+## 3.22 El formulario no se vaciaba tras un alta con éxito
+
+Prompt del usuario, mientras probaba por su cuenta: *"Acabo de lograr
+añadir un candidato con éxito, pero opino que deberían haberse borrado
+los valores tras ello, pero se mantienen. ¿Coincides?"*
+
+### 3.22.1 Confirmado, con dos causas distintas
+
+`handleSubmit` nunca reseteaba `candidate` tras un envío con éxito
+(`setSuccessMessage`/`setError('')`/`setIssues([])`, pero nada que
+tocara los datos del formulario) — igual que el bug de 3.21.2, pero en
+el camino de éxito en vez del de error. Al investigarlo salió una
+segunda causa, más sutil: `firstName`/`lastName`/`email`/`phone`/
+`address` nunca habían tenido `value={candidate.X}` — eran técnicamente
+*no controlados* desde el punto de vista de React (el `onChange` sí
+actualizaba el estado, pero nada leía ese estado de vuelta hacia el
+`<input>`). Aunque se hubiera reseteado `candidate` sin más, los
+`<input>` seguirían mostrando en pantalla lo último que el navegador
+tenía escrito — React no toca el DOM de un campo sin `value` al
+volver a renderizar.
+
+### 3.22.2 Arreglo
+
+En
+[`AddCandidateForm.jsx`](frontend/src/components/AddCandidateForm.jsx):
+
+1. Los 5 campos ganan `value={candidate.X}` — pasan a ser controlados
+   de verdad, no solo en apariencia.
+2. `EMPTY_CANDIDATE` (el objeto inicial, ahora fuera del componente para
+   poder reutilizarlo) se asigna a `candidate` en el camino de éxito de
+   `handleSubmit`.
+3. `FileUploader` guarda su propio estado interno (fichero elegido,
+   nombre mostrado, resultado de la subida — ver 3.16), que no depende
+   de ningún prop del padre; vaciar `candidate.cv` no le hace olvidar lo
+   que ya mostraba. Se le añade una `key` que cambia en cada alta con
+   éxito (`fileUploaderKey`), forzando a React a desmontarlo y montar una
+   instancia nueva y limpia en vez de reutilizar la que ya tenía estado.
+
+`educations`/`workExperiences` no necesitaron ningún cambio aparte:
+al vaciarse el array en `candidate`, las filas (y sus `DatePicker`) 
+desaparecen del todo porque se generan con `.map()` sobre ese mismo
+array — no queda ningún estado residual que limpiar.
+
+### 3.22.3 Un par de falsas alarmas durante la verificación, descartadas antes de concluir nada
+
+- Un aviso nuevo de React ("A component is changing an uncontrolled
+  input to be controlled") apareció en la pestaña donde se había editado
+  el fichero en caliente — Vite recarga el componente por HMR sin
+  recargar la página, y la instancia que ya estaba montada (de antes del
+  cambio, sin `value`) se comparaba contra la nueva (con `value`).
+  Confirmado como ruido de HMR, no un bug real: en una pestaña nueva, con
+  el componente montado de una sola vez, la consola sale limpia.
+- Dos veces durante la propia verificación, una captura tomada justo
+  después de escribir en un campo (o de enviar el formulario) mostró
+  los campos vacíos o el mensaje de éxito ausente, sugiriendo que el
+  texto o el envío no habían "llegado". Ambas veces, una segunda captura
+  inmediatamente después mostró el estado real y correcto — la propia
+  herramienta de captura iba un paso por detrás del pintado del
+  navegador, no la aplicación fallando. Se verificó con el registro de
+  red (`POST /candidates → 201 Created`) antes de dar nada por bueno o
+  por malo.
+
+## 15. Verificación del reseteo del formulario (sección 3.22)
+
+```
+Frontend
+  npx tsc -b           → sin errores
+  npx eslint .          → sin errores (mismo warning inocuo preexistente)
+  npm test -- --run     → 6 suites, 33 tests (antes 32; +1 nuevo), verde
+  npm run build         → 10 ficheros JS, chunking intacto (sección 3.20)
+
+Navegador (pestaña nueva, verificado dos veces para descartar las falsas
+alarmas de 3.22.3):
+  Rellenar Nombre/Apellido/Email/Teléfono → Enviar
+    → "Candidato añadido con éxito", los 5 campos vacíos al instante,
+      "Ningún archivo seleccionado" en el selector de CV
+    → confirmado con el registro de red real (POST /candidates → 201)
+      y no solo con la captura de pantalla
+  (candidatos de prueba borrados de la base de datos tras cada
+  comprobación)
 ```

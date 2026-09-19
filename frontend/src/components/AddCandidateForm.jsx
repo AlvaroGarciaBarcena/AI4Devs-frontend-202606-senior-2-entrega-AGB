@@ -8,6 +8,21 @@ import { sendCandidateData } from '../services/candidateService';
 import { translateValidationIssues } from '../i18n/validationMessages';
 import { useTranslation } from 'react-i18next';
 
+// Fuera del componente: el mismo objeto se usa para el estado inicial y
+// para vaciar el formulario tras un alta con éxito (antes no se hacía
+// ninguna de las dos cosas al reenviar — los datos del candidato recién
+// creado se quedaban en pantalla, invitando a reenviarlos por error).
+const EMPTY_CANDIDATE = {
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    address: '',
+    educations: [],
+    workExperiences: [],
+    cv: null
+};
+
 const AddCandidateForm = () => {
     // useTranslation() suscribe al componente a los cambios de idioma de
     // i18next (aunque `t` no se use para los mensajes de validación en sí
@@ -16,16 +31,13 @@ const AddCandidateForm = () => {
     // `fieldErrors` se recalcule y el componente se re-renderice al
     // cambiar el idioma desde el selector).
     const { t } = useTranslation();
-    const [candidate, setCandidate] = useState({
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        address: '',
-        educations: [],
-        workExperiences: [],
-        cv: null
-    });
+    const [candidate, setCandidate] = useState(EMPTY_CANDIDATE);
+    // FileUploader guarda su propio estado interno (fichero seleccionado,
+    // nombre mostrado, resultado de la subida) que no depende de props del
+    // padre — vaciar `candidate.cv` no le hace olvidar lo ya mostrado.
+    // Cambiar su `key` fuerza a React a desmontarlo y montar uno nuevo
+    // limpio, en vez de reutilizar la instancia con su estado antiguo.
+    const [fileUploaderKey, setFileUploaderKey] = useState(0);
     const [error, setError] = useState('');
     // Los issues se guardan sin traducir; el mensaje se compone en cada
     // render con el idioma actual de i18next, así un cambio de idioma
@@ -111,6 +123,8 @@ const AddCandidateForm = () => {
             setSuccessMessage(t('addCandidate.success'));
             setError('');
             setIssues([]);
+            setCandidate(EMPTY_CANDIDATE);
+            setFileUploaderKey((prev) => prev + 1);
         } catch (err) {
             setSuccessMessage('');
             if (Array.isArray(err.issues)) {
@@ -136,6 +150,7 @@ const AddCandidateForm = () => {
                                     type="text"
                                     name="firstName"
                                     required
+                                    value={candidate.firstName}
                                     onChange={(e) => handleFieldChange('firstName', e.target.value)}
                                     className="form-control shadow-sm"
                                     isInvalid={!!getFieldError('firstName')}
@@ -154,6 +169,7 @@ const AddCandidateForm = () => {
                                     type="text"
                                     name="lastName"
                                     required
+                                    value={candidate.lastName}
                                     onChange={(e) => handleFieldChange('lastName', e.target.value)}
                                     className="form-control shadow-sm"
                                     isInvalid={!!getFieldError('lastName')}
@@ -172,6 +188,7 @@ const AddCandidateForm = () => {
                                     type="email"
                                     name="email"
                                     required
+                                    value={candidate.email}
                                     onChange={(e) => handleFieldChange('email', e.target.value)}
                                     className="form-control shadow-sm"
                                     isInvalid={!!getFieldError('email')}
@@ -189,6 +206,7 @@ const AddCandidateForm = () => {
                                 <Form.Control
                                     type="tel"
                                     name="phone"
+                                    value={candidate.phone}
                                     onChange={(e) => handleFieldChange('phone', e.target.value)}
                                     className="form-control shadow-sm"
                                     isInvalid={!!getFieldError('phone')}
@@ -206,6 +224,7 @@ const AddCandidateForm = () => {
                                 <Form.Control
                                     type="text"
                                     name="address"
+                                    value={candidate.address}
                                     onChange={(e) => handleFieldChange('address', e.target.value)}
                                     className="form-control shadow-sm"
                                     isInvalid={!!getFieldError('address')}
@@ -223,6 +242,7 @@ const AddCandidateForm = () => {
                             <Form.Group controlId="cv">
                                 <Form.Label>{t('addCandidate.cv')}</Form.Label>
                                 <FileUploader
+                                    key={fileUploaderKey}
                                     onChange={handleCVUpload}
                                     onUpload={handleCVUpload}
                                     className="shadow-sm"

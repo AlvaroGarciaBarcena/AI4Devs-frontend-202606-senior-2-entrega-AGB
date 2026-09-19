@@ -152,4 +152,28 @@ describe('AddCandidateForm', () => {
             expect(screen.getByText('Candidato añadido con éxito')).toBeTruthy();
         });
     });
+
+    // Caso reportado por el usuario: tras un alta con éxito, los datos del
+    // candidato recién creado se quedaban en pantalla, invitando a
+    // reenviarlos sin querer como si fuera un candidato nuevo.
+    it('clears every field after a successful submission', async () => {
+        const user = userEvent.setup();
+        sendCandidateData.mockResolvedValue({ id: 1, firstName: 'Ana', lastName: 'García', email: 'ana@example.com' });
+
+        render(<AddCandidateForm />);
+        await fillBasicFields(user, { firstName: 'Ana', lastName: 'García', email: 'ana@example.com' });
+        await user.type(screen.getByLabelText('Teléfono'), '612345678');
+        await user.type(screen.getByLabelText('Dirección'), 'Calle Falsa 123');
+        await user.click(screen.getByRole('button', { name: 'Enviar' }));
+
+        await waitFor(() => {
+            expect(screen.getByText('Candidato añadido con éxito')).toBeTruthy();
+        });
+
+        expect(screen.getByLabelText('Nombre').value).toBe('');
+        expect(screen.getByLabelText('Apellido').value).toBe('');
+        expect(screen.getByLabelText('Correo Electrónico').value).toBe('');
+        expect(screen.getByLabelText('Teléfono').value).toBe('');
+        expect(screen.getByLabelText('Dirección').value).toBe('');
+    });
 });
