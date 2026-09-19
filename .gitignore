@@ -3,6 +3,7 @@
 **/.env
 **/node_modules
 **/prompts_master.md
+**/SECRETS.md
 
 # other dependencies
 **/.pnp
