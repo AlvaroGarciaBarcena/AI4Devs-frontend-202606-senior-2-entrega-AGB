@@ -24,7 +24,14 @@ El sistema SHALL limitar el número de peticiones aceptadas desde un mismo orige
 - **THEN** ninguna de sus peticiones se ve afectada por el límite
 
 ### Requirement: Contenido subido validado más allá de la extensión declarada
-_Rama: `security-audit-AGB` (commit `8b31eb5`)_
+_Rama: `playwright-bdd-AGB` (commit `7a66211`)_
+
+Nota: `security-audit-AGB` (commit `8b31eb5`) documentó este requisito
+tras encontrar el hueco en una auditoría, pero el fix que aplicó
+entonces fue otro (sanear el nombre de fichero, no su contenido). La
+validación real por *magic number* que hace cierto este requisito no
+se implementó hasta preparar el escenario E2E correspondiente en
+`playwright-bdd-AGB` (prompts-AGB.md, sección 3.27.1).
 
 El sistema SHALL tratar como no confiable el tipo de contenido que declara quien sube un fichero, sin asumir que el contenido real coincide con la extensión o el tipo MIME declarados.
 
