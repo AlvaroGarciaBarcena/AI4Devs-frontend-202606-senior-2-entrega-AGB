@@ -19,7 +19,16 @@ El sistema SHALL permitir crear un candidato con nombre, apellidos y email como 
 - **THEN** el sistema rechaza el alta con un mensaje que indica que el email ya existe, sin crear un registro duplicado
 
 ### Requirement: Historial académico opcional
-_Rama: `frontend-AGB` (commit `d92752d`)_
+_Rama: `frontend-AGB` (commit `d92752d`) — corregido en `playwright-bdd-AGB` (commit `a7042cb`)_
+
+Nota: `frontend-AGB` construyó la interfaz, pero nadie llegó a enviar
+un alta con una educación real hasta preparar el escenario E2E
+correspondiente en `playwright-bdd-AGB`: el formulario se rompía al
+pulsar "Añadir Educación" (interop de `react-datepicker` con Vite) y,
+arreglado eso, guardar la entrada colgaba la petición para siempre en
+un bucle infinito real (alias de array mutado durante su propia
+iteración en `Candidate.ts`, ver prompts-AGB.md sección 3.28.4). Este
+requisito no fue cierto hasta ese commit.
 
 El sistema SHALL permitir añadir cero o más entradas de educación (institución, título, fecha de inicio, fecha de fin opcional) a un candidato en la misma alta.
 
@@ -34,7 +43,11 @@ El sistema SHALL permitir añadir cero o más entradas de educación (instituci�
 - **THEN** esa entrada desaparece del formulario y no se envía con el alta
 
 ### Requirement: Experiencia laboral opcional
-_Rama: `frontend-AGB` (commit `d92752d`)_
+_Rama: `frontend-AGB` (commit `d92752d`) — corregido en `playwright-bdd-AGB` (commit `a7042cb`)_
+
+Nota: mismo hallazgo que "Historial académico opcional" justo arriba —
+ambos comparten el mismo componente de formulario y el mismo bucle
+infinito real en `Candidate.ts`.
 
 El sistema SHALL permitir añadir cero o más entradas de experiencia laboral (empresa, puesto, descripción opcional, fecha de inicio, fecha de fin opcional) a un candidato en la misma alta.
 
