@@ -4,6 +4,7 @@ import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AddCandidateForm from './AddCandidateForm';
 import { sendCandidateData } from '../services/candidateService';
+import { getPositions } from '../services/positionService';
 import i18n from '../i18n/i18n';
 
 // Codifica, como test automático repetible, el flujo que más veces se
@@ -18,12 +19,28 @@ vi.mock('../services/candidateService', () => ({
     uploadCV: vi.fn(),
 }));
 
+vi.mock('../services/positionService', () => ({
+    getPositions: vi.fn(),
+}));
+
+const MOCK_POSITIONS = [
+    { id: 1, title: 'Senior Full-Stack Engineer', companyName: 'LTI' },
+    { id: 2, title: 'Data Scientist', companyName: 'LTI' },
+];
+
 beforeEach(async () => {
     vi.clearAllMocks();
     await i18n.changeLanguage('es');
+    getPositions.mockResolvedValue(MOCK_POSITIONS);
 });
 
+// Las posiciones se cargan de forma asíncrona (useEffect + GET /position),
+// así que el desplegable arranca vacío salvo el placeholder — hace falta
+// esperar (findByLabelText) a que la opción real exista antes de poder
+// seleccionarla.
 const fillBasicFields = async (user, { firstName, lastName, email }) => {
+    const positionSelect = await screen.findByLabelText('Posición a la que se presenta');
+    await user.selectOptions(positionSelect, '1');
     await user.type(screen.getByLabelText('Nombre'), firstName);
     await user.type(screen.getByLabelText('Apellido'), lastName);
     await user.type(screen.getByLabelText('Correo Electrónico'), email);
@@ -140,6 +157,30 @@ describe('AddCandidateForm', () => {
         expect(summary.textContent).toContain('El email no tiene un formato válido.');
     });
 
+    // El desplegable es la pieza nueva de esta rama: lista las posiciones
+    // reales (GET /position), no texto libre, y su valor se envía como
+    // número (el <select> siempre entrega un string).
+    it('populates the position dropdown and sends the chosen positionId as a number', async () => {
+        const user = userEvent.setup();
+        sendCandidateData.mockResolvedValue({ id: 1, firstName: 'Ana', lastName: 'García', email: 'ana@example.com' });
+
+        render(<AddCandidateForm />);
+        const positionSelect = await screen.findByLabelText('Posición a la que se presenta');
+
+        expect(screen.getByRole('option', { name: 'Senior Full-Stack Engineer — LTI' })).toBeTruthy();
+        expect(screen.getByRole('option', { name: 'Data Scientist — LTI' })).toBeTruthy();
+
+        await user.selectOptions(positionSelect, '2');
+        await user.type(screen.getByLabelText('Nombre'), 'Ana');
+        await user.type(screen.getByLabelText('Apellido'), 'García');
+        await user.type(screen.getByLabelText('Correo Electrónico'), 'ana@example.com');
+        await user.click(screen.getByRole('button', { name: 'Enviar' }));
+
+        await waitFor(() => {
+            expect(sendCandidateData).toHaveBeenCalledWith(expect.objectContaining({ positionId: 2 }));
+        });
+    });
+
     it('shows a success message and clears previous errors after a valid submission', async () => {
         const user = userEvent.setup();
         sendCandidateData.mockResolvedValue({ id: 1, firstName: 'Ana', lastName: 'García', email: 'ana@example.com' });
@@ -175,5 +216,6 @@ describe('AddCandidateForm', () => {
         expect(screen.getByLabelText('Correo Electrónico').value).toBe('');
         expect(screen.getByLabelText('Teléfono').value).toBe('');
         expect(screen.getByLabelText('Dirección').value).toBe('');
+        expect(screen.getByLabelText('Posición a la que se presenta').value).toBe('');
     });
 });

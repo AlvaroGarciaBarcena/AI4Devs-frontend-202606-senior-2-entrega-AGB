@@ -30,6 +30,8 @@
   },
   "addCandidate": {
     "title": "Agregar Candidato",
+    "applyingPosition": "Posición a la que se presenta",
+    "selectPositionPlaceholder": "Selecciona una posición",
     "firstName": "Nombre",
     "lastName": "Apellido",
     "email": "Correo Electrónico",
@@ -93,7 +95,8 @@
       "email": "El email",
       "phone": "El teléfono",
       "address": "La dirección",
-      "cv": "El CV"
+      "cv": "El CV",
+      "positionId": "La posición"
     },
     "sections": {
       "educations": "Educación",

@@ -150,6 +150,20 @@ const validateCV = (cv: any, issues: ValidationIssue[]) => {
     }
 };
 
+// Solo comprueba forma (presente, entero positivo) — que la posición
+// exista de verdad y tenga un flujo de entrevistas con al menos una fase
+// es responsabilidad de quien la usa (candidateService.ts), no de este
+// validador de formato.
+const validatePositionId = (positionId: any, issues: ValidationIssue[]) => {
+    if (positionId === undefined || positionId === null || positionId === '') {
+        issues.push({ field: 'positionId', code: 'required' });
+        return;
+    }
+    if (typeof positionId !== 'number' || !Number.isInteger(positionId) || positionId <= 0) {
+        issues.push({ field: 'positionId', code: 'invalid' });
+    }
+};
+
 export const validateCandidateData = (data: any) => {
     // NOTA: antes, si el payload incluía un `id`, se saltaba TODA la validación
     // (nombre, email, teléfono, fechas...). Como este validador solo se invoca
@@ -163,6 +177,7 @@ export const validateCandidateData = (data: any) => {
     validateEmail(data.email, issues);
     validatePhone(data.phone, issues);
     validateAddress(data.address, issues);
+    validatePositionId(data.positionId, issues);
 
     // Límite de entradas por candidato: sin él, un payload con miles de
     // objetos en `educations`/`workExperiences` fuerza a validar y, si pasara

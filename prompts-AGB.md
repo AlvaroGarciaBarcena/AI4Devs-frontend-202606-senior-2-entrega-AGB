@@ -1,18 +1,21 @@
-# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests + seguridad + auth + code splitting + UX (rama `candidate-form-ux-fixes-AGB`)
+# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests + seguridad + auth + code splitting + UX + candidatura (rama `position-selector-AGB`)
 
 Autor: garciabarcenaalvaro@gmail.com
 Asistente: Claude Code (Sonnet 5)
 Fecha: 2026-09-16 / 2026-09-17 / 2026-09-19
 
-Rama base: `code-splitting-AGB` (commit `947bbc3`), que ya reunía todo lo
-anterior (`backend-AGB` + `frontend-AGB` +
+Rama base: `candidate-form-ux-fixes-AGB` (commit `700fc68`), que ya
+reunía todo lo anterior (`backend-AGB` + `frontend-AGB` +
 `candidate-validation-i18n-a11y-AGB` + `positions-proceso-AGB` + la
 migración de i18n a `react-i18next` + la migración de Create React App a
 Vite + tests automáticos + una auditoría de ciberseguridad exhaustiva +
 la migración de `react-router-dom` a v7 + autenticación JWT en toda la
-API + *code splitting* por ruta). Esta rama no fusiona nada nuevo —
-corrige dos bugs de UX reportados por el usuario al usar el formulario
-"Agregar Candidato" de verdad, no encontrados por ninguna auditoría.
+API + *code splitting* por ruta + dos bugs de UX en "Agregar
+Candidato"). Esta rama no fusiona nada nuevo — añade el campo que
+faltaba para que un candidato nuevo quede vinculado de verdad a una
+posición (un desplegable con las posiciones reales, no texto libre),
+cerrando el motivo por el que ningún candidato daba de alta desde el
+formulario aparecía nunca en "Ver proceso".
 
 > Nota: las secciones 1-13 de este documento son el historial heredado de
 > `i18n-react-i18next-AGB`/`all-fixes-AGB` sin modificar — validación,
@@ -21,16 +24,17 @@ corrige dos bugs de UX reportados por el usuario al usar el formulario
 > la 3.16 la traducción del selector de fichero nativo, la 3.17 la
 > auditoría de ciberseguridad, la 3.18 la migración de `react-router-dom`
 > a v7, la 3.19 la autenticación de las APIs, la 3.20 el *code splitting*
-> del bundle, y la 3.21 dos bugs de UX en "Agregar Candidato". El
-> histórico de `positions-proceso-AGB` sigue en
-> [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el de
-> `backend-AGB`/`frontend-AGB` en
+> del bundle, la 3.21 dos bugs de UX en "Agregar Candidato", la 3.22 el
+> reseteo del formulario tras un alta con éxito, y la 3.23 el selector de
+> posición para la candidatura. El histórico de `positions-proceso-AGB`
+> sigue en [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el
+> de `backend-AGB`/`frontend-AGB` en
 > [`prompts-AGB-backend.md`](./prompts-AGB-backend.md) /
 > [`prompts-AGB-frontend.md`](./prompts-AGB-frontend.md).
 
 ## 0. Resumen ejecutivo: el camino completo, de un vistazo
 
-Esta sesión generó **13 ramas** a partir de `main`, en varias oleadas.
+Esta sesión generó **14 ramas** a partir de `main`, en varias oleadas.
 Esta sección existe para poder entender el conjunto sin tener que leer
 las más de 2700 líneas de detalle de más abajo — cada punto enlaza a la
 sección donde está el porqué completo.
@@ -98,12 +102,23 @@ main (8025b6f) — estado original del repo, sin tocar
                                     │    de 1 fichero JS (674KB) a 10, con
                                     │    -52% en la carga en frío de /login
                                     │
-                                    └── candidate-form-ux-fixes-AGB  ← RAMA ACTUAL
-                                         = 2 bugs de UX en "Agregar
-                                           Candidato": el error de un
-                                           campo no se actualizaba al
-                                           corregirlo, y el teléfono no
-                                           decía por qué era inválido
+                                    └── candidate-form-ux-fixes-AGB (700fc68)
+                                        │  = 3 bugs de UX en "Agregar
+                                        │    Candidato": el error de un
+                                        │    campo no se actualizaba al
+                                        │    corregirlo, el teléfono no
+                                        │    decía por qué era inválido,
+                                        │    y el formulario no se
+                                        │    vaciaba tras un alta con
+                                        │    éxito
+                                        │
+                                        └── position-selector-AGB  ← RAMA ACTUAL
+                                             = desplegable con las
+                                               posiciones reales para
+                                               elegir a cuál se presenta
+                                               el candidato — sin esto,
+                                               nadie quedaba vinculado a
+                                               ninguna posición
 ```
 
 Cada rama tiene su propio commit y su propia sección de detalle en este
@@ -136,6 +151,7 @@ integrarlas).
 | 18 | "¿Qué es el estado `<Suspense>`?" → "¿Creas porfa una nueva rama y aplicas el code splitting, que quiero ver la diferencia del código y cómo afecta a la experiencia de usuario el resultado final?" | `code-splitting-AGB` | 3.20 |
 | 19 | "Después de un error de entrada en 'Agregar Candidato' no me recarga los valores corregidos. Tampoco da información de porqué el tfno tiene formato inválido a pesar de haber introducido sólo 9 números. ¿Lo mejoras, porfa?" | `candidate-form-ux-fixes-AGB` | 3.21 |
 | 20 | "Acabo de lograr añadir un candidato con éxito, pero opino que deberían haberse borrado los valores tras ello, pero se mantienen. ¿Coincides?" | *(misma rama)* | 3.22 |
+| 21 | "El formulario actual permite el registro del candidato sin CV y sin experiencia... ¿El código actual contempla analizar el CV o la experiencia para asignar el candidato a la posición?" → "Añade porfa primero el campo de elección a la candidatura... ¿Sólo el desplegable ahora." | `position-selector-AGB` | 3.23 |
 
 ### 0.3 Qué se hizo, paso a paso, en cada rama
 
@@ -234,12 +250,20 @@ fragmentos de código, verificaciones) está en la sección referenciada.
 3. Verificado con tráfico de red real (no con los nombres de fichero): `vite preview` en el puerto 3000 (no el 4173 por defecto, para que el CORS del backend lo aceptase), confirmando con `read_network_requests` que cada chunk se pide exactamente la primera vez que su ruta se visita.
 4. Hallazgo incidental durante la demo en directo: un JWT de dos días caducó a mitad de la verificación, y el interceptor de `apiClient.js` (3.19.8) cerró la sesión y redirigió a `/login` solo, exactamente como estaba diseñado — la primera vez que ese camino se observa en acción sin forzarlo.
 
-**`candidate-form-ux-fixes-AGB`** (detalle en 3.21-3.22, rama actual):
+**`candidate-form-ux-fixes-AGB`** (detalle en 3.21-3.22):
 1. Reproducido en el navegador antes de tocar nada; un primer intento salió engañoso por una condición de carrera del propio tooling (clic sobre una captura tomada mientras `/add-candidate` aún mostraba el `Suspense` de "Cargando página…") combinada con una entrada de red residual de una pestaña de larga duración — investigado hasta confirmar que no era un bug de la app, no asumido.
 2. Bug A: `issues` (los errores por campo) solo se actualizaba en `handleSubmit`, nunca al cambiar un campo — corregir un valor no limpiaba su error hasta el siguiente envío. Arreglado con `clearFieldIssue(field)`, sin revalidar en el cliente (esa lógica se queda solo en `validator.ts`).
 3. Bug B: un teléfono de 9 dígitos con el prefijo equivocado daba el código genérico `invalidFormat` ("no tiene un formato válido"), sin explicar la regla real. Nuevo código específico `invalidPhoneFormat`, con un mensaje que sí la explica, en los dos idiomas.
 4. +3 tests backend (36→39), +3 tests frontend (29→32) — incluido uno que codifica exactamente el bug A reportado (corregir sin reenviar hace desaparecer el error). Verificado también en caliente contra el backend de desarrollo real (`curl`) y en el navegador de principio a fin.
 5. Bug C, reportado por el usuario probando por su cuenta: el formulario no se vaciaba tras un alta con éxito. Dos causas: `candidate` nunca se reseteaba, y los 5 campos nunca habían tenido `value=` (no controlados de verdad, así que resetear el estado no habría bastado). Arreglado con `value={candidate.X}` en los 5 campos, reseteo a `EMPTY_CANDIDATE` tras el éxito, y una `key` en `FileUploader` para que también olvide el fichero ya subido. +1 test frontend (32→33).
+
+**`position-selector-AGB`** (detalle en 3.23, rama actual):
+1. Confirmado con el código real, antes de opinar: `addCandidate` nunca había creado una `Application` — un candidato nuevo se guardaba, pero no quedaba vinculado a ninguna posición, así que jamás aparecía en "Ver proceso". No hay, ni ha habido nunca, ningún análisis de CV/experiencia para nada.
+2. Alcance acordado explícitamente antes de tocar código: solo el desplegable ahora, contra las posiciones ya existentes (`GET /position`); crear vacantes nuevas (que exigiría elegir también un flujo de entrevistas) queda para una rama futura.
+3. Backend: `validatePositionId` (obligatorio, entero positivo); `getFirstInterviewStepForPosition` (ordena explícitamente por `orderIndex`, distingue "posición inexistente" de "posición sin fases" devolviendo `undefined`/`null` respectivamente); `addCandidate` crea la `Application` en esa primera fase, con un mensaje de error distinto para cada uno de los dos motivos de fallo.
+4. Frontend: `<Form.Select>` real (no texto libre) poblado con `getPositions()` (el mismo servicio que ya usaba `Positions.tsx`), enviando `positionId` como `Number`.
+5. Hallazgo real en la verificación en vivo, no hipotético: la posición "Data Scientist" (seed original, de antes de esta sesión) tenía un flujo de entrevistas sin ninguna fase — invisible hasta que esta rama fue la primera cosa que de verdad necesitó una. Corregido en `seed.ts` y con un script de un solo uso sobre la base de datos de desarrollo ya sembrada.
+6. +6 tests backend (39→45), +1 test frontend (33→34). Verificado con `curl` contra el backend real y en el navegador: un candidato nuevo aparece de verdad en la columna "Initial Screening" de la posición elegida.
 
 ### 0.4 Decisiones clave y por qué (el hilo conductor)
 
@@ -302,40 +326,46 @@ fragmentos de código, verificaciones) está en la sección referenciada.
   se verificó con `npm view <paquete> peerDependencies` en ambos casos
   antes de decidir, no por analogía entre los dos "v7".
 
-### 0.5 Dónde estamos ahora (estado de `candidate-form-ux-fixes-AGB`)
+### 0.5 Dónde estamos ahora (estado de `position-selector-AGB`)
 
 **Verificado y funcionando**, de extremo a extremo, en el navegador, por
 línea de comandos y con tests automáticos:
 - Backend: Express 4.22.3 + TypeScript + Prisma, con validación
   estructurada (incluido un límite de 20 entradas por
-  `educations`/`workExperiences`, y un código específico
+  `educations`/`workExperiences`, un código específico
   `invalidPhoneFormat` que explica la regla del teléfono en vez del
-  genérico `invalidFormat`), endpoint de listado de posiciones, `isNaN`
-  en todos los `:id`, `helmet` + `express-rate-limit` (general y uno más
-  estricto solo para `/auth/login`), subida de CVs con el nombre de
-  fichero saneado, y **autenticación JWT exigida en `/candidates`,
-  `/upload` y `/position`** contra los `Employee` ya sembrados (email +
-  contraseña con hash de bcrypt). 8 suites / **39 tests** en verde
-  (`npx jest`), `tsc --noEmit` limpio, **`npm audit` → 0
-  vulnerabilidades**.
+  genérico `invalidFormat`, y `positionId` ahora obligatorio y validado),
+  endpoint de listado de posiciones, `isNaN` en todos los `:id`, `helmet`
+  + `express-rate-limit` (general y uno más estricto solo para
+  `/auth/login`), subida de CVs con el nombre de fichero saneado, **dar
+  de alta un candidato crea también su `Application` en la primera fase
+  de la posición elegida** (antes, el candidato quedaba huérfano, sin
+  aparecer nunca en ningún "Ver proceso"), y **autenticación JWT exigida
+  en `/candidates`, `/upload` y `/position`** contra los `Employee` ya
+  sembrados (email + contraseña con hash de bcrypt). 8 suites / **45
+  tests** en verde (`npx jest`), `tsc --noEmit` limpio, **`npm audit` →
+  0 vulnerabilidades**.
 - Frontend: React + TypeScript sobre **Vite**, con **react-i18next**
   (español/inglés, detección automática + selector, persistido) en toda
   la interfaz — incluido ya el selector de fichero nativo del CV
   ("Browse…"/"No file selected", chrome del navegador sustituido por un
-  botón propio) —, formulario de alta de candidato con mensajes de
-  validación específicos por campo y accesibles (`aria-invalid`,
-  `aria-describedby`, `role="alert"`) que además **se actualizan al
-  instante al corregir un campo**, sin esperar a un nuevo envío, y **se
-  vacía por completo tras un alta con éxito** (incluido el selector de
-  CV, que se remonta para olvidar el fichero ya subido), listado de
-  posiciones con datos reales de la API, el tablero "Ver proceso"
-  agrupando candidatos por fase de entrevista, **`react-router-dom` v7**,
-  un **flujo de login/logout real** (`/login` pública, el resto de rutas
+  botón propio) —, formulario de alta de candidato con **un desplegable
+  real (no texto libre) para elegir la posición a la que se presenta**,
+  mensajes de validación específicos por campo y accesibles
+  (`aria-invalid`, `aria-describedby`, `role="alert"`) que además **se
+  actualizan al instante al corregir un campo**, sin esperar a un nuevo
+  envío, y **se vacía por completo tras un alta con éxito** (incluido el
+  selector de CV, que se remonta para olvidar el fichero ya subido),
+  listado de posiciones con datos reales de la API, el tablero "Ver
+  proceso" agrupando candidatos por fase de entrevista (ahora
+  alimentado también por los candidatos dados de alta desde el
+  formulario, no solo por el seed), **`react-router-dom` v7**, un
+  **flujo de login/logout real** (`/login` pública, el resto de rutas
   protegidas con `RequireAuth`, token adjunto automáticamente a toda
   petición vía un interceptor de axios), y **las 4 rutas protegidas
   cargadas bajo demanda** (`React.lazy` + `Suspense`): el build pasa de 1
   fichero JS (674.25 kB) a 10, con un 52% menos de JS en la carga en frío
-  de `/login` (sección 3.20). 6 suites / **33 tests** en verde (`npm
+  de `/login` (sección 3.20). 6 suites / **34 tests** en verde (`npm
   test`, Vitest), `tsc -b`/`eslint .`/`npm run build` limpios,
   **`npm audit` → 0 vulnerabilidades**.
 - Nada de esto ha tocado la base de datos de forma permanente más allá de
@@ -386,11 +416,22 @@ se detectaron, ninguna oculta):
   `AddCandidateForm`, no de forma perezosa al pulsar "Añadir Educación")
   — a propósito, ver 3.20.5: con 5 pantallas, dividir por ruta ya cubre
   la mayor parte de la ganancia posible.
+- **No hay forma de crear vacantes nuevas desde la UI** — el desplegable
+  de posiciones (3.23) lista las que ya existen, pero solo se pueden
+  crear a mano en `prisma/seed.ts` o directamente en la base de datos.
+  A propósito, según el alcance acordado explícitamente en 3.23.2: el
+  usuario pidió dejarlo para una rama aparte, deliberada, dado que
+  `Position` exige también elegir o crear un flujo de entrevistas.
+- El formulario sigue permitiendo un alta sin CV y sin experiencia
+  laboral — se discutió (3.23, primer prompt de la conversación) pero
+  no se ha implementado ningún cambio todavía; quedó pendiente de una
+  decisión explícita sobre si exigir el CV, la experiencia, o ninguno
+  de los dos.
 
 **Nada se ha subido a `origin`** en ningún momento de esta sesión — las
-13 ramas son enteramente locales. Si se quiere consolidar, el camino
-natural sería fusionar `candidate-form-ux-fixes-AGB` sobre `main` cuando
-el usuario lo decida explícitamente.
+14 ramas son enteramente locales. Si se quiere consolidar, el camino
+natural sería fusionar `position-selector-AGB` sobre `main` cuando el
+usuario lo decida explícitamente.
 
 ### 0.6 Análisis de ventajas: por qué esto debería haber sido así desde el principio
 
@@ -3337,5 +3378,173 @@ alarmas de 3.22.3):
     → confirmado con el registro de red real (POST /candidates → 201)
       y no solo con la captura de pantalla
   (candidatos de prueba borrados de la base de datos tras cada
+  comprobación)
+```
+
+## 3.23 Selector de posición en "Agregar Candidato" (`position-selector-AGB`)
+
+Prompt del usuario, en una conversación de varios turnos:
+
+1. *"El formulario actual permite el registro del candidato sin CV y sin
+   experiencia... ¿El código actual contempla analizar el CV o la
+   experiencia para asignar el candidato a la posición?"*
+2. *"Añade porfa primero el campo de elección a la candidatura, pero
+   siendo un listado desplegable de las opciones disponibles, no un
+   cuadro de texto libre. Necesitaría entonces también poder crear
+   nuevos tipos de vacantes, ¿correcto?"*
+3. *"¿Qué devuelve GET /positions/:id/candidates?"* (antes de decidir
+   alcance)
+4. *"Sólo el desplegable ahora. Ya abordaremos la creación de nuevas
+   vacantes más adelante."*
+
+### 3.23.1 El hueco real, confirmado con el código antes de opinar
+
+Antes de proponer nada se comprobó, en el código real (no de memoria):
+`addCandidate` (`candidateService.ts`) nunca creaba una `Application` —
+solo `Candidate`, `Education`, `WorkExperience` y `Resume`. Importaba
+`Application` pero solo para *buscar* una existente en
+`updateCandidateStage`, nunca para crear una. El "CV" es un puntero
+opaco a un fichero (`filePath`/`fileType`); nadie lee su contenido. Es
+decir: **no hay ni ha habido nunca ningún análisis de CV/experiencia
+para nada**, ni para asignar a una posición ni para cualquier otra cosa
+— y el motivo por el que un candidato nuevo no aparecía en ningún
+"Ver proceso" es exactamente esa ausencia de `Application`, no un bug de
+ninguna rama de esta sesión.
+
+`GET /position/:id/candidates` (comprobado en vivo con `curl`, no
+asumido) devuelve, por cada `Application` de esa posición: `fullName`,
+`currentInterviewStep` (el *nombre* de la fase, no un id),
+`averageScore`, `id` (del candidato) y `applicationId` — nada de email,
+teléfono ni CV. Confirma que ese tablero se alimenta solo de
+`Application`, nunca de la lista general de candidatos.
+
+### 3.23.2 Alcance acordado: solo el desplegable, contra las posiciones ya existentes
+
+Antes de escribir código se preguntó explícitamente si "crear vacantes
+nuevas" era un requisito para esto (el modelo `Position` exige también
+un `interviewFlowId` — no es un formulario de dos campos) o si podía
+quedar aparte. El usuario confirmó: **solo el desplegable ahora**, listo
+sobre las posiciones que ya existen vía el `GET /position` que ya había;
+crear vacantes queda para una rama futura, deliberada.
+
+### 3.23.3 Backend: de "guardar el candidato" a "crear también su candidatura"
+
+- **`validator.ts`**: nuevo `validatePositionId` — exige que esté
+  presente (`required`) y sea un entero positivo (`invalid`); no
+  comprueba que la posición exista de verdad (eso es responsabilidad de
+  quien la usa, no de un validador de formato).
+- **`positionService.ts`**: nuevo `getFirstInterviewStepForPosition`,
+  con `orderBy: { orderIndex: 'asc' }` explícito — el `include` de
+  Prisma no garantiza que `interviewSteps` venga ordenado, y sin ordenar
+  a propósito se podría coger una fase intermedia como si fuera la
+  primera. Devuelve `undefined` si la posición no existe y `null` si
+  existe pero su flujo no tiene ninguna fase — a propósito distintos,
+  para que quien llama pueda dar un mensaje que no confunda un caso con
+  el otro (ver 3.23.5).
+- **`candidateService.ts`**: `addCandidate`, tras guardar el candidato y
+  sus educaciones/experiencias/CV, crea la `Application` en la primera
+  fase de la posición elegida. Lanza un error claro y distinto si la
+  posición no existe, o si existe pero no tiene ninguna fase configurada
+  — sin ninguno de los dos casos, sigue el mismo patrón no transaccional
+  que ya tenía el resto de la función (sin rollback si algo falla a
+  mitad, tal cual estaba antes de esta rama).
+
+### 3.23.4 Frontend: desplegable real, no texto libre
+
+En [`AddCandidateForm.jsx`](frontend/src/components/AddCandidateForm.jsx):
+`positionId` se añade a `EMPTY_CANDIDATE`; un `useEffect` carga las
+posiciones reales (`getPositions()`, el mismo servicio que ya usaba
+`Positions.tsx` — sin duplicar nada) al montar el componente; un
+`<Form.Select>` de `react-bootstrap` (no un `<input>` de texto) las
+lista como `"{título} — {empresa}"`, con el mismo patrón de
+accesibilidad (`isInvalid`/`aria-invalid`/`aria-describedby`) que el
+resto de campos. Al enviar, `candidate.positionId` (siempre un string,
+porque así es como funciona un `<select>` del navegador) se convierte a
+`Number` antes de mandarlo — es lo que `validatePositionId` espera.
+
+### 3.23.5 Hallazgo real durante la verificación en vivo: un flujo de entrevistas sin fases, desde el seed original
+
+Al probar de extremo a extremo con la posición "Data Scientist" (id 2),
+la petición fallaba con *"The selected position does not have an
+interview process configured"* — no un fallo de esta rama: su
+`InterviewFlow` ("Data science interview process") **nunca había tenido
+ninguna `InterviewStep`** desde el primer commit del proyecto, mucho
+antes de esta sesión. No se había notado hasta ahora porque, hasta esta
+rama, nada creaba nunca una `Application` desde la UI — el hueco era
+invisible sin este cambio.
+
+Corregido en dos sitios, a propósito:
+
+1. `prisma/seed.ts` — añadidas 3 `InterviewStep` para `interviewFlow2`
+   (`Initial Screening`/`Technical Interview`/`Manager Interview`,
+   reutilizando los mismos `InterviewType` que ya existían para el
+   flujo 1), para que una base de datos sembrada desde cero a partir de
+   ahora no tenga este problema.
+2. La base de datos de desarrollo ya sembrada, con un script de un solo
+   uso (mismo patrón que en 3.19.5), verificando primero que
+   `interviewFlow2` seguía sin fases antes de crearlas (para no
+   duplicar si se llegara a ejecutar dos veces).
+
+También se distinguieron, de camino, dos errores que antes compartían
+exactamente el mismo mensaje: una posición que no existe
+(`positionId: 9999`) y una posición real sin fases configuradas ahora
+dan mensajes distintos (`'Selected position not found'` vs. `'The
+selected position does not have an interview process configured'`) —
+ver 3.23.3.
+
+Verificado tras el arreglo, con `curl`, que ambas posiciones sembradas
+(1 y 2) aceptan candidaturas correctamente, y en el navegador que un
+candidato nuevo aparece de verdad en "Ver proceso" — en la primera fase,
+"Initial Screening" — de la posición elegida.
+
+### 3.23.6 Cobertura de tests añadida
+
+**Backend (+6, 39→45)**: `validator.test.ts` (+3 — positionId ausente,
+no numérico/no positivo, válido) y `candidateService.test.ts` (+3 —
+crea la `Application` en la primera fase por `orderIndex`; error
+distinto si la posición no existe; error distinto si existe pero no
+tiene ninguna fase configurada, ver 3.23.3).
+
+**Frontend (+1, 33→34)**: `AddCandidateForm.test.jsx` — el desplegable
+lista las posiciones reales (mockeando `getPositions`, no texto libre)
+y `positionId` se envía como número, no como el string que entrega el
+`<select>`. `fillBasicFields` (usado por el resto de tests del
+fichero) se actualizó para elegir siempre una posición primero, ya que
+el campo es ahora obligatorio.
+
+## 16. Verificación del selector de posición (sección 3.23)
+
+```
+Backend
+  npx tsc --noEmit    → sin errores
+  npx jest             → 8 suites, 45 tests (antes 39; +6 nuevos)
+  npm run build        → sin errores, dist/ sin ficheros *.test.js
+
+Frontend
+  npx tsc -b           → sin errores
+  npx eslint .          → sin errores (mismo warning inocuo preexistente)
+  npm test -- --run     → 6 suites, 34 tests (antes 33; +1 nuevo), verde
+  npm run build         → 11 ficheros JS (positionService pasa a compartirse
+                          entre el chunk de AddCandidateForm y el de
+                          Positions/PositionProcess, code splitting sigue
+                          intacto)
+
+curl (backend de desarrollo real, no solo mocks)
+  POST /candidates sin positionId       → 400, {"field":"positionId","code":"required"}
+  POST /candidates con positionId=9999  → 400, "Selected position not found"
+  POST /candidates con positionId=2
+    (antes de sembrar sus fases)        → 400, "does not have an interview
+                                            process configured"
+  POST /candidates con positionId=1 y 2
+    (tras sembrar las fases de la 2)    → 201 Created, ambas
+
+Navegador (pestaña nueva)
+  Desplegable "Posición a la que se presenta"
+    → "Senior Full-Stack Engineer — LTI" y "Data Scientist — LTI",
+      las posiciones reales, no texto libre
+  Alta de candidato eligiendo la posición 1 → "Candidato añadido con
+      éxito"; navegado a /positions/1 → el candidato aparece en la
+      columna "Initial Screening" del tablero real
+  (candidatos y sus Application de prueba borrados tras cada
   comprobación)
 ```

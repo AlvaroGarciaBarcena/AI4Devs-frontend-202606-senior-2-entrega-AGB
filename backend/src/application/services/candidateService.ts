@@ -4,6 +4,7 @@ import { Education } from '../../domain/models/Education';
 import { WorkExperience } from '../../domain/models/WorkExperience';
 import { Resume } from '../../domain/models/Resume';
 import { Application } from '../../domain/models/Application';
+import { getFirstInterviewStepForPosition } from './positionService';
 
 export const addCandidate = async (candidateData: any) => {
     validateCandidateData(candidateData); // Validar los datos del candidato (lanza su propio Error con mensaje claro si falla)
@@ -40,6 +41,28 @@ export const addCandidate = async (candidateData: any) => {
             await resumeModel.save();
             candidate.resumes.push(resumeModel);
         }
+
+        // Crear la candidatura a la posición elegida, en la primera fase de
+        // su flujo de entrevistas -- sin esto, el candidato quedaba
+        // guardado pero nunca aparecía en el tablero "Ver proceso" de
+        // ninguna posición, porque ese tablero se alimenta de Application,
+        // no de la lista general de candidatos.
+        const firstStep = await getFirstInterviewStepForPosition(candidateData.positionId);
+        if (firstStep === undefined) {
+            throw new Error('Selected position not found');
+        }
+        if (firstStep === null) {
+            throw new Error('The selected position does not have an interview process configured');
+        }
+        const applicationModel = new Application({
+            positionId: candidateData.positionId,
+            candidateId,
+            applicationDate: new Date(),
+            currentInterviewStep: firstStep.id,
+        });
+        await applicationModel.save();
+        candidate.applications.push(applicationModel);
+
         return savedCandidate;
     } catch (error: any) {
         if (error.code === 'P2002') {

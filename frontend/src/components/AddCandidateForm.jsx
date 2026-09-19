@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Form, Button, Alert, FormControl, Card, Container, Row, Col } from 'react-bootstrap';
 import { Trash } from 'react-bootstrap-icons';
 import FileUploader from './FileUploader';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { sendCandidateData } from '../services/candidateService';
+import { getPositions } from '../services/positionService';
 import { translateValidationIssues } from '../i18n/validationMessages';
 import { useTranslation } from 'react-i18next';
 
@@ -12,12 +13,15 @@ import { useTranslation } from 'react-i18next';
 // para vaciar el formulario tras un alta con éxito (antes no se hacía
 // ninguna de las dos cosas al reenviar — los datos del candidato recién
 // creado se quedaban en pantalla, invitando a reenviarlos por error).
+// `positionId` es un desplegable, no texto libre: solo puede valer uno de
+// los ids que devuelve GET /position, nunca un valor inventado a mano.
 const EMPTY_CANDIDATE = {
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
     address: '',
+    positionId: '',
     educations: [],
     workExperiences: [],
     cv: null
@@ -45,6 +49,17 @@ const AddCandidateForm = () => {
     // reenviar el formulario.
     const [issues, setIssues] = useState([]); // [{ field, code, params }], ver validator.ts del backend
     const [successMessage, setSuccessMessage] = useState('');
+    const [positions, setPositions] = useState([]);
+    // Fallo al cargar el listado de posiciones (p. ej. backend caído): se
+    // muestra aparte de `error` (que es para fallos de envío del
+    // formulario) porque puede ocurrir antes de que nadie haya tocado nada.
+    const [positionsError, setPositionsError] = useState('');
+
+    useEffect(() => {
+        getPositions()
+            .then(setPositions)
+            .catch((err) => setPositionsError(err.message));
+    }, []);
 
     const fieldErrors = translateValidationIssues(issues);
     const getFieldError = (field) => fieldErrors.find((issue) => issue.field === field);
@@ -101,6 +116,9 @@ const AddCandidateForm = () => {
         try {
             const candidateData = {
                 ...candidate,
+                // El <select> siempre entrega un string; el backend espera
+                // un entero (ver validatePositionId en validator.ts).
+                positionId: Number(candidate.positionId),
                 cv: candidate.cv ? {
                     filePath: candidate.cv.filePath,
                     fileType: candidate.cv.fileType
@@ -144,6 +162,32 @@ const AddCandidateForm = () => {
                 <Form onSubmit={handleSubmit}>
                     <Row>
                         <Col md={6}>
+                            <Form.Group controlId="positionId">
+                                <Form.Label>{t('addCandidate.applyingPosition')}</Form.Label>
+                                <Form.Select
+                                    name="positionId"
+                                    required
+                                    value={candidate.positionId}
+                                    onChange={(e) => handleFieldChange('positionId', e.target.value)}
+                                    className="shadow-sm"
+                                    isInvalid={!!getFieldError('positionId')}
+                                    aria-invalid={!!getFieldError('positionId')}
+                                    aria-describedby={getFieldError('positionId') ? 'positionId-error' : undefined}
+                                >
+                                    <option value="">{t('addCandidate.selectPositionPlaceholder')}</option>
+                                    {positions.map((position) => (
+                                        <option key={position.id} value={position.id}>
+                                            {position.title} — {position.companyName}
+                                        </option>
+                                    ))}
+                                </Form.Select>
+                                {getFieldError('positionId') && (
+                                    <Form.Control.Feedback type="invalid" id="positionId-error">
+                                        {getFieldError('positionId').message}
+                                    </Form.Control.Feedback>
+                                )}
+                                {positionsError && <p className="text-danger small mt-1 mb-0">{positionsError}</p>}
+                            </Form.Group>
                             <Form.Group controlId="firstName">
                                 <Form.Label>{t('addCandidate.firstName')}</Form.Label>
                                 <Form.Control

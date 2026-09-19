@@ -30,6 +30,8 @@
   },
   "addCandidate": {
     "title": "Add Candidate",
+    "applyingPosition": "Position applying for",
+    "selectPositionPlaceholder": "Select a position",
     "firstName": "First Name",
     "lastName": "Last Name",
     "email": "Email",
@@ -93,7 +95,8 @@
       "email": "The email",
       "phone": "The phone number",
       "address": "The address",
-      "cv": "The CV"
+      "cv": "The CV",
+      "positionId": "The position"
     },
     "sections": {
       "educations": "Education",

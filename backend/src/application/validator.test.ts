@@ -4,6 +4,7 @@ const baseCandidate = {
     firstName: 'Ana',
     lastName: 'García',
     email: 'ana.garcia@example.com',
+    positionId: 1,
 };
 
 const getValidationError = (data: any): ValidationError => {
@@ -32,7 +33,7 @@ describe('validateCandidateData', () => {
     });
 
     it('accumulates every failing field instead of stopping at the first one', () => {
-        const error = getValidationError({ firstName: '', lastName: '', email: 'not-an-email' });
+        const error = getValidationError({ firstName: '', lastName: '', email: 'not-an-email', positionId: 1 });
         expect(error.issues.map(issue => issue.field)).toEqual(['firstName', 'lastName', 'email']);
     });
 
@@ -80,5 +81,27 @@ describe('validateCandidateData', () => {
 
     it('accepts an empty phone (it is optional)', () => {
         expect(() => validateCandidateData({ ...baseCandidate, phone: '' })).not.toThrow();
+    });
+
+    // La candidatura ahora exige elegir una posición (desplegable en el
+    // frontend, no texto libre) — sin esto, el candidato se guardaba pero
+    // nunca aparecía en el tablero "Ver proceso" de ninguna posición.
+    it('reports the missing field when positionId is not provided', () => {
+        const { positionId, ...withoutPositionId } = baseCandidate;
+        const error = getValidationError(withoutPositionId);
+        expect(error.issues).toContainEqual({ field: 'positionId', code: 'required' });
+    });
+
+    it('rejects a non-numeric or non-positive positionId', () => {
+        expect(getValidationError({ ...baseCandidate, positionId: '1' }).issues)
+            .toContainEqual({ field: 'positionId', code: 'invalid' });
+        expect(getValidationError({ ...baseCandidate, positionId: 0 }).issues)
+            .toContainEqual({ field: 'positionId', code: 'invalid' });
+        expect(getValidationError({ ...baseCandidate, positionId: 1.5 }).issues)
+            .toContainEqual({ field: 'positionId', code: 'invalid' });
+    });
+
+    it('accepts a valid positionId', () => {
+        expect(() => validateCandidateData({ ...baseCandidate, positionId: 2 })).not.toThrow();
     });
 });

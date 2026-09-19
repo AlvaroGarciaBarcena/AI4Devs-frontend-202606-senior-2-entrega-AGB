@@ -249,6 +249,37 @@ async function main() {
     },
   });
 
+  // interviewFlow2 ("Data science interview process") nunca había tenido
+  // ninguna fase -- no se notó hasta que una candidatura de verdad intentó
+  // arrancar en su primera fase (ver candidateService.ts: toda candidatura
+  // nueva empieza en interviewSteps[0] del flujo de la posición elegida).
+  await prisma.interviewStep.create({
+    data: {
+      interviewFlowId: interviewFlow2.id,
+      interviewTypeId: interviewType1.id,
+      name: 'Initial Screening',
+      orderIndex: 1,
+    },
+  });
+
+  await prisma.interviewStep.create({
+    data: {
+      interviewFlowId: interviewFlow2.id,
+      interviewTypeId: interviewType2.id,
+      name: 'Technical Interview',
+      orderIndex: 2,
+    },
+  });
+
+  await prisma.interviewStep.create({
+    data: {
+      interviewFlowId: interviewFlow2.id,
+      interviewTypeId: interviewType3.id,
+      name: 'Manager Interview',
+      orderIndex: 3,
+    },
+  });
+
   // Create Employees
   const employee1 = await prisma.employee.create({
     data: {

@@ -53,6 +53,33 @@ export const getCandidatesByPositionService = async (positionId: number) => {
     }
 };
 
+// Usado al dar de alta un candidato con una posición elegida
+// (candidateService.ts): toda candidatura nueva arranca en la primera
+// fase del flujo de entrevistas de esa posición. `orderBy` es necesario
+// -- el `include` de Prisma no garantiza que interviewSteps venga en el
+// orden de `orderIndex`, y sin ordenar explícitamente se podría escoger
+// una fase intermedia como si fuera la primera.
+//
+// `undefined` (posición inexistente) y `null` (posición real, pero sin
+// ninguna fase configurada en su flujo) se distinguen a propósito: son
+// dos fallos distintos y quien llama (candidateService.ts) necesita
+// poder dar un mensaje que no los confunda.
+export const getFirstInterviewStepForPosition = async (positionId: number) => {
+    const position = await prisma.position.findUnique({
+        where: { id: positionId },
+        include: {
+            interviewFlow: {
+                include: {
+                    interviewSteps: { orderBy: { orderIndex: 'asc' } }
+                }
+            }
+        }
+    });
+
+    if (!position) return undefined;
+    return position.interviewFlow.interviewSteps[0] ?? null;
+};
+
 export const getInterviewFlowByPositionService = async (positionId: number) => {
     const positionWithInterviewFlow = await prisma.position.findUnique({
         where: { id: positionId },
