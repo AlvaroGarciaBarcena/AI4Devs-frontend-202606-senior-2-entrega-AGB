@@ -1,21 +1,20 @@
-# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests + seguridad + auth + code splitting + UX + candidatura (rama `position-selector-AGB`)
+# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests + seguridad + auth + code splitting + UX + candidatura + OpenSpec (rama `openspec-adoption-AGB`)
 
 Autor: garciabarcenaalvaro@gmail.com
 Asistente: Claude Code (Sonnet 5)
 Fecha: 2026-09-16 / 2026-09-17 / 2026-09-19
 
-Rama base: `candidate-form-ux-fixes-AGB` (commit `700fc68`), que ya
-reunía todo lo anterior (`backend-AGB` + `frontend-AGB` +
+Rama base: `position-selector-AGB` (commit `096120b`), que ya reunía
+todo lo anterior (`backend-AGB` + `frontend-AGB` +
 `candidate-validation-i18n-a11y-AGB` + `positions-proceso-AGB` + la
 migración de i18n a `react-i18next` + la migración de Create React App a
 Vite + tests automáticos + una auditoría de ciberseguridad exhaustiva +
 la migración de `react-router-dom` a v7 + autenticación JWT en toda la
-API + *code splitting* por ruta + dos bugs de UX en "Agregar
-Candidato"). Esta rama no fusiona nada nuevo — añade el campo que
-faltaba para que un candidato nuevo quede vinculado de verdad a una
-posición (un desplegable con las posiciones reales, no texto libre),
-cerrando el motivo por el que ningún candidato daba de alta desde el
-formulario aparecía nunca en "Ver proceso".
+API + *code splitting* por ruta + tres bugs de UX en "Agregar
+Candidato" + el selector de posición para la candidatura). Esta rama no
+toca código de la aplicación — adopta OpenSpec retroactivamente,
+extrayendo de las 14 ramas anteriores una spec por capacidad, cada
+requisito trazable a la rama y commit que lo implementó.
 
 > Nota: las secciones 1-13 de este documento son el historial heredado de
 > `i18n-react-i18next-AGB`/`all-fixes-AGB` sin modificar — validación,
@@ -25,16 +24,17 @@ formulario aparecía nunca en "Ver proceso".
 > auditoría de ciberseguridad, la 3.18 la migración de `react-router-dom`
 > a v7, la 3.19 la autenticación de las APIs, la 3.20 el *code splitting*
 > del bundle, la 3.21 dos bugs de UX en "Agregar Candidato", la 3.22 el
-> reseteo del formulario tras un alta con éxito, y la 3.23 el selector de
-> posición para la candidatura. El histórico de `positions-proceso-AGB`
-> sigue en [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el
-> de `backend-AGB`/`frontend-AGB` en
+> reseteo del formulario tras un alta con éxito, la 3.23 el selector de
+> posición para la candidatura, y la 3.24 la adopción de OpenSpec. El
+> histórico de `positions-proceso-AGB` sigue en
+> [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el de
+> `backend-AGB`/`frontend-AGB` en
 > [`prompts-AGB-backend.md`](./prompts-AGB-backend.md) /
 > [`prompts-AGB-frontend.md`](./prompts-AGB-frontend.md).
 
 ## 0. Resumen ejecutivo: el camino completo, de un vistazo
 
-Esta sesión generó **14 ramas** a partir de `main`, en varias oleadas.
+Esta sesión generó **15 ramas** a partir de `main`, en varias oleadas.
 Esta sección existe para poder entender el conjunto sin tener que leer
 las más de 2700 líneas de detalle de más abajo — cada punto enlaza a la
 sección donde está el porqué completo.
@@ -112,13 +112,20 @@ main (8025b6f) — estado original del repo, sin tocar
                                         │    vaciaba tras un alta con
                                         │    éxito
                                         │
-                                        └── position-selector-AGB  ← RAMA ACTUAL
-                                             = desplegable con las
-                                               posiciones reales para
-                                               elegir a cuál se presenta
-                                               el candidato — sin esto,
-                                               nadie quedaba vinculado a
-                                               ninguna posición
+                                        └── position-selector-AGB (096120b)
+                                            │  = desplegable con las
+                                            │    posiciones reales para
+                                            │    elegir a cuál se presenta
+                                            │    el candidato — sin esto,
+                                            │    nadie quedaba vinculado a
+                                            │    ninguna posición
+                                            │
+                                            └── openspec-adoption-AGB  ← RAMA ACTUAL
+                                                 = adopción retroactiva de
+                                                   OpenSpec: 10 specs por
+                                                   capacidad, 38 requisitos,
+                                                   cada uno trazable a la
+                                                   rama que lo implementó
 ```
 
 Cada rama tiene su propio commit y su propia sección de detalle en este
@@ -152,6 +159,7 @@ integrarlas).
 | 19 | "Después de un error de entrada en 'Agregar Candidato' no me recarga los valores corregidos. Tampoco da información de porqué el tfno tiene formato inválido a pesar de haber introducido sólo 9 números. ¿Lo mejoras, porfa?" | `candidate-form-ux-fixes-AGB` | 3.21 |
 | 20 | "Acabo de lograr añadir un candidato con éxito, pero opino que deberían haberse borrado los valores tras ello, pero se mantienen. ¿Coincides?" | *(misma rama)* | 3.22 |
 | 21 | "El formulario actual permite el registro del candidato sin CV y sin experiencia... ¿El código actual contempla analizar el CV o la experiencia para asignar el candidato a la posición?" → "Añade porfa primero el campo de elección a la candidatura... ¿Sólo el desplegable ahora." | `position-selector-AGB` | 3.23 |
+| 22 | "Querría darle mayor trazabilidad a todo el proceso. ¿Cómo ves que llevemos todo lo hecho hasta ahora, las 14 ramas, a openspec?" → "Sí, perfecto, specs por capacidad, pero granulariza bien y deja registrado... la rama dónde se implementó" | `openspec-adoption-AGB` | 3.24 |
 
 ### 0.3 Qué se hizo, paso a paso, en cada rama
 
@@ -257,13 +265,19 @@ fragmentos de código, verificaciones) está en la sección referenciada.
 4. +3 tests backend (36→39), +3 tests frontend (29→32) — incluido uno que codifica exactamente el bug A reportado (corregir sin reenviar hace desaparecer el error). Verificado también en caliente contra el backend de desarrollo real (`curl`) y en el navegador de principio a fin.
 5. Bug C, reportado por el usuario probando por su cuenta: el formulario no se vaciaba tras un alta con éxito. Dos causas: `candidate` nunca se reseteaba, y los 5 campos nunca habían tenido `value=` (no controlados de verdad, así que resetear el estado no habría bastado). Arreglado con `value={candidate.X}` en los 5 campos, reseteo a `EMPTY_CANDIDATE` tras el éxito, y una `key` en `FileUploader` para que también olvide el fichero ya subido. +1 test frontend (32→33).
 
-**`position-selector-AGB`** (detalle en 3.23, rama actual):
+**`position-selector-AGB`** (detalle en 3.23):
 1. Confirmado con el código real, antes de opinar: `addCandidate` nunca había creado una `Application` — un candidato nuevo se guardaba, pero no quedaba vinculado a ninguna posición, así que jamás aparecía en "Ver proceso". No hay, ni ha habido nunca, ningún análisis de CV/experiencia para nada.
 2. Alcance acordado explícitamente antes de tocar código: solo el desplegable ahora, contra las posiciones ya existentes (`GET /position`); crear vacantes nuevas (que exigiría elegir también un flujo de entrevistas) queda para una rama futura.
 3. Backend: `validatePositionId` (obligatorio, entero positivo); `getFirstInterviewStepForPosition` (ordena explícitamente por `orderIndex`, distingue "posición inexistente" de "posición sin fases" devolviendo `undefined`/`null` respectivamente); `addCandidate` crea la `Application` en esa primera fase, con un mensaje de error distinto para cada uno de los dos motivos de fallo.
 4. Frontend: `<Form.Select>` real (no texto libre) poblado con `getPositions()` (el mismo servicio que ya usaba `Positions.tsx`), enviando `positionId` como `Number`.
 5. Hallazgo real en la verificación en vivo, no hipotético: la posición "Data Scientist" (seed original, de antes de esta sesión) tenía un flujo de entrevistas sin ninguna fase — invisible hasta que esta rama fue la primera cosa que de verdad necesitó una. Corregido en `seed.ts` y con un script de un solo uso sobre la base de datos de desarrollo ya sembrada.
 6. +6 tests backend (39→45), +1 test frontend (33→34). Verificado con `curl` contra el backend real y en el navegador: un candidato nuevo aparece de verdad en la columna "Initial Screening" de la posición elegida.
+
+**`openspec-adoption-AGB`** (detalle en 3.24, rama actual):
+1. `openspec init` (esquema `spec-driven`) + un único change, `adopt-openspec-baseline`, con una spec de capacidad por área real de comportamiento (10, no 14 — por rama habría mezclado capacidades distintas dentro de una misma rama conversacional).
+2. 38 requisitos en total, cada uno con una línea `_Rama: \`nombre\` (commit \`hash\`)_` verificada contra `git log` real antes de darla por buena — la trazabilidad que pidió explícitamente el usuario.
+3. Decisión explícita, documentada en `design.md`: los cambios de solo herramientas sin comportamiento observable (`vite-migration-AGB`, `react-router-v7-AGB`, `tests-AGB`) no generan spec propia — no cambian qué hace el sistema, y forzar una capacidad para ellos habría producido requisitos sin ningún escenario real que verificar.
+4. Change archivado (`openspec archive`) tras validar en limpio (`openspec validate --strict` y `openspec validate --specs --strict`, 10/10). `openspec/specs/` queda como la referencia de "qué hace el sistema hoy"; `prompts-AGB.md` sigue siendo la referencia del "por qué" — no se sustituyen.
 
 ### 0.4 Decisiones clave y por qué (el hilo conductor)
 
@@ -326,7 +340,16 @@ fragmentos de código, verificaciones) está en la sección referenciada.
   se verificó con `npm view <paquete> peerDependencies` en ambos casos
   antes de decidir, no por analogía entre los dos "v7".
 
-### 0.5 Dónde estamos ahora (estado de `position-selector-AGB`)
+### 0.5 Dónde estamos ahora (estado de `openspec-adoption-AGB`)
+
+Además de todo lo de más abajo: el repo tiene ahora `openspec/specs/`
+con 10 capacidades documentadas (`candidate-intake`,
+`candidate-validation`, `file-upload`, `position-catalog`,
+`hiring-pipeline`, `authentication`, `internationalization`,
+`accessibility`, `security-hardening`, `frontend-performance`), 38
+requisitos en total, cada uno trazable a la rama y commit que lo
+implementó — consultable con `openspec spec show <capacidad>` sin tener
+que leer este documento entero (sección 3.24).
 
 **Verificado y funcionando**, de extremo a extremo, en el navegador, por
 línea de comandos y con tests automáticos:
@@ -429,8 +452,8 @@ se detectaron, ninguna oculta):
   de los dos.
 
 **Nada se ha subido a `origin`** en ningún momento de esta sesión — las
-14 ramas son enteramente locales. Si se quiere consolidar, el camino
-natural sería fusionar `position-selector-AGB` sobre `main` cuando el
+15 ramas son enteramente locales. Si se quiere consolidar, el camino
+natural sería fusionar `openspec-adoption-AGB` sobre `main` cuando el
 usuario lo decida explícitamente.
 
 ### 0.6 Análisis de ventajas: por qué esto debería haber sido así desde el principio
@@ -3548,3 +3571,37 @@ Navegador (pestaña nueva)
   (candidatos y sus Application de prueba borrados tras cada
   comprobación)
 ```
+
+## 3.24 Adopción de OpenSpec (`openspec-adoption-AGB`)
+
+Prompt del usuario: *"Querría darle mayor trazabilidad a todo el proceso.
+¿Cómo ves que llevemos todo lo hecho hasta ahora, las 14 ramas, a
+openspec?"* → tras acordar el enfoque, *"Sí, perfecto, specs por
+capacidad, pero granulariza bien y deja registrado de alguna manera la
+rama que lo implementa..."*
+
+`openspec` (CLI `@fission-ai/openspec`, ya instalada en el sistema) se
+inicializó en el repo (`openspec init`, esquema `spec-driven`) y se creó
+un único change, `adopt-openspec-baseline`, con una spec de capacidad
+(no una por rama) por cada área de comportamiento real de la
+aplicación: `candidate-intake`, `candidate-validation`, `file-upload`,
+`position-catalog`, `hiring-pipeline`, `authentication`,
+`internationalization`, `accessibility`, `security-hardening` y
+`frontend-performance` — 38 requisitos en total, cada uno con una línea
+`_Rama: \`nombre\` (commit \`hash\`)_` verificada contra `git log` real,
+no de memoria. Los cambios puramente de herramientas sin comportamiento
+observable (`vite-migration-AGB`, `react-router-v7-AGB`, `tests-AGB`)
+no generan spec propia — quedan documentados como decisión explícita en
+el `proposal.md`/`design.md` del change, no como una omisión.
+
+El change se archivó (`openspec archive adopt-openspec-baseline`),
+generando `openspec/specs/` — validado con `openspec validate --specs
+--strict` (10/10 specs correctas). **A partir de esta rama,
+`openspec/specs/` es la referencia consultable de "qué hace el sistema
+hoy" (`openspec spec show <capacidad>`), y `prompts-AGB.md` sigue siendo
+la referencia del "por qué" y de cómo se llegó ahí** — no se sustituyen,
+se complementan. El detalle completo de la decisión (por qué specs por
+capacidad y no por rama, por qué esas 10 capacidades y no otras, el
+formato exacto de la línea de trazabilidad) queda en
+`openspec/changes/archive/2026-09-19-adopt-openspec-baseline/design.md`,
+sin duplicarlo aquí.
