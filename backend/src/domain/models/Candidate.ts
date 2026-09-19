@@ -25,8 +25,18 @@ export class Candidate {
         this.email = data.email;
         this.phone = data.phone;
         this.address = data.address;
-        this.educations = data.educations || [];
-        this.workExperiences = data.workExperiences || [];
+        // Copias, no alias del array del propio `data` -- candidateService.ts
+        // recorre `candidateData.educations`/`workExperiences` (el mismo
+        // `data` que llega aquí) con un for...of mientras va empujando cada
+        // entrada ya guardada a `candidate.educations`/`workExperiences`. Si
+        // fuera el mismo array, cada `push` añadía un elemento al array que
+        // el propio for...of seguía recorriendo (los iteradores de Array sí
+        // seven elementos añadidos durante la iteración) -- un candidato con
+        // una sola entrada de educación producía un bucle infinito real,
+        // insertando la misma fila una y otra vez (confirmado: se cortó tras
+        // 204.963 filas duplicadas al matar el proceso a mano).
+        this.educations = [...(data.educations || [])];
+        this.workExperiences = [...(data.workExperiences || [])];
         this.resumes = data.resumes || [];
         this.applications = data.applications || [];
     }
@@ -41,30 +51,20 @@ export class Candidate {
         if (this.phone !== undefined) candidateData.phone = this.phone;
         if (this.address !== undefined) candidateData.address = this.address;
 
-        // Añadir educations si hay alguna para añadir
-        if (this.educations.length > 0) {
-            candidateData.educations = {
-                create: this.educations.map(edu => ({
-                    institution: edu.institution,
-                    title: edu.title,
-                    startDate: edu.startDate,
-                    endDate: edu.endDate
-                }))
-            };
-        }
-
-        // Añadir workExperiences si hay alguna para añadir
-        if (this.workExperiences.length > 0) {
-            candidateData.workExperiences = {
-                create: this.workExperiences.map(exp => ({
-                    company: exp.company,
-                    position: exp.position,
-                    description: exp.description,
-                    startDate: exp.startDate,
-                    endDate: exp.endDate
-                }))
-            };
-        }
+        // A diferencia de resumes/applications (más abajo), educations y
+        // workExperiences NO se anidan aquí: candidateService.ts ya las
+        // guarda por separado tras crear el candidato, usando las clases
+        // Education/WorkExperience -- esas sí convierten startDate/endDate
+        // a Date de verdad (`new Date(data.startDate)`), y tratan un
+        // endDate vacío como "sin fecha de fin", no como una fecha
+        // inválida. Este `create` anidado enviaba los strings del request
+        // tal cual a Prisma, sin convertir: cualquier candidato con alguna
+        // educación o experiencia hacía fallar prisma.candidate.create()
+        // con "Expected ISO-8601 DateTime" (confirmado con PoC real), y si
+        // alguna vez esto hubiera funcionado, habría creado cada entrada
+        // DOS veces (aquí y en el bucle de candidateService.ts). Se quita
+        // en vez de arreglarse aquí: ya existe una implementación correcta,
+        // no hace falta una segunda.
 
         // Añadir resumes si hay alguno para añadir
         if (this.resumes.length > 0) {

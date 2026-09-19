@@ -2,8 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Form, Button, Alert, FormControl, Card, Container, Row, Col } from 'react-bootstrap';
 import { Trash } from 'react-bootstrap-icons';
 import FileUploader from './FileUploader';
-import DatePicker from 'react-datepicker';
+import ReactDatePickerModule from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+
+// El interop CJS→ESM del pre-bundler de dependencias de Vite envuelve dos
+// veces el export por defecto de react-datepicker@6.9.0 (el paquete no
+// tiene un único `module.exports =`, solo `exports.default = DatePicker`
+// junto a otros exports nombrados): `import DatePicker from
+// 'react-datepicker'` acaba trayendo el objeto de módulo entero en vez del
+// propio componente, y React lo rechaza con "Element type is invalid"
+// (confirmado reproduciendo el fallo al pulsar "Añadir Educación", antes de
+// aplicar este fix). Se desenvuelve a mano por si acaso, sin depender de
+// que el bundler lo resuelva bien.
+const DatePicker = ReactDatePickerModule.default || ReactDatePickerModule;
 import { sendCandidateData } from '../services/candidateService';
 import { getPositions } from '../services/positionService';
 import { translateValidationIssues } from '../i18n/validationMessages';

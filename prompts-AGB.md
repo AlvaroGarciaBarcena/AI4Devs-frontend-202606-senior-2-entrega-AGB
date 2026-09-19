@@ -4029,3 +4029,212 @@ escenarios de esas dos capacidades en verde. Sigue pendiente el resto
 del alcance confirmado: `candidate-intake`, `internationalization`,
 `accessibility`, `hiring-pipeline`, `position-catalog` y
 `frontend-performance`.
+
+## 3.28 Trabajo autónomo nocturno: `position-catalog` y `candidate-intake` (tres bugs reales encontrados y corregidos)
+
+Contexto: *"Prioriza primero la validación de las capacidades de negocio,
+para después validar todas y no olvides también las pruebas e2e para el
+tooling. Confírmame que estás conforme y que puedes hacerlo de forma
+autónoma, porque es ya muy tarde y me voy a dormir. [...] Si detectas un
+stopper para alguna capacidad, déjalo comentado y continúa porfa con las
+siguientes capacidades"* — confirmado el orden (`position-catalog` →
+`candidate-intake` → `hiring-pipeline`, después el resto, y por último
+`developer-tooling`), trabajo sin supervisión a partir de aquí.
+
+### 3.28.1 `position-catalog` (2/2)
+
+Sin hallazgos. Los dos escenarios ("Carga del listado", "Navegar al
+proceso de una posición") pasaron a la primera contra los datos
+sembrados ("Senior Full-Stack Engineer", LTI, Remote, Open,
+2024-12-31).
+
+### 3.28.2 Login real una vez por suite, no una vez por escenario
+
+Antes de escribir `candidate-intake` (10 escenarios, la mayoría con
+login real por interfaz), un cálculo simple: con `authentication` (6-7
+logins), `position-catalog` (2) y `security-hardening` (2) ya
+ejecutados antes en la misma tanda, sumar 10 logins más de
+`candidate-intake` supera de sobra el límite real de 10/15min
+confirmado en 3.27.2 — y en efecto, la primera ejecución completa de
+`candidate-intake` falló a partir del noveno escenario con el mismo
+síntoma que en 3.27.2 (redirección a `/login` en mitad de un `Given`
+que no debería tocar el login para nada).
+
+En vez de aceptar logins repetidos como coste fijo, se aplica el
+patrón estándar de Playwright para este caso: un login real, una única
+vez por ejecución completa de la suite (`e2e/global-setup.ts`), que
+guarda la sesión resultante (`storageState`, incluye el `localStorage`
+con el token JWT real) en `e2e/.auth/state.json` — gitignorado, igual
+que `SECRETS.md`/`backend/.env` (nunca un JWT real committeado).
+`playwright.config.ts` pasa a tener dos `projects`:
+
+- `chromium` (por defecto): arranca ya con la sesión de `globalSetup`
+  vía `use.storageState`. Excluye `authentication.feature` y
+  `zz-rate-limiting.feature` (`testIgnore`).
+- `chromium-sin-sesion`: sin `storageState`, solo para esos dos
+  ficheros (`testMatch`) -- `authentication` tiene que arrancar sin
+  sesión porque prueba el login en sí, y `zz-rate-limiting` agota el
+  limitador de verdad; ninguno de los dos debe heredar la sesión de
+  `globalSetup`. El orden entre proyectos (con `workers:1`) mantiene
+  intacta la garantía de 3.27.2: `zz-rate-limiting` sigue siendo lo
+  último que se ejecuta de toda la suite.
+
+`candidate-intake.steps.ts` y `position-catalog.steps.ts` dejan de
+hacer login por interfaz en cada `Given`/`When` -- solo navegan,
+partiendo ya de la sesión de `storageState`.
+
+### 3.28.3 Bug real #1: `react-datepicker` + Vite rompía el formulario entero al añadir una educación
+
+Al construir el primer escenario que pulsa "Añadir Educación", la
+pantalla se quedaba en blanco -- error real de React en consola:
+`Element type is invalid: expected a string [...] but got: object`,
+señalando `AddCandidateForm.jsx:324` (el `<DatePicker>` de
+`react-datepicker`). Confirmado que NO era caché de Vite obsoleta (la
+causa habitual de falsos positivos en esta sesión): se limpió
+`node_modules/.vite`, se mataron los procesos zombis de `npm run dev`
+del frontend (dos instancias corriendo a la vez, una de ellas de una
+sesión anterior) y se reinició limpio -- el fallo se reprodujo igual.
+
+Causa real: `react-datepicker@6.9.0` no expone un único
+`module.exports =`, solo `exports.default = DatePicker` junto a otros
+exports nombrados. El pre-bundler de dependencias de Vite (`esbuild`,
+en modo dev) envuelve ese `exports` completo como `default` en vez de
+extraer el `DatePicker` real -- `import DatePicker from
+'react-datepicker'` acababa trayendo el objeto de módulo entero, no el
+componente. Confirmado inspeccionando el módulo pre-bundled en el
+propio navegador (`import('/node_modules/.vite/deps/react-datepicker.js')`):
+`mod.default` era un objeto con `{CalendarContainer, default,
+getDefaultLocale, registerLocale, setDefaultLocale}`, no una función.
+
+Corregido en `AddCandidateForm.jsx` desenvolviendo a mano
+(`ReactDatePickerModule.default || ReactDatePickerModule`), el
+workaround estándar para este interop concreto -- no depende de que el
+bundler lo resuelva bien, y funciona igual bajo Vite (dev) y bajo
+Vitest (que no tiene este problema, así que ahí `.default` es
+`undefined` y cae al segundo operando). Verificado a mano en el
+navegador (capturas: el desplegable de fecha ya renderiza) y con la
+suite de Vitest del frontend completa (34/34, sin regresiones).
+
+Este bug llevaba ahí desde que se construyó el formulario -- nadie lo
+había encontrado porque nadie (ni las pruebas manuales de la sesión,
+ni el propio usuario) había llegado a pulsar "Añadir Educación" en un
+alta real hasta que el escenario E2E lo intentó.
+
+### 3.28.4 Bug real #2 (más severo): bucle infinito real al guardar una educación o experiencia
+
+Con el fallo de render corregido, el envío del formulario con una
+educación fallaba igual, pero de otra forma: sin mensaje de éxito.
+Inspeccionando el `error-context.md` que adjunta Playwright al fallo,
+apareció un error real de Prisma en la propia alerta de la pantalla
+(`Invalid value for argument startDate: premature end of input.
+Expected ISO-8601 DateTime`) -- `Candidate.ts` tenía una segunda vía
+para crear educaciones/experiencias, anidada dentro del propio
+`prisma.candidate.create()`, que enviaba los strings del formulario
+tal cual a Prisma sin convertirlos a `Date` (a diferencia de las
+clases `Education`/`WorkExperience`, que si lo hacen bien en su
+constructor). Un PoC directo por API confirmó que esta vía anidada
+fallaba SIEMPRE que hubiera alguna educación, con fecha de fin vacía o
+no.
+
+Al quitar esa vía anidada (redundante: `candidateService.ts` ya guarda
+cada educación/experiencia por separado, correctamente, después de
+crear el candidato) y repetir el PoC, la petición se quedó colgada sin
+responder. Investigado con `pg_stat_activity` (consultas activas
+contra Postgres) y con el uso de CPU del proceso del backend --no una
+espera bloqueada de verdad (eso habría dejado el proceso a 0% CPU),
+sino un proceso consumiendo CPU de forma sostenida--, hasta matarlo a
+mano tras varios minutos y comprobar el daño real: **204.963 filas
+duplicadas** en la tabla `Education`, todas idénticas, para un único
+candidato con una sola educación en el formulario.
+
+Causa raíz, un bug clásico de JavaScript (alias de array mutado
+durante su propia iteración): el constructor de `Candidate` guardaba
+`this.educations = data.educations` -- el MISMO array del cuerpo de la
+petición, no una copia. `candidateService.ts` recorre ese array con
+`for (const education of candidateData.educations)` mientras, dentro
+del propio bucle, hace `candidate.educations.push(educationModel)` --
+como `candidate.educations` y `candidateData.educations` son el mismo
+array, cada `push` añadía un elemento al array que el `for...of` seguía
+recorriendo (los iteradores de `Array` sí visitan elementos añadidos
+durante la iteración), y el elemento añadido (`educationModel`, una
+instancia de `Education`) conserva `institution`/`title`/`startDate`/
+`endDate` -- así que el bucle nunca terminaba, insertando la misma fila
+una y otra vez.
+
+Corregido en el constructor de `Candidate` copiando los arrays en vez
+de referenciarlos (`this.educations = [...(data.educations || [])]`,
+igual para `workExperiences`) -- rompe el alias sin tocar el bucle de
+`candidateService.ts`, que ya era correcto en sí mismo. Se añade un
+test de regresión (`candidateService.test.ts`) que falla si vuelve a
+colarse: guarda un candidato con una educación y comprueba que
+`prisma.education.create` se llama exactamente una vez, "por muchas
+veces que se empuje a `candidate.educations` después" -- el nombre del
+test deja constancia explícita de qué bug evita, no solo qué
+comprueba. Verificado además con PoC real repetido (POST /candidates
+con educación y experiencia a la vez): `201`, una fila de cada, limpio
+en menos de un segundo -- nada que ver con el colgado de antes.
+
+Este bug es más grave que el anterior: no solo bloqueaba la función,
+sino que crecía sin límite (memoria del proceso, filas en la base de
+datos) hasta que algo externo lo cortara -- el tipo de fallo que en
+producción sería una caída del servicio o del disco de la base de
+datos, no solo un error visible. Como el bug de 3.28.3 lo tapaba por
+completo (nadie llegaba a enviar el formulario con una educación desde
+la interfaz), este tampoco lo había encontrado nadie hasta ahora.
+
+### 3.28.5 `candidate-intake` (10/10) tras los dos fixes
+
+Con ambos bugs corregidos y el login por `storageState` (3.28.2), los
+10 escenarios pasan limpios. Detalles de implementación que merece la
+pena dejar constando:
+
+- El input de `react-datepicker` acepta texto tecleado directamente,
+  pero solo confirma el valor (dispara el `onChange` que actualiza el
+  estado de React) al pulsar Enter -- cerrarlo con Escape deja el
+  texto visible pero no actualiza nada, un segundo hallazgo real (más
+  pequeño) durante la propia escritura de los *steps*, antes de llegar
+  a ejecutarlos.
+- "Posición sin elegir" se resuelve por el `required` nativo del
+  `<select>` del navegador -- el formulario ni siquiera llega a
+  enviarse, así que el *step* comprueba `validity.valid` en vez de
+  esperar una respuesta del servidor.
+- "Posición elegida sin flujo de entrevistas configurado" necesita una
+  posición real sin fases, que ya no existe en el seed (se le añadieron
+  fases en la sección de seguridad de esta misma sesión) -- el *step*
+  la crea por Prisma directamente (`e2e/steps/support/prisma.ts`, un
+  cliente compartido cargado por ruta relativa a
+  `backend/node_modules/@prisma/client`, con el mismo `.env` real del
+  backend) y la borra al final del propio escenario.
+- El mismo *step* confirma, contra la base de datos, que el fix de
+  3.23 (la posición se valida antes de guardar el candidato, no
+  después) sigue en pie: el candidato rechazado no debe quedar
+  huérfano.
+- "Alta con posición válida" limpia el candidato que crea al final del
+  propio `Then` -- el tablero "Ver proceso" es un dato acumulativo de
+  verdad en la base de datos de desarrollo, y el apellido del
+  candidato de prueba no puede llevar dígitos para distinguirlo
+  (`validator.ts` solo admite letras y espacios), así que sin este
+  cleanup cada reejecución de la suite iría dejando otra tarjeta con el
+  mismo nombre visible en la misma columna -- pasó de verdad la primera
+  vez que se reejecutó la suite completa tras el primer intento.
+
+```
+npx bddgen && npx playwright test
+  → 23 passed (21.8s): candidate-intake (10) + position-catalog (2) +
+    security-hardening (4) [proyecto "chromium", con sesión] +
+    authentication (6) + zz-rate-limiting (1) [proyecto
+    "chromium-sin-sesion", sin sesión, en ese orden]
+
+npm test (backend)   → 47 passed (46 + el nuevo test de regresión)
+npm test (frontend)  → 34 passed (vitest, sin regresiones del fix de
+                        react-datepicker)
+```
+
+`backend/uploads/` (nunca gitignorado hasta ahora) se añade a
+`.gitignore` -- contenido generado en tiempo de ejecución, no código
+fuente, y ahora además lo llenan los propios escenarios de subida de
+CV en cada ejecución de la suite.
+
+Sigue el plan confirmado: `hiring-pipeline` a continuación, luego
+`internationalization`, `accessibility`, `frontend-performance`, y por
+último `developer-tooling`.

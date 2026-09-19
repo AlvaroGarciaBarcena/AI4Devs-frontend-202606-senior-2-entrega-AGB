@@ -9,6 +9,22 @@ import { getFirstInterviewStepForPosition } from './positionService';
 export const addCandidate = async (candidateData: any) => {
     validateCandidateData(candidateData); // Validar los datos del candidato (lanza su propio Error con mensaje claro si falla)
 
+    // Se valida la posición ANTES de guardar nada del candidato. Antes esta
+    // comprobación vivía al final, después de guardar candidato, educación,
+    // experiencia y CV: un alta con una posición inexistente o sin fases
+    // configuradas fallaba con 400 igualmente, pero dejaba un candidato
+    // huérfano ya guardado en la base de datos, sin ninguna Application,
+    // ocupando su email para siempre (confirmado con PoC: POST /candidates
+    // contra una posición sin fases devuelve 400, y el candidato aparece
+    // igualmente en la tabla Candidate).
+    const firstStep = await getFirstInterviewStepForPosition(candidateData.positionId);
+    if (firstStep === undefined) {
+        throw new Error('Selected position not found');
+    }
+    if (firstStep === null) {
+        throw new Error('The selected position does not have an interview process configured');
+    }
+
     const candidate = new Candidate(candidateData); // Crear una instancia del modelo Candidate
     try {
         const savedCandidate = await candidate.save(); // Guardar el candidato en la base de datos
@@ -46,14 +62,8 @@ export const addCandidate = async (candidateData: any) => {
         // su flujo de entrevistas -- sin esto, el candidato quedaba
         // guardado pero nunca aparecía en el tablero "Ver proceso" de
         // ninguna posición, porque ese tablero se alimenta de Application,
-        // no de la lista general de candidatos.
-        const firstStep = await getFirstInterviewStepForPosition(candidateData.positionId);
-        if (firstStep === undefined) {
-            throw new Error('Selected position not found');
-        }
-        if (firstStep === null) {
-            throw new Error('The selected position does not have an interview process configured');
-        }
+        // no de la lista general de candidatos. (firstStep ya se validó
+        // arriba, antes de guardar nada.)
         const applicationModel = new Application({
             positionId: candidateData.positionId,
             candidateId,

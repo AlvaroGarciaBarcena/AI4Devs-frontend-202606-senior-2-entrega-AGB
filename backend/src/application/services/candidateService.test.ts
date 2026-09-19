@@ -13,6 +13,9 @@ jest.mock('@prisma/client', () => {
     candidate: {
       create: jest.fn(),
     },
+    education: {
+      create: jest.fn(),
+    },
     position: {
       findUnique: jest.fn(),
     },
@@ -70,6 +73,32 @@ describe('addCandidate', () => {
     });
   });
 
+  // Regresión de un bucle infinito real: Candidate guardaba
+  // `this.educations = data.educations` (el mismo array, no una copia).
+  // candidateService recorre ese array con un for...of mientras empuja
+  // cada entrada ya guardada a `candidate.educations` -- como era el
+  // mismo array, cada `push` alargaba el array que el propio for...of
+  // seguía recorriendo, así que nunca terminaba: una sola entrada de
+  // educación producía inserciones sin fin (confirmado contra la base de
+  // datos real: 204.963 filas duplicadas antes de matar el proceso a
+  // mano). Este test falla si esa duplicación de array vuelve a colarse.
+  it('saves exactly one Education row per education entry, however many are pushed onto candidate.educations afterwards', async () => {
+    jest.spyOn(prisma.candidate, 'create').mockResolvedValue({ id: 10, ...baseCandidateData } as any);
+    jest.spyOn(prisma.education, 'create').mockResolvedValue({ id: 1 } as any);
+    jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
+      id: 1,
+      interviewFlow: { interviewSteps: [{ id: 100, orderIndex: 1, name: 'Initial Screening' }] },
+    } as any);
+    jest.spyOn(prisma.application, 'create').mockResolvedValue({ id: 500 } as any);
+
+    await addCandidate({
+      ...baseCandidateData,
+      educations: [{ institution: 'Uni X', title: 'Grado X', startDate: '2018-09-01', endDate: '2020-09-01' }],
+    });
+
+    expect(prisma.education.create).toHaveBeenCalledTimes(1);
+  });
+
   it('throws a clear error when the selected position has no interview steps configured', async () => {
     jest.spyOn(prisma.candidate, 'create').mockResolvedValue({ id: 10, ...baseCandidateData } as any);
     jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
@@ -81,6 +110,21 @@ describe('addCandidate', () => {
     expect(prisma.application.create).not.toHaveBeenCalled();
   });
 
+  // Antes la posición se comprobaba al final, después de guardar el
+  // candidato: un alta rechazada por este motivo dejaba igualmente un
+  // candidato huérfano en la base de datos (PoC real documentado en
+  // prompts-AGB.md). Ahora la posición se valida antes de guardar nada.
+  it('does not save the candidate at all when the selected position has no interview steps configured', async () => {
+    jest.spyOn(prisma.candidate, 'create').mockResolvedValue({ id: 10, ...baseCandidateData } as any);
+    jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
+      id: 1,
+      interviewFlow: { interviewSteps: [] },
+    } as any);
+
+    await expect(addCandidate(baseCandidateData)).rejects.toThrow('does not have an interview process configured');
+    expect(prisma.candidate.create).not.toHaveBeenCalled();
+  });
+
   // Distinto del caso de arriba a propósito: una posición inexistente y
   // una posición real sin fases configuradas son dos fallos distintos, y
   // no deberían compartir el mismo mensaje (ver positionService.ts).
@@ -90,6 +134,7 @@ describe('addCandidate', () => {
 
     await expect(addCandidate(baseCandidateData)).rejects.toThrow('Selected position not found');
     expect(prisma.application.create).not.toHaveBeenCalled();
+    expect(prisma.candidate.create).not.toHaveBeenCalled();
   });
 });
 

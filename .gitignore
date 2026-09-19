@@ -18,6 +18,15 @@
 **/test-results
 **/playwright-report
 **/blob-report
+# storageState del login real de e2e/global-setup.ts -- contiene un JWT de
+# verdad, nunca debe committearse (igual que backend/.env o SECRETS.md)
+e2e/.auth
+
+# ficheros subidos de verdad por /upload (multer) -- backend/uploads/, se
+# crea solo en cada arranque del backend si no existe (fileUploadService.ts);
+# nunca fue código fuente, y ahora además lo llenan los escenarios E2E de
+# subida de CV en cada ejecución
+backend/uploads
 
 # production
 **/build
