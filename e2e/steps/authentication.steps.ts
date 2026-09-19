@@ -6,6 +6,9 @@ import { expect } from '@playwright/test';
 
 const { Given, When, Then } = createBdd();
 
+let lastResponse: { status: () => number };
+let expiredToken: string;
+
 // Credenciales de desarrollo documentadas en SECRETS.md (gitignorado) y en
 // prompts-AGB.md, sección 3.19.5 -- el mismo empleado sembrado que se ha
 // usado para verificar el login a mano durante toda la sesión.
@@ -77,49 +80,25 @@ Given('no se envía ningún token de sesión', async () => {
 });
 
 When('se solicita el listado de posiciones a la API', async ({ request }) => {
-  (globalThis as { __lastResponse?: unknown }).__lastResponse = await request.get(`${API_URL}/position`);
+  lastResponse = await request.get(`${API_URL}/position`);
 });
 
 Given('existe un token de sesión emitido hace más de 8 horas', async () => {
-  (globalThis as { __expiredToken?: string }).__expiredToken = signExpiredToken();
+  expiredToken = signExpiredToken();
 });
 
 When('se usa ese token para solicitar el listado de posiciones a la API', async ({ request }) => {
-  const token = (globalThis as { __expiredToken?: string }).__expiredToken;
-  (globalThis as { __lastResponse?: unknown }).__lastResponse = await request.get(`${API_URL}/position`, {
-    headers: { Authorization: `Bearer ${token}` },
+  lastResponse = await request.get(`${API_URL}/position`, {
+    headers: { Authorization: `Bearer ${expiredToken}` },
   });
 });
 
 Then('el sistema lo rechaza igual que si no se hubiera enviado ningún token', async () => {
-  const response = (globalThis as { __lastResponse?: { status: () => number } }).__lastResponse;
-  expect(response?.status()).toBe(401);
+  expect(lastResponse.status()).toBe(401);
 });
 
 Then('el sistema rechaza la petición con un 401, sin revelar más información', async () => {
-  const response = (globalThis as { __lastResponse?: { status: () => number } }).__lastResponse;
-  expect(response?.status()).toBe(401);
-});
-
-Given('un mismo origen ya ha agotado el número de intentos de login permitidos en los últimos 15 minutos', async ({ request }) => {
-  // El límite es 10/15min (index.ts, loginLimiter) -- se agotan con 10
-  // intentos fallidos antes del "intento adicional" del WHEN.
-  for (let i = 0; i < 10; i += 1) {
-    await request.post(`${API_URL}/auth/login`, {
-      data: { email: SEEDED_EMPLOYEE.email, password: 'contraseña-incorrecta' },
-    });
-  }
-});
-
-When('ese origen realiza un intento adicional de inicio de sesión', async ({ request }) => {
-  (globalThis as { __lastResponse?: unknown }).__lastResponse = await request.post(`${API_URL}/auth/login`, {
-    data: { email: SEEDED_EMPLOYEE.email, password: SEEDED_EMPLOYEE.password },
-  });
-});
-
-Then('el sistema rechaza el intento con un código de límite de peticiones alcanzado', async () => {
-  const response = (globalThis as { __lastResponse?: { status: () => number } }).__lastResponse;
-  expect(response?.status()).toBe(429);
+  expect(lastResponse.status()).toBe(401);
 });
 
 Given('un usuario tiene una sesión iniciada y visible en la interfaz', async ({ page }) => {

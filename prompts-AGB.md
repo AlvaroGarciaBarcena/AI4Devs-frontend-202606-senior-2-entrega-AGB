@@ -3869,3 +3869,163 @@ Queda pendiente, dentro del mismo alcance confirmado, el resto de
 capacidades: `candidate-intake`, `internationalization`,
 `accessibility`, `hiring-pipeline`, `position-catalog`,
 `frontend-performance` y los 4 escenarios de `security-hardening`.
+
+## 3.27 Capacidad `security-hardening`: un hallazgo real, un problema de orden real, y un replanteamiento del alcance
+
+### 3.27.1 Hallazgo: la validación de contenido subido nunca llegó a implementarse de verdad
+
+Al preparar el escenario "Fichero cuyo contenido no coincide con lo
+declarado" (`openspec/specs/security-hardening/spec.md`, requisito
+"Contenido subido validado más allá de la extensión declarada", que la
+spec atribuye a `security-audit-AGB` commit `8b31eb5`), un PoC directo
+contra el backend en marcha lo desmintió: subir un fichero de texto
+plano declarado como `application/pdf` (`Content-Type:
+application/pdf` en el `multipart/form-data`) se aceptó con `200` y se
+guardó en disco. `fileUploadService.ts`'s `fileFilter` solo comprueba
+`file.mimetype`, el valor que declara quien sube el fichero — nunca su
+contenido real. Revisando el propio commit `8b31eb5`, la corrección
+que se aplicó entonces fue otra (sanear el nombre de fichero con
+`path.basename()`, defensa contra *path traversal*), no la validación
+de contenido — la spec documentaba una protección que nunca se llegó
+a construir.
+
+Consultado el usuario sobre cómo tratarlo (corregir el código,
+corregir solo la spec, o dejar el escenario en rojo documentando la
+deuda), la respuesta fue clara ante la pregunta de si "sniffing real"
+equivale a mirar el *magic number*: **"Incluye porfa la validación
+real con el magic-number"**.
+
+**Corrección aplicada** en `fileUploadService.ts`: tras guardar el
+fichero (el `fileFilter` de multer no puede mirar contenido — se
+ejecuta mientras el fichero aún se está subiendo, sin datos
+disponibles todavía), se lee su *magic number* real con la librería
+`file-type` (`fileTypeFromFile`) y se compara contra los dos tipos
+permitidos; si no coincide, se borra el fichero de disco y se
+responde `400`, igual que si el filtro de declaración ya lo hubiera
+rechazado. La respuesta de éxito ahora devuelve el `fileType`
+detectado del contenido, no el declarado por el cliente.
+
+Detalle de la dependencia: `file-type` (versión actual, `22.1.1`) es
+un paquete puramente ESM; este backend compila a CommonJS
+(`tsconfig.json`), así que un `import` estático se traduciría a un
+`require()` que fallaría contra un paquete sin *export* CommonJS. Se
+carga con `import()` dinámico dentro de la función async, que sí
+funciona desde CommonJS. Se descartó fijar la última versión con
+soporte CommonJS (`file-type@16.5.4`, de 2021) porque cae dentro del
+rango vulnerable de un aviso real (`GHSA-5v7r-6r5c-r473`, bucle
+infinito en el parser ASF) — comprobado con `npm audit`, que pasó de 0
+a 1 vulnerabilidad moderada al fijar esa versión; se revirtió a la
+`22.1.1` (parcheada, `npm audit` en 0 de nuevo) y se resolvió el
+problema real (ESM en CommonJS) en vez de aceptar una dependencia
+vulnerable para evitarlo.
+
+Verificado con PoC repetido tras el cambio: el mismo fichero de texto
+declarado como PDF ahora responde `400` y no queda en
+`backend/uploads/`; un PDF con cabecera real (`%PDF-1.4`) sigue
+aceptándose con `200`. Los 45 tests de Jest del backend siguen en
+verde (no rompe nada existente; ningún test cubría `/upload`
+directamente).
+
+### 3.27.2 Hallazgo de orden: el limitador de login, una vez agotado, bloquea TODO login real durante ~15 minutos — navegador incluido
+
+Al construir "Cualquier respuesta de la API" y "Fichero cuyo
+contenido..." (ambos necesitan un login real), una ejecución completa
+de la suite falló con `429` donde se esperaba `200` — no en
+`authentication.feature` (que corre primero), sino en
+`security-hardening.feature` justo después. La causa: dentro del
+mismo `authentication.feature`, el escenario "Muchos intentos
+seguidos" agota de verdad el limitador de `/auth/login` (10/15min),
+y ese agotamiento sobrevive al resto de la ejecución.
+
+Esto contradecía lo observado en 3.26: ahí, "Cierre de sesión manual"
+(login real por navegador) pasó justo después de "Muchos intentos
+seguidos" en el mismo run. Antes de fiarse de esa observación aislada,
+se verificó con un PoC deliberado: agotar el limitador con `curl`
+(confirmado con las cabeceras `RateLimit-Reset`/`Retry-After` ≈ 885s)
+y, sin reiniciar el backend, intentar un login real tanto por `curl`
+como por el navegador de verdad (herramienta de navegador de esta
+sesión) — **ambos bloqueados**. Repetido con Playwright mismo
+(`--grep "Cierre de sesión manual"` justo después de agotar el
+limitador por `curl`): también bloqueado. La conclusión de 3.26 era
+incorrecta (probablemente una ejecución previa con el backend ya en un
+estado distinto al asumido); la real, confirmada por PoC directo y
+repetido: **agotado el limitador, ningún login real funciona durante
+~15 minutos, sea por navegador o por API**.
+
+**Corrección**: "Muchos intentos seguidos" se saca de
+`authentication.feature` a su propio fichero,
+`e2e/features/zz-rate-limiting.feature` — el prefijo `zz-` es
+deliberado: `.features-gen` conserva el nombre del `.feature`, y
+Playwright con `fullyParallel:false`/`workers:1` ejecuta los ficheros
+de test generados en orden alfabético. Así se garantiza que ese
+escenario se ejecuta el último de toda la suite, sin importar cuántas
+más capacidades se añadan después, y ningún otro escenario que
+necesite un login real queda expuesto a su efecto secundario. Sus tres
+*steps* se movieron a `e2e/steps/rate-limiting.steps.ts`.
+
+### 3.27.3 Replanteamiento: ¿por qué limitar Playwright a lo "observable por navegador/API"?
+
+Al preparar el cuarto escenario de `security-hardening`, "Auditoría de
+dependencias" (`GIVEN` las dependencias de producción, `WHEN` se
+ejecuta una auditoría de vulnerabilidades, `THEN` ninguna se reporta),
+saltó a la vista que no es un comportamiento HTTP/navegador — es
+literalmente `npm audit`, el mismo tipo de comando de shell por el que
+se había descartado `developer-tooling` del alcance de esta rama.
+
+Preguntado el usuario, la respuesta fue replantear la pregunta de
+fondo: *"Dado que el objetivo es incluir tests para garantizar el
+comportamiento esperado ¿hay algún motivo para separar los tests de
+navegador de los demás?"* — no lo hay: un *step* de Playwright es
+código Node normal, ejecuta lo que se le escriba (una petición HTTP,
+pilotar un navegador, o lanzar `npm audit` por `child_process`), y la
+distinción "solo HTTP/navegador" era un criterio propio para acotar el
+trabajo, no una limitación real de la herramienta. Lo que importa es
+si el escenario verifica algo real y automatizable — y "las
+dependencias de producción no tienen vulnerabilidades conocidas" lo
+es, igual que cualquier otro requisito de esta spec.
+
+Se añade el escenario, con un *step* que ejecuta `npm audit
+--omit=dev --json` en `backend/` y `frontend/` por separado (falla si
+el total de vulnerabilidades de cualquiera de los dos no es cero). Un
+hallazgo de entorno al ejecutarlo por primera vez: `npm audit` fallaba
+con `EALLOWSCRIPTS`, un error sin relación con vulnerabilidades —
+causado por `npm_config_allow_scripts=@fission-ai/openspec`, una
+variable de entorno que quedó en esta sesión desde que se aprobaron
+los scripts de instalación de OpenSpec (sección de adopción de
+OpenSpec), heredada por el proceso hijo `npm audit` al lanzarlo desde
+dentro de Playwright (que a su vez corre bajo `npx`). Se quita
+explícitamente esa variable del entorno del proceso hijo en el propio
+*step*, sin tocar el entorno real de la sesión ni ningún `.npmrc`.
+
+Este replanteamiento no reabre `developer-tooling` en sí (sus 5
+escenarios verifican el propio proceso de desarrollo — *linting*,
+compilación, *build* — no el comportamiento de la aplicación en
+ejecución, una distinción distinta a la de "HTTP vs. shell"), pero sí
+dejó claro que el criterio de exclusión no era "esto no se puede
+probar con Playwright", sino "esto no encaja en lo que me propuse
+probar primero".
+
+### 3.27.4 Verificación final
+
+```
+npx bddgen && npx playwright test
+  → 11 passed (5.8s), backend reiniciado justo antes (limpio de
+    intentos de login previos de esta misma sesión de pruebas)
+
+Orden de ejecución confirmado:
+  1-6   authentication.feature       (6 escenarios)
+  7-10  security-hardening.feature   (4 escenarios)
+  11    zz-rate-limiting.feature     (1 escenario, el único que agota
+                                       el limitador de verdad)
+
+npm test (backend)   → 45 passed, sin cambios de resultado
+```
+
+Backend reiniciado una última vez tras la verificación final para
+dejar el limitador de login libre para uso manual posterior.
+
+`authentication` y `security-hardening` quedan completas: 11/11
+escenarios de esas dos capacidades en verde. Sigue pendiente el resto
+del alcance confirmado: `candidate-intake`, `internationalization`,
+`accessibility`, `hiring-pipeline`, `position-catalog` y
+`frontend-performance`.

@@ -1,4 +1,13 @@
 # Fuente: openspec/specs/authentication/spec.md (rama api-auth-AGB, commit bb94850)
+#
+# El escenario "Muchos intentos seguidos" (mismo requisito "Límite de
+# intentos de inicio de sesión") vive aparte, en
+# e2e/features/zz-rate-limiting.feature -- agota de verdad el limitador de
+# login compartido por toda la suite durante ~15 minutos (confirmado con
+# PoC manual: una vez bloqueado, ni un login por API ni por navegador
+# funcionan hasta que expira la ventana), así que tiene que ejecutarse el
+# último de todos, no aquí en medio de otros escenarios que necesitan un
+# login real después.
 Feature: Autenticación
 
   # Requirement: Inicio de sesión con email y contraseña
@@ -24,12 +33,6 @@ Feature: Autenticación
     Given existe un token de sesión emitido hace más de 8 horas
     When se usa ese token para solicitar el listado de posiciones a la API
     Then el sistema lo rechaza igual que si no se hubiera enviado ningún token
-
-  # Requirement: Límite de intentos de inicio de sesión
-  Scenario: Muchos intentos seguidos
-    Given un mismo origen ya ha agotado el número de intentos de login permitidos en los últimos 15 minutos
-    When ese origen realiza un intento adicional de inicio de sesión
-    Then el sistema rechaza el intento con un código de límite de peticiones alcanzado
 
   # Requirement: Cierre de sesión y expiración manejados en el cliente
   Scenario: Cierre de sesión manual

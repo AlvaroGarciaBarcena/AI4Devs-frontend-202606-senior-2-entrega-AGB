@@ -14,9 +14,15 @@ export default defineConfig({
   testDir,
   // En serie, a propósito: a diferencia de una suite de UI pura, estos
   // escenarios comparten estado real del lado del servidor (el límite de
-  // intentos de login, la base de datos de desarrollo) -- en paralelo,
-  // "Muchos intentos seguidos" podría agotar el límite de login antes de
-  // que otro escenario necesite iniciar sesión de verdad.
+  // intentos de login, la base de datos de desarrollo). Confirmado con PoC
+  // manual: una vez agotado el limitador de login (10/15min), CUALQUIER
+  // login real posterior falla -- por navegador o por API, da igual --
+  // hasta que expira la ventana de 15 minutos. Por eso el escenario que
+  // agota el limitador a propósito ("Muchos intentos seguidos") vive
+  // aislado en su propio fichero, e2e/features/zz-rate-limiting.feature,
+  // con un nombre que ordena el último alfabéticamente entre los ficheros
+  // de test generados -- así ningún otro escenario que necesite un login
+  // real se ejecuta después de él dentro de la misma tanda.
   fullyParallel: false,
   workers: 1,
   reporter: 'list',
