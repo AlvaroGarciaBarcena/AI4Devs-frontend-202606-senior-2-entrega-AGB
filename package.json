@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "test:e2e": "bddgen && playwright test",
+    "test:e2e:ui": "bddgen && playwright test --ui"
+  },
   "dependencies": {
     "dotenv": "^16.4.5"
   },
@@ -6,5 +10,7 @@
     "schema": "backend/prisma/schema.prisma"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "playwright-bdd": "^9.2.1"
   }
 }

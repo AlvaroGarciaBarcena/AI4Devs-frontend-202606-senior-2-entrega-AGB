@@ -1,0 +1,37 @@
+import { defineConfig, devices } from '@playwright/test';
+import { defineBddConfig } from 'playwright-bdd';
+
+// Cada .feature se genera aquí a partir de los escenarios GIVEN/WHEN/THEN
+// de openspec/specs/ (sección 3.24.2 de prompts-AGB.md) -- la trazabilidad
+// va en el propio .feature, como comentario junto al Scenario, apuntando
+// a la spec y al requisito de los que viene.
+const testDir = defineBddConfig({
+  features: 'e2e/features/*.feature',
+  steps: 'e2e/steps/*.ts',
+});
+
+export default defineConfig({
+  testDir,
+  fullyParallel: true,
+  reporter: 'list',
+  use: {
+    // El backend solo permite CORS desde este origen exacto (ver
+    // security-hardening/candidate-intake en openspec/specs/) -- usar
+    // otro puerto aquí rompería el login igual que rompió la demo de
+    // code splitting con vite preview en el puerto por defecto.
+    baseURL: 'http://localhost:3000',
+    trace: 'retain-on-failure',
+    // Sin esto, el contexto de Chromium por defecto de Playwright usa
+    // locale inglés y la detección automática de idioma de la app
+    // (internationalization/spec.md) renderiza en inglés -- el primer
+    // intento de esta suite falló exactamente por esto, buscando
+    // "Correo electrónico" en una pantalla que decía "Email".
+    locale: 'es-ES',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
+});

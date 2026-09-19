@@ -3692,3 +3692,74 @@ grep -c "^#### Scenario:" / "^- \*\*GIVEN\*\*"
 `openspec/specs/` queda con 11 capacidades, 41 requisitos, 56
 escenarios, todos en formato GIVEN/WHEN/THEN completo, cada requisito
 con su línea de trazabilidad a la rama y commit que lo implementó.
+
+## 3.25 Primer escenario real con `playwright-bdd` (`playwright-bdd-AGB`)
+
+Prompt del usuario: tras instalar `@playwright/test`/`playwright-bdd` por
+su cuenta ("Se creó sólo ;)", refiriéndose al `package.json` de la raíz
+que ya traía ambos paquetes) y confirmar que estaban instalados de
+verdad (verificado en esta sesión con un lanzamiento real de Chromium
+contra el frontend, no solo mirando `node_modules`): *"Si, porfa, crea
+un primer escenario real, a ver qué tal"*.
+
+### 3.25.1 Estructura mínima
+
+- `playwright.config.ts` (raíz): `defineBddConfig({ features:
+  'e2e/features/*.feature', steps: 'e2e/steps/*.ts' })`, un único
+  proyecto Chromium, `baseURL: 'http://localhost:3000'`.
+- `e2e/features/authentication.feature`: el escenario "Credenciales
+  correctas" del requisito "Inicio de sesión con email y contraseña" de
+  `openspec/specs/authentication/spec.md` (rama `api-auth-AGB`, commit
+  `bb94850`), con esa trazabilidad como comentario en la cabecera del
+  `.feature` — el mismo GIVEN/WHEN/THEN de la spec, con el THEN
+  adaptado a lo que se puede observar de verdad desde el navegador (que
+  se ve el nombre del empleado en pantalla, no "el sistema devuelve un
+  token").
+- `e2e/steps/authentication.steps.ts`: los tres *step definitions*
+  (`createBdd()` de `playwright-bdd`), usando las credenciales de
+  desarrollo ya documentadas en `SECRETS.md`/sección 3.19.5
+  (`alice.johnson@lti.com` / `Changeme123!`).
+- `npm run test:e2e` (`bddgen && playwright test`) en el `package.json`
+  de la raíz.
+
+### 3.25.2 Hallazgo real en el primer intento: el contexto de Chromium arranca en inglés
+
+La primera ejecución falló — `locator.fill: Test timeout... waiting for
+getByLabel('Correo electrónico')` — no por un paso mal escrito, sino
+porque el contexto de navegador que crea Playwright por defecto no
+hereda el idioma del sistema operativo: arranca en inglés
+(`navigator.language` en inglés), y la detección automática de idioma de
+la app (`internationalization/spec.md`, requisito "Detección automática
+del idioma") hizo exactamente lo que tiene que hacer — mostró la
+pantalla en inglés ("Log in" / "Email" / "Password"). Confirmado
+leyendo el *snapshot* de la página que adjunta Playwright al fallo, no
+solo el mensaje de error.
+
+No era un fallo de la app ni de los *steps* — era que la app se
+comportó según su propia especificación con un idioma de navegador
+distinto al que asumían los *steps*. Corregido fijando
+`locale: 'es-ES'` en `playwright.config.ts`, para que el contexto de
+prueba refleje el mismo idioma que se está verificando.
+
+### 3.25.3 Verificación
+
+```
+npx bddgen                → genera .features-gen/.../authentication.feature.spec.js
+                             a partir del .feature, con los tres steps
+                             enlazados correctamente
+npx playwright test       → 1 passed (primer intento: 1 failed, por el
+                             idioma del contexto — ver 3.25.2)
+npm run test:e2e           → mismo resultado en verde, ejecutado desde
+                             cero (bddgen + playwright test encadenados,
+                             como lo ejecutaría cualquiera)
+```
+
+`.features-gen/`, `test-results/`, `playwright-report/` y
+`blob-report/` añadidos a `.gitignore` — son artefactos generados
+(el primero, literalmente, por `bddgen` a partir del `.feature`), no
+código fuente.
+
+Queda como prueba de concepto de un único escenario, a propósito — la
+traducción del resto de los 56 escenarios de `openspec/specs/` a
+`.feature` + *steps* reales es trabajo real por delante (3.25 lo deja
+listo, no lo agota).

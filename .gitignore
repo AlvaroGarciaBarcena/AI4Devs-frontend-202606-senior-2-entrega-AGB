@@ -12,6 +12,13 @@
 # testing
 **/coverage
 
+# playwright-bdd: ficheros de test generados a partir de e2e/features/*.feature
+# (bddgen), nunca a mano -- y los resultados/informes de cada ejecución
+**/.features-gen
+**/test-results
+**/playwright-report
+**/blob-report
+
 # production
 **/build
 **/dist
