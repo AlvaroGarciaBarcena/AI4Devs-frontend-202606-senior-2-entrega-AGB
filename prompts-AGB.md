@@ -4238,3 +4238,71 @@ CV en cada ejecución de la suite.
 Sigue el plan confirmado: `hiring-pipeline` a continuación, luego
 `internationalization`, `accessibility`, `frontend-performance`, y por
 último `developer-tooling`.
+
+## 3.29 `hiring-pipeline` (3/3) y un hallazgo de higiene de datos real
+
+### 3.29.1 Fixture de los dos primeros escenarios
+
+- "Posición con candidatos en distintas fases": lo satisface el propio
+  seed (`backend/prisma/seed.ts`) sin crear nada -- "Senior Full-Stack
+  Engineer" ya tiene a Carlos García en "Initial Screening" y a John
+  Doe (5.0) + Jane Smith (4.0) en "Technical Interview".
+- "Fase sin candidatos": una posición autocontenida creada por Prisma
+  (dos fases, una con un candidato y otra deliberadamente vacía) en vez
+  de depender de qué fase del seed esté vacía hoy -- más determinista,
+  y evita apoyarse en una inconsistencia real que se detectó de paso en
+  el propio seed (la `Application` de John Doe contra "Data Scientist"
+  referencia una `InterviewStep` que pertenece al flujo de "Senior
+  Full-Stack Engineer", no al suyo propio; no se toca, es un dato de
+  ejemplo preexistente sin relación con esta rama y ningún escenario
+  depende de él).
+
+### 3.29.2 Hallazgo real: `candidate-intake` llevaba varias ejecuciones dejando candidatos de prueba sin limpiar en el tablero real
+
+Al construir "Posición con candidatos en distintas fases" contra la
+posición sembrada, el tablero real (`GET /position/1/candidates`)
+devolvió, además de los tres candidatos del seed, **quince candidatos
+de prueba acumulados** de ejecuciones anteriores de esta misma noche:
+"Maria Lopez" (de "Alta con éxito"), "Laura Martin" ("Añadir una
+entrada de educación"), "Carmen Ruiz" ("Añadir una entrada de
+experiencia") y "Sofia Navarro" ("Alta consecutiva de dos
+candidatos") -- cuatro escenarios de `candidate-intake` que sí crean un
+candidato real contra "Senior Full-Stack Engineer" pero nunca lo
+limpiaban al terminar (a diferencia de "Alta con posición válida", que
+sí lo hacía, por la misma razón que motivó el hallazgo: ese tablero es
+un dato acumulativo de verdad en la base de datos de desarrollo).
+
+Sin este hallazgo, el problema habría seguido invisible: cada
+escenario de `candidate-intake` comprobaba su propio candidato por
+email único, así que nunca fallaba por su cuenta -- hacía falta un
+consumidor distinto del mismo dato compartido (`hiring-pipeline`,
+mirando el tablero completo en vez de un candidato concreto) para que
+la acumulación se hiciera visible.
+
+**Corregido**: se limpian los quince candidatos acumulados
+(`education`/`workExperience`/`resume`/`application` antes que el
+propio candidato, por las restricciones de clave foránea), y se añade
+un `cleanupCandidateByEmail` compartido en
+`candidate-intake.steps.ts`, aplicado al final del `Then` de los
+cuatro escenarios que lo necesitaban. `hiring-pipeline.steps.ts`
+también limpia su propia fase vacía al terminar (con un fallo propio
+corregido de paso: `InterviewStep` es `RESTRICT` sobre
+`InterviewFlow`, hay que borrar las fases antes que el flujo, no al
+revés).
+
+### 3.29.3 Verificación
+
+```
+npx playwright test hiring-pipeline   → 3 passed, tras el cleanup
+npx bddgen && npx playwright test     → 26 passed (25.4s): candidate-intake (10)
+                                          + hiring-pipeline (3) + position-catalog (2)
+                                          + security-hardening (4) [chromium, con sesión]
+                                          + authentication (6) + zz-rate-limiting (1)
+                                          [chromium-sin-sesion, sin sesión, el último]
+npm test (backend)                    → 47 passed, sin cambios (ningún código de
+                                          producción tocado en este capítulo, solo
+                                          fixtures/limpieza de los propios steps)
+```
+
+Sigue el plan confirmado: `internationalization`, `accessibility`,
+`frontend-performance`, y por último `developer-tooling`.

@@ -51,6 +51,23 @@ const fillDatePickerInput = async (page: Page, placeholder: string, value: strin
   await page.keyboard.press('Enter');
 };
 
+// Cada escenario que crea un candidato de verdad contra la posición
+// sembrada ("Senior Full-Stack Engineer") tiene que limpiarlo al terminar:
+// es la misma posición cuyo tablero "Ver proceso" comprueba
+// hiring-pipeline.feature, y sin este cleanup cada reejecución de la suite
+// va dejando más candidatos de prueba acumulados ahí para siempre
+// (hallazgo real: 15 candidatos de prueba acumulados tras varias
+// ejecuciones, visibles de verdad en el tablero -- ver prompts-AGB.md).
+const cleanupCandidateByEmail = async (email: string) => {
+  const candidate = await prisma.candidate.findFirst({ where: { email } });
+  if (!candidate) return;
+  await prisma.education.deleteMany({ where: { candidateId: candidate.id } });
+  await prisma.workExperience.deleteMany({ where: { candidateId: candidate.id } });
+  await prisma.resume.deleteMany({ where: { candidateId: candidate.id } });
+  await prisma.application.deleteMany({ where: { candidateId: candidate.id } });
+  await prisma.candidate.delete({ where: { id: candidate.id } });
+};
+
 Given('el reclutador está en el formulario de alta de candidato', async ({ page }) => {
   await goToAddCandidateForm(page);
 });
@@ -64,6 +81,7 @@ When('envía nombre, apellidos, email y una posición válidos', async ({ page }
 
 Then('el sistema crea el candidato y muestra el mensaje de éxito', async ({ page }) => {
   await expect(page.getByRole('status')).toHaveText('Candidato añadido con éxito');
+  await cleanupCandidateByEmail(lastCandidateEmail);
 });
 
 Given('ya existe un candidato con un email concreto', async () => {
@@ -104,6 +122,7 @@ Then('esa entrada se guarda asociada al candidato tras el envío', async () => {
   expect(candidate.educations).toHaveLength(1);
   expect(candidate.educations[0].institution).toBe('Universidad Complutense de Madrid');
   expect(candidate.educations[0].title).toBe('Grado en Ingeniería Informática');
+  await cleanupCandidateByEmail(lastCandidateEmail);
 });
 
 Given('el formulario tiene una entrada de educación ya añadida', async ({ page }) => {
@@ -142,6 +161,7 @@ Then('esa entrada de experiencia se guarda asociada al candidato tras el envío'
   expect(candidate.workExperiences).toHaveLength(1);
   expect(candidate.workExperiences[0].company).toBe('Acme Software S.L.');
   expect(candidate.workExperiences[0].position).toBe('Ingeniera de Software');
+  await cleanupCandidateByEmail(lastCandidateEmail);
 });
 
 Given('existe al menos una posición con su flujo de entrevistas configurado', async () => {
@@ -172,9 +192,7 @@ Then('el candidato se crea y aparece en la primera fase del tablero "Ver proceso
   // columna, y `getByText` dejaría de identificar una sola sin ambigüedad
   // en la siguiente ejecución (pasó de verdad la primera vez que se
   // reejecutó la suite completa).
-  const candidate = await prisma.candidate.findFirst({ where: { email: lastCandidateEmail } });
-  await prisma.application.deleteMany({ where: { candidateId: candidate.id } });
-  await prisma.candidate.delete({ where: { id: candidate.id } });
+  await cleanupCandidateByEmail(lastCandidateEmail);
 });
 
 Given('el reclutador ha rellenado el resto del formulario pero no ha elegido ninguna posición', async ({ page }) => {
@@ -296,4 +314,5 @@ Then('ningún campo conserva los valores del candidato anterior', async ({ page 
   await expect(page.getByLabel('Posición a la que se presenta')).toHaveValue('');
   await expect(page.getByText('Ningún archivo seleccionado')).toBeVisible();
   await expect(page.getByText('Archivo subido con éxito')).toHaveCount(0);
+  await cleanupCandidateByEmail(lastCandidateEmail);
 });
