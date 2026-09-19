@@ -4306,3 +4306,113 @@ npm test (backend)                    → 47 passed, sin cambios (ningún códig
 
 Sigue el plan confirmado: `internationalization`, `accessibility`,
 `frontend-performance`, y por último `developer-tooling`.
+
+## 3.30 `internationalization` (4/4), `accessibility` (5/5), `frontend-performance` (3/3): un fixture propio de test mal elegido, un fallo de aislamiento de sesión, y un hallazgo real sin corregir
+
+### 3.30.1 `internationalization`
+
+Cuatro escenarios sobre `LanguageSwitcher.jsx`/`i18n.js`: detección
+automática con varios idiomas, cambio manual persistente, formulario a
+medio rellenar, y retraducción de un error ya visible sin reenviar
+(este último comprobado también a nivel de red: cero peticiones nuevas
+a `/candidates` tras cambiar de idioma).
+
+**Hallazgo, pero del propio test, no de la app**: el primer intento de
+"Navegador con varios idiomas configurados" usaba
+`['en-US', 'es-ES', 'fr-FR']` como `navigator.languages` y esperaba que
+detectara español -- falló, detectando inglés. No era un bug: inglés
+SÍ está soportado (`supportedLngs: ['es','en']` en `i18n.js`), así que
+un detector que de verdad mira toda la lista, no solo el primero,
+elige correctamente el primer idioma soportado que encuentra, que en
+ese fixture era inglés. Corregido el fixture a
+`['fr-FR', 'es-ES', 'en-US']` (francés primero, no soportado) para que
+el escenario pruebe de verdad "no solo el primero": con eso, español
+es el primer idioma SOPORTADO de la lista aunque no sea el primero a
+secas.
+
+### 3.30.2 `accessibility`
+
+Cinco escenarios, todos en verde a la primera: `lang` de `<html>`
+sincronizado sin recargar, resumen de errores con
+`role="alert"`/`aria-live="assertive"`, éxito con
+`role="status"`/`aria-live="polite"`, campo inválido con
+`aria-invalid`/`aria-describedby` apuntando al mensaje concreto, y
+`aria-pressed` en los botones del selector de idioma.
+
+### 3.30.3 Fallo real de aislamiento: `browser.newContext()` hereda el `storageState` del proyecto
+
+Al escribir "Primera visita sin sesión iniciada" (`frontend-performance`),
+un contexto nuevo creado con `browser.newContext()` (sin argumentos)
+mostraba el Dashboard del Reclutador ya autenticado, no el login.
+Causa: `browser.newContext()` sin overrides hereda las `use` options
+configuradas a nivel de proyecto en `playwright.config.ts` -- incluido
+el `storageState` con el login real de `globalSetup` (3.28.2) -- no es
+un contexto en blanco como sugiere la documentación a primera lectura.
+Corregido pasando `storageState: undefined` explícitamente en los dos
+sitios de la suite que crean un contexto nuevo a propósito para
+probar comportamiento sin sesión (aquí y en
+`internationalization.steps.ts`, que tenía el mismo fallo silencioso
+sin haberlo notado hasta ahora: el escenario pasaba igual porque
+navegaba directo a `/login`, una pantalla que no comprueba sesión para
+redirigir).
+
+### 3.30.4 `frontend-performance`: dos escenarios en verde, uno con un hallazgo real sin corregir
+
+Los dos primeros escenarios se verifican con peticiones de red reales
+(en modo dev, Vite sirve cada componente con `React.lazy()` como su
+propio módulo bajo demanda): sin sesión, no se descarga ni una de las
+4 pantallas protegidas; visitando `/positions`, el código de
+`AddCandidateForm.jsx` nunca llega a pedirse.
+
+El tercero ("indicación de carga mientras se descarga una pantalla")
+reveló un hallazgo real, dejado sin corregir a propósito. PoC: se
+retrasa 800ms, con `page.route()`, la petición del chunk de
+`AddCandidateForm.jsx`, se pulsa el enlace real "Añadir Nuevo
+Candidato" (navegación de verdad por `<Link>`, no `page.goto()` --
+`goto()` no sirve aquí: bloquea hasta que la navegación termina de
+cargar, así que el fallback ya habría aparecido y desaparecido para
+cuando el test recupera el control) y se traza el DOM cada 20-150ms.
+Resultado: la URL cambia a `/add-candidate` al instante, pero el
+contenido en pantalla se queda mostrando "Dashboard del Reclutador" --
+la pantalla ANTERIOR -- de forma continua durante los 800ms+ que tarda
+el chunk, y solo entonces cambia de golpe. El
+`<Suspense fallback={<PageFallback/>}>` de `App.jsx` no llega a
+mostrarse en ningún punto intermedio de la traza.
+
+Explicación más probable: las navegaciones por `<Link>` de
+react-router-dom (v7, migrado en `react-router-v7-AGB`) se tratan como
+una transición de React 18 que mantiene la UI anterior montada hasta
+que el contenido nuevo está listo, en vez de mostrar el fallback de
+Suspense de inmediato -- comportamiento por diseño de React para
+evitar parpadeos en transiciones rápidas, pero que aquí deja a quien
+pulsa el enlace sin ninguna señal de que algo está pasando, más de
+800ms en una conexión lenta, justo lo que el requisito de
+accesibilidad quería evitar (`openspec/specs/frontend-performance/spec.md`,
+"Indicación visible mientras carga una pantalla").
+
+No se corrige en esta sesión: a diferencia de los hallazgos anteriores
+(magic number, huérfanos, bucle infinito, interop de react-datepicker),
+la solución real es una decisión de arquitectura, no una corrección
+local de una línea -- hay más de una forma razonable de resolverlo
+(forzar el fallback durante estas transiciones, exponer un estado de
+"cargando" propio, etc.), y no es algo que deba decidirse en solitario
+de madrugada sin el usuario. Queda comentado en el propio `.feature`
+y en `frontend-performance.steps.ts`, y el escenario se deja en verde
+comprobando lo que sí es cierto ahora mismo (la pantalla nueva acaba
+apareciendo) en vez de en rojo sin contexto.
+
+### 3.30.5 Verificación
+
+```
+npx bddgen && npx playwright test
+  → 38 passed (37.8s): las 8 capacidades de negocio/transversales
+    confirmadas hasta ahora, en un único run limpio
+
+npm test (backend)   → 47 passed, sin cambios
+npm test (frontend)  → 34 passed, sin cambios
+```
+
+Solo queda `developer-tooling` (5 escenarios, los que se habían dejado
+fuera del alcance inicial y se reincorporaron tras la conversación
+sobre si tenía sentido limitar Playwright a comportamiento
+HTTP/navegador -- sección 3.27.3).
