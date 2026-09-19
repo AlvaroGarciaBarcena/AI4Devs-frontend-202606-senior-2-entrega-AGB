@@ -1,8 +1,5 @@
-# internationalization Specification
+## MODIFIED Requirements
 
-## Purpose
-Muestra toda la interfaz en el idioma que prefiere quien la usa, detectándolo automáticamente y permitiendo cambiarlo explícitamente en cualquier momento.
-## Requirements
 ### Requirement: Detección automática del idioma
 _Rama: `candidate-validation-i18n-a11y-AGB` (commit `b5e3b7b`)_
 
@@ -42,4 +39,3 @@ El sistema SHALL recomponer, en el nuevo idioma, cualquier mensaje de error de v
 - **GIVEN** un envío fallido muestra un mensaje de error en español
 - **WHEN** el usuario cambia el idioma a inglés sin corregir nada
 - **THEN** el mismo mensaje de error se muestra en inglés, sin que el formulario se haya reenviado
-

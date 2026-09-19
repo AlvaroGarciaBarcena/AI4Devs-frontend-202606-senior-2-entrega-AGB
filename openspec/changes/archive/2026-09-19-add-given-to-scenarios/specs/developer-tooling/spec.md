@@ -1,8 +1,5 @@
-# developer-tooling Specification
+## MODIFIED Requirements
 
-## Purpose
-Recoge cómo se construye, se compila y se verifica el sistema — no una función que alguien use, sino requisitos reales sobre la herramienta de construcción, la versión de TypeScript que sostiene, la cobertura de tests automáticos y la vigencia de dependencias clave frente a vulnerabilidades conocidas. Sus escenarios se verifican ejecutando un comando (build, suite de tests, auditoría de dependencias), no con una acción de un usuario final de la aplicación.
-## Requirements
 ### Requirement: Construcción del frontend con Vite
 _Rama: `vite-migration-AGB` (commit `6b25e95`)_
 
@@ -42,4 +39,3 @@ El frontend SHALL mantener `react-router-dom` en una versión sin vulnerabilidad
 - **GIVEN** las dependencias del frontend en su versión actual
 - **WHEN** se ejecuta una auditoría de vulnerabilidades sobre ellas
 - **THEN** no se reporta ninguna vulnerabilidad de `react-router-dom` ni de sus dependencias
-

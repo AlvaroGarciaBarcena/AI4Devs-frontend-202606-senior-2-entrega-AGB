@@ -1,8 +1,5 @@
-# hiring-pipeline Specification
+## MODIFIED Requirements
 
-## Purpose
-Muestra, para una posición concreta, en qué fase del proceso de entrevistas está cada candidato que se presenta a ella.
-## Requirements
 ### Requirement: Candidatos agrupados por fase de entrevista
 _Rama: `positions-proceso-AGB` (commit `cd86b57`)_
 
@@ -27,4 +24,3 @@ El sistema SHALL mostrar en la columna de la primera fase del proceso a todo can
 - **GIVEN** una posición con su flujo de entrevistas configurado
 - **WHEN** se da de alta un candidato eligiendo esa posición
 - **THEN** ese candidato aparece de inmediato en la primera columna del tablero de esa posición, con puntuación media de 0 al no tener entrevistas todavía
-

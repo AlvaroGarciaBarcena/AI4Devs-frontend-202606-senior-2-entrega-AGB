@@ -1,8 +1,5 @@
-# frontend-performance Specification
+## MODIFIED Requirements
 
-## Purpose
-Reduce la cantidad de código JavaScript que se descarga antes de que alguien pueda usar la aplicación, cargando cada pantalla solo cuando se visita.
-## Requirements
 ### Requirement: Carga diferida de las pantallas protegidas
 _Rama: `code-splitting-AGB` (commit `947bbc3`)_
 
@@ -27,4 +24,3 @@ El sistema SHALL mostrar una indicación de carga, anunciada a tecnología de as
 - **GIVEN** un usuario autenticado está en una pantalla cuyo código ya se descargó
 - **WHEN** navega por primera vez a otra pantalla protegida cuyo código aún no se ha descargado
 - **THEN** ve una indicación de carga hasta que la pantalla está lista para mostrarse
-

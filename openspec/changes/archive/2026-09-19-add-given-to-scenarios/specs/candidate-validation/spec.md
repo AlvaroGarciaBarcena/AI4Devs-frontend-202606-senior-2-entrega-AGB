@@ -1,8 +1,5 @@
-# candidate-validation Specification
+## MODIFIED Requirements
 
-## Purpose
-Define las reglas que debe cumplir cada campo de un candidato y la arquitectura de errores que permite mostrar un motivo específico y traducible en vez de un mensaje genérico.
-## Requirements
 ### Requirement: Errores de validación estructurados, no texto plano
 _Rama: `candidate-validation-i18n-a11y-AGB` (commit `f120a08`)_
 
@@ -72,4 +69,3 @@ La dirección es opcional; si se proporciona, el sistema SHALL rechazarla si sup
 - **GIVEN** un alta de candidato cuya dirección supera los 100 caracteres
 - **WHEN** se envía esa alta
 - **THEN** el sistema la rechaza indicando el límite máximo permitido
-

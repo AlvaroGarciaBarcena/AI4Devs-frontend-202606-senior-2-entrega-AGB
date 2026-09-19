@@ -1,8 +1,5 @@
-# security-hardening Specification
+## MODIFIED Requirements
 
-## Purpose
-Reúne los controles transversales que protegen la API frente a abuso automatizado y a las clases de vulnerabilidad más comunes, encontrados y corregidos en una auditoría de seguridad exhaustiva.
-## Requirements
 ### Requirement: Cabeceras de seguridad estándar
 _Rama: `security-audit-AGB` (commit `8b31eb5`)_
 
@@ -42,4 +39,3 @@ El sistema SHALL mantener sus dependencias de producción (backend y frontend) l
 - **GIVEN** las dependencias de producción del backend y del frontend en su versión actual
 - **WHEN** se ejecuta una auditoría de vulnerabilidades sobre ellas
 - **THEN** no se reporta ninguna vulnerabilidad en las dependencias que se despliegan a producción
-

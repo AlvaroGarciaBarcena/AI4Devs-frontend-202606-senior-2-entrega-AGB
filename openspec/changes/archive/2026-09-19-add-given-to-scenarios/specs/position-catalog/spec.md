@@ -1,8 +1,5 @@
-# position-catalog Specification
+## MODIFIED Requirements
 
-## Purpose
-Muestra a los reclutadores el listado de posiciones de la empresa, con sus datos reales, para poder navegar al proceso de selección de cada una.
-## Requirements
 ### Requirement: Listado de posiciones con datos reales
 _Rama: `positions-proceso-AGB` (commit `cd86b57`)_
 
@@ -22,4 +19,3 @@ El sistema SHALL ofrecer, para cada posición listada, un enlace a su tablero de
 - **GIVEN** el reclutador está en la pantalla de posiciones
 - **WHEN** pulsa "Ver proceso" sobre una posición
 - **THEN** el sistema navega al tablero de esa posición concreta
-

@@ -1,8 +1,5 @@
-# accessibility Specification
+## MODIFIED Requirements
 
-## Purpose
-Hace que el formulario de alta de candidato y el selector de idioma sean usables con tecnología de asistencia, siguiendo técnicas concretas mapeadas a criterios WCAG 2.1.
-## Requirements
 ### Requirement: Idioma de la página anunciado correctamente
 _Rama: `candidate-validation-i18n-a11y-AGB` (commit `f120a08`)_
 
@@ -47,4 +44,3 @@ El sistema SHALL comunicar a tecnología de asistencia cuál de las opciones del
 - **GIVEN** el selector de idioma está visible con uno de los dos idiomas activo
 - **WHEN** un lector de pantalla recorre el selector de idioma
 - **THEN** anuncia cuál de las dos opciones está actualmente seleccionada
-

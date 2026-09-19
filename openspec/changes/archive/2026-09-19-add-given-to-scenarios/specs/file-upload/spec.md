@@ -1,8 +1,5 @@
-# file-upload Specification
+## MODIFIED Requirements
 
-## Purpose
-Permite adjuntar el CV de un candidato como parte de su alta, guardándolo en el servidor de forma segura y con la selección de fichero traducida al idioma activo de la interfaz.
-## Requirements
 ### Requirement: Tipos de fichero aceptados
 _Rama: `frontend-AGB` (commit `d92752d`)_
 
@@ -47,4 +44,3 @@ El sistema SHALL mostrar el texto del botón de selección de fichero y el estad
 - **GIVEN** el idioma activo de la interfaz es inglés
 - **WHEN** se muestra el selector de fichero del CV
 - **THEN** el botón de selección de fichero y el texto de estado se muestran en inglés
-

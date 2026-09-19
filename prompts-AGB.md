@@ -3640,3 +3640,55 @@ criterio (no solo qué se añade) queda en
 `openspec/changes/archive/2026-09-19-add-developer-tooling-capability/design.md`.
 `openspec/specs/` queda ahora con **11 capacidades y 41 requisitos**,
 validados en limpio (`openspec validate --specs --strict` → 11/11).
+
+### 3.24.2 "¿Y el GIVEN?" — dos rondas de comprobación antes de tocar nada
+
+Con las 11 specs ya con `developer-tooling` incluida, el usuario
+preguntó: *"Pero para nuestro desarrollo que ha sido en todo momento
+BDD, se recomienda el GIVEN WHEN THEN"* — y, tras una primera respuesta
+(el esquema `spec-driven` de fábrica solo exige WHEN/THEN, verificado
+con `grep -rn "GIVEN"` sobre todo el paquete instalado, cero
+resultados), el usuario contraatacó con *"Confirmado. Openspec es
+flexible"*, tras mirar otro proyecto suyo donde sí aparecía `GIVEN`.
+
+La resolución, verificada antes de actuar: `spec-driven` es el único
+esquema que trae el paquete de fábrica (`openspec schemas` solo lista
+ese uno), pero OpenSpec permite esquemas *project-local*
+(`openspec schema fork`/`init`) — el otro proyecto del usuario usaba,
+casi con toda seguridad, una versión forkeada o editada a mano, no la
+plantilla estándar. Ninguno de los dos estaba equivocado: yo verifiqué
+correctamente lo que traía el paquete por defecto; el usuario verificó
+correctamente que en su otro proyecto era distinto porque ahí se había
+personalizado.
+
+**Acción**: `openspec schema fork spec-driven spec-driven-bdd`, con
+`GIVEN` añadido a la plantilla de escenario y a la instrucción del
+artefacto `specs` (dejando explícito que, en este proyecto, GIVEN no es
+opcional), fijado como esquema por defecto en `openspec/config.yaml`.
+Después, un change (`add-given-to-scenarios`, archivado) que retrofita
+los **56 escenarios** ya existentes (contados con `grep -c "^####
+Scenario:"`, no de memoria — mi primera estimación en el `proposal.md`,
+41, era la cuenta de *requisitos*, no de escenarios, y se corrigió antes
+de escribir ni una sola línea de las 11 specs) para que todos tengan su
+`GIVEN`. Verificado dos veces con `grep` (antes de archivar, sobre las
+11 deltas; después de archivar, sobre las 11 specs mezcladas) que el
+número de `GIVEN` coincide exactamente con el número de escenarios en
+cada fichero — no solo que `openspec validate --strict` pasara.
+
+## 17. Verificación de la adopción de GIVEN/WHEN/THEN (sección 3.24.2)
+
+```
+openspec schema validate spec-driven-bdd   → válido
+openspec validate "add-given-to-scenarios" --strict   → válido
+openspec archive add-given-to-scenarios    → 41 requisitos modificados
+                                              (0 añadidos, 0 eliminados)
+openspec validate --specs --strict          → 11 specs, 11/11
+
+grep -c "^#### Scenario:" / "^- \*\*GIVEN\*\*"
+  sobre cada una de las 11 specs, antes de archivar (sobre las deltas)
+  y después (sobre las specs ya fusionadas)     → 56/56 en ambos casos
+```
+
+`openspec/specs/` queda con 11 capacidades, 41 requisitos, 56
+escenarios, todos en formato GIVEN/WHEN/THEN completo, cada requisito
+con su línea de trazabilidad a la rama y commit que lo implementó.

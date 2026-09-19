@@ -1,8 +1,5 @@
-# authentication Specification
+## MODIFIED Requirements
 
-## Purpose
-Exige que quien usa la aplicación se identifique antes de acceder a datos de candidatos o posiciones, cerrando el acceso que antes era completamente abierto.
-## Requirements
 ### Requirement: Inicio de sesión con email y contraseña
 _Rama: `api-auth-AGB` (commit `bb94850`)_
 
@@ -57,4 +54,3 @@ El sistema SHALL cerrar la sesión localmente y redirigir a la pantalla de inici
 - **GIVEN** el cliente tiene guardada una sesión cuyo token ya no es válido en el servidor
 - **WHEN** una petición realizada con esa sesión recibe un rechazo del servidor
 - **THEN** el sistema borra la sesión guardada y redirige a la pantalla de inicio de sesión, sin intervención del usuario
-

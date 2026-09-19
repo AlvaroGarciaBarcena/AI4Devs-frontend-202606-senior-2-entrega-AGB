@@ -1,8 +1,5 @@
-# candidate-intake Specification
+## MODIFIED Requirements
 
-## Purpose
-Permite a un reclutador dar de alta un candidato nuevo — datos de contacto, CV, historial académico y laboral — y vincularlo desde el primer momento a la posición a la que se presenta.
-## Requirements
 ### Requirement: Alta de candidato con datos básicos
 _Rama: `backend-AGB` (commit `24f86fd`) / `frontend-AGB` (commit `d92752d`)_
 
@@ -82,4 +79,3 @@ El sistema SHALL restablecer todos los campos del formulario, incluido el select
 - **GIVEN** un reclutador acaba de completar un alta de candidato con éxito
 - **WHEN** empieza a rellenar los datos de un segundo candidato
 - **THEN** ningún campo (incluido el fichero de CV ya subido) conserva los valores del candidato anterior
-
