@@ -1,17 +1,18 @@
-# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests + seguridad + auth (rama `api-auth-AGB`)
+# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests + seguridad + auth + code splitting (rama `code-splitting-AGB`)
 
 Autor: garciabarcenaalvaro@gmail.com
 Asistente: Claude Code (Sonnet 5)
-Fecha: 2026-09-16 / 2026-09-17
+Fecha: 2026-09-16 / 2026-09-17 / 2026-09-19
 
-Rama base: `react-router-v7-AGB` (commit `0ab68a0`), que ya reunía todo
-lo anterior (`backend-AGB` + `frontend-AGB` +
+Rama base: `api-auth-AGB` (commit `73731bf`), que ya reunía todo lo
+anterior (`backend-AGB` + `frontend-AGB` +
 `candidate-validation-i18n-a11y-AGB` + `positions-proceso-AGB` + la
 migración de i18n a `react-i18next` + la migración de Create React App a
 Vite + tests automáticos + una auditoría de ciberseguridad exhaustiva +
-la migración de `react-router-dom` a v7). Esta rama no fusiona nada
-nuevo — cierra el hallazgo más severo que dejó pendiente esa auditoría:
-ningún endpoint del backend exigía autenticación.
+la migración de `react-router-dom` a v7 + autenticación JWT en toda la
+API). Esta rama no fusiona nada nuevo — cierra la última pieza de deuda
+que quedaba documentada sobre el frontend: el build de producción
+generaba un único fichero JS de ~670KB, sin *code splitting*.
 
 > Nota: las secciones 1-13 de este documento son el historial heredado de
 > `i18n-react-i18next-AGB`/`all-fixes-AGB` sin modificar — validación,
@@ -19,8 +20,8 @@ ningún endpoint del backend exigía autenticación.
 > migración de CRA a Vite, la 3.15 la incorporación de tests automáticos,
 > la 3.16 la traducción del selector de fichero nativo, la 3.17 la
 > auditoría de ciberseguridad, la 3.18 la migración de `react-router-dom`
-> a v7, y la 3.19 la autenticación de las APIs. El histórico de
-> `positions-proceso-AGB` sigue en
+> a v7, la 3.19 la autenticación de las APIs, y la 3.20 el *code
+> splitting* del bundle. El histórico de `positions-proceso-AGB` sigue en
 > [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el de
 > `backend-AGB`/`frontend-AGB` en
 > [`prompts-AGB-backend.md`](./prompts-AGB-backend.md) /
@@ -28,7 +29,7 @@ ningún endpoint del backend exigía autenticación.
 
 ## 0. Resumen ejecutivo: el camino completo, de un vistazo
 
-Esta sesión generó **11 ramas** a partir de `main`, en varias oleadas.
+Esta sesión generó **12 ramas** a partir de `main`, en varias oleadas.
 Esta sección existe para poder entender el conjunto sin tener que leer
 las más de 2700 líneas de detalle de más abajo — cada punto enlaza a la
 sección donde está el porqué completo.
@@ -84,12 +85,17 @@ main (8025b6f) — estado original del repo, sin tocar
                             │    camino (dist/ con tests compilados
                             │    duplicando ejecuciones)
                             │
-                            └── api-auth-AGB  ← RAMA ACTUAL
-                                 = autenticación JWT en todas las rutas
-                                   del backend (antes abiertas por
-                                   completo) + login/logout real en el
-                                   frontend — cierra el hallazgo más
-                                   severo de security-audit-AGB
+                            └── api-auth-AGB (73731bf)
+                                │  = autenticación JWT en todas las rutas
+                                │    del backend (antes abiertas por
+                                │    completo) + login/logout real en el
+                                │    frontend — cierra el hallazgo más
+                                │    severo de security-audit-AGB
+                                │
+                                └── code-splitting-AGB  ← RAMA ACTUAL
+                                     = React.lazy() + Suspense por ruta:
+                                       de 1 fichero JS (674KB) a 10, con
+                                       -52% en la carga en frío de /login
 ```
 
 Cada rama tiene su propio commit y su propia sección de detalle en este
@@ -118,6 +124,7 @@ integrarlas).
 | 14 | "¿La razón de no migrar react-router-dom v7 era el linter, o no había impedimento y eso era solo para TS7?" → "Sí, porfa, en una rama nueva" | `react-router-v7-AGB` | 3.18 |
 | 15 | "Documéntalo todo bien, incluyendo los porqués de TS7 y react-router-dom v7, y vamos después, en otra rama nueva, a incluir la autenticación de las APIs" | *(actualización de esta sección 0)* | 0 (este resumen) |
 | 16 | Aclaración de alcance (backend+frontend vs. solo backend; empleados ya sembrados vs. registro público) → "Backend + login en el frontend" + "Los Employee ya sembrados" | `api-auth-AGB` | 3.19 |
+| 17 | "¿Qué es el estado `<Suspense>`?" → "¿Creas porfa una nueva rama y aplicas el code splitting, que quiero ver la diferencia del código y cómo afecta a la experiencia de usuario el resultado final?" | `code-splitting-AGB` | 3.20 |
 
 ### 0.3 Qué se hizo, paso a paso, en cada rama
 
@@ -202,13 +209,19 @@ fragmentos de código, verificaciones) está en la sección referenciada.
 3. `npm audit` → 0 vulnerabilidades (cierra las 2 moderadas que quedaban de `security-audit-AGB`).
 4. Hallazgo incidental: `npm run build` del backend compilaba también los `*.test.ts` a `dist/`, y Jest los recogía duplicados junto a los `src/*.test.ts` originales — 14 de 42 tests fallaban en falso tras cualquier build previo a `npx jest`. Corregido excluyendo los tests del `include` de `tsconfig.json`.
 
-**`api-auth-AGB`** (detalle en 3.19, rama actual):
+**`api-auth-AGB`** (detalle en 3.19):
 1. Alcance acordado antes de escribir código: JWT + login real en el frontend (no solo backend), contra los `Employee` ya sembrados (sin registro público).
 2. `Employee` gana un campo `password` (hash de bcrypt, nullable) vía migración de Prisma; `authService.ts` (backend) hace login con un único mensaje de error genérico para los cuatro motivos de rechazo posibles (evita enumerar correos dados de alta); `requireAuth` protege `/candidates`, `/upload` y `/position`; límite de intentos propio (10/15 min) solo para `/auth/login`.
 3. Hallazgos incidentales: no existía ningún `.env` en el repo (había que crearlo) y, al hacerlo, se comprobó que `.env.example` usaba una interpolación de variables (`${DB_USER}`) que el `dotenv` del proyecto no soporta — corregido con valores ya resueltos; varios servidores de backend zombis de sesiones anteriores seguían corriendo (matados, uno solo arrancado limpio).
 4. Frontend: interceptor global de axios (no una instancia `axios.create()` nueva, para no romper los tests existentes que mockean `axios` directamente) + `AuthContext`/`Login`/`RequireAuth`/`UserMenu`, con el mismo patrón de accesibilidad ya establecido en `AddCandidateForm`.
 5. Hallazgo al testear: auto-mockear `authService.ts` entero también sustituye la clase `AuthError` por una versión simulada sin `.message` real — corregido acotando el mock a solo la función `login`.
 6. +15 tests backend (21→36), +10 tests frontend (19→29); verificado de extremo a extremo en el navegador (login correcto/incorrecto, ambos empleados sembrados, cierre de sesión, redirección tras acceso directo a una ruta protegida sin sesión) y con `curl` para `/upload` (sin equivalente de UI, el navegador no puede pilotar el selector nativo de archivos).
+
+**`code-splitting-AGB`** (detalle en 3.20, rama actual):
+1. Las 4 rutas protegidas de `App.jsx` pasan a `React.lazy()`, envueltas en un único `<Suspense>`; `Login` se queda con `import` estático a propósito (es lo primero que ve cualquiera sin sesión, y un parpadeo de carga ahí sería el peor sitio para ahorrar KB).
+2. Medido, no solo descrito: de 1 fichero JS (674.25 kB) a 10, con la carga en frío de `/login` en 323.76 kB (4 ficheros) — un 52% menos — y el chunk más pesado de toda la app (`AddCandidateForm`, 345 kB, por `react-datepicker`) sin descargarse nunca si no se visita esa pantalla.
+3. Verificado con tráfico de red real (no con los nombres de fichero): `vite preview` en el puerto 3000 (no el 4173 por defecto, para que el CORS del backend lo aceptase), confirmando con `read_network_requests` que cada chunk se pide exactamente la primera vez que su ruta se visita.
+4. Hallazgo incidental durante la demo en directo: un JWT de dos días caducó a mitad de la verificación, y el interceptor de `apiClient.js` (3.19.8) cerró la sesión y redirigió a `/login` solo, exactamente como estaba diseñado — la primera vez que ese camino se observa en acción sin forzarlo.
 
 ### 0.4 Decisiones clave y por qué (el hilo conductor)
 
@@ -271,7 +284,7 @@ fragmentos de código, verificaciones) está en la sección referenciada.
   se verificó con `npm view <paquete> peerDependencies` en ambos casos
   antes de decidir, no por analogía entre los dos "v7".
 
-### 0.5 Dónde estamos ahora (estado de `api-auth-AGB`)
+### 0.5 Dónde estamos ahora (estado de `code-splitting-AGB`)
 
 **Verificado y funcionando**, de extremo a extremo, en el navegador, por
 línea de comandos y con tests automáticos:
@@ -293,10 +306,13 @@ línea de comandos y con tests automáticos:
   validación específicos por campo y accesibles (`aria-invalid`,
   `aria-describedby`, `role="alert"`), listado de posiciones con datos
   reales de la API, el tablero "Ver proceso" agrupando candidatos por
-  fase de entrevista, **`react-router-dom` v7**, y un **flujo de
+  fase de entrevista, **`react-router-dom` v7**, un **flujo de
   login/logout real** (`/login` pública, el resto de rutas protegidas
   con `RequireAuth`, token adjunto automáticamente a toda petición vía
-  un interceptor de axios). 6 suites / **29 tests** en verde (`npm
+  un interceptor de axios), y **las 4 rutas protegidas cargadas bajo
+  demanda** (`React.lazy` + `Suspense`): el build pasa de 1 fichero JS
+  (674.25 kB) a 10, con un 52% menos de JS en la carga en frío de
+  `/login` (sección 3.20). 6 suites / **29 tests** en verde (`npm
   test`, Vitest), `tsc -b`/`eslint .`/`npm run build` limpios,
   **`npm audit` → 0 vulnerabilidades**.
 - Nada de esto ha tocado la base de datos de forma permanente más allá de
@@ -317,9 +333,6 @@ se detectaron, ninguna oculta):
   test automático el dashboard, el listado/filtros de posiciones (mock de
   UI sin lógica que probar todavía) y el tablero "Ver proceso" — no se ha
   fabricado cobertura de esas partes por iniciativa propia.
-- El build de producción del frontend avisa de un chunk único de ~670KB
-  sin *code splitting* — funcional, pero no optimizado; no se ha tocado
-  porque no formaba parte de ninguna petición.
 - Los mensajes de error **no estructurados** (caída de red, backend
   caído, mensajes ya hechos que vienen directos de un `Error` de
   servicio) siguen sin traducirse — solo los errores de validación tienen
@@ -345,11 +358,16 @@ se detectaron, ninguna oculta):
   del `schema.prisma` (arreglado en `backend-AGB`), sigue existiendo en
   el **historial** de git del commit inicial — no se ha purgado el
   historial por ser una operación destructiva que no se ha pedido.
+- El *code splitting* es por ruta, no dentro de cada pantalla (p. ej.
+  `react-datepicker` sigue cargando entero junto con el resto de
+  `AddCandidateForm`, no de forma perezosa al pulsar "Añadir Educación")
+  — a propósito, ver 3.20.5: con 5 pantallas, dividir por ruta ya cubre
+  la mayor parte de la ganancia posible.
 
 **Nada se ha subido a `origin`** en ningún momento de esta sesión — las
-11 ramas son enteramente locales. Si se quiere consolidar, el camino
-natural sería fusionar `api-auth-AGB` sobre `main` cuando el usuario lo
-decida explícitamente.
+12 ramas son enteramente locales. Si se quiere consolidar, el camino
+natural sería fusionar `code-splitting-AGB` sobre `main` cuando el
+usuario lo decida explícitamente.
 
 ### 0.6 Análisis de ventajas: por qué esto debería haber sido así desde el principio
 
@@ -2899,3 +2917,155 @@ Con esto, el hallazgo más severo de `security-audit-AGB` (sección
 3.17.2, ausencia total de autenticación) queda cerrado: toda ruta de
 negocio del backend exige un JWT válido, y el frontend tiene un flujo de
 login/logout real y verificado de principio a fin.
+
+## 3.20 *Code splitting* del bundle (`code-splitting-AGB`)
+
+Prompt del usuario: tras una pregunta previa sobre qué es `<Suspense>`
+(en el contexto de la deuda documentada en la sección 0.5, "chunk único
+de ~670KB sin *code splitting*"), *"¿Creas porfa una nueva rama y
+aplicas el code splitting, que quiero ver la diferencia del código y
+cómo afecta a la experiencia de usuario el resultado final?"*
+
+### 3.20.1 El cambio en sí
+
+En [`App.jsx`](frontend/src/App.jsx), las 4 rutas protegidas pasan de
+`import` estático a `React.lazy(() => import(...))`, envueltas en un
+único `<Suspense>` alrededor de `<Routes>`:
+
+```jsx
+const RecruiterDashboard = lazy(() => import('./components/RecruiterDashboard'));
+const AddCandidate = lazy(() => import('./components/AddCandidateForm'));
+const Positions = lazy(() => import('./components/Positions'));
+const PositionProcess = lazy(() => import('./components/PositionProcess'));
+```
+
+**`Login` se queda con `import` estático, a propósito**: es la primera
+pantalla que ve cualquiera sin sesión (`RequireAuth` redirige ahí), y
+ponerla detrás de un `Suspense` metería un parpadeo de carga justo en el
+primer contacto con la app — el peor sitio para ahorrarse unos KB.
+
+El `fallback` (`PageFallback`, un componente propio, no una librería) es
+un `<div role="status" aria-live="polite">` con una clave de i18n nueva
+(`common.loadingPage`: "Cargando página…" / "Loading page…") —
+mismo patrón de accesibilidad que el mensaje de éxito de
+`AddCandidateForm` (3.9-3.11): un lector de pantalla lo anuncia sin que
+el foco tenga que moverse.
+
+Ningún test existente importa `App.jsx` directamente (los tests de
+`Login`/`RequireAuth`/`AddCandidateForm` renderizan esos componentes
+sueltos, no a través del árbol de rutas), así que el cambio es invisible
+para toda la suite: los 29 tests del frontend pasan sin tocar ni uno.
+
+### 3.20.2 La diferencia medida, no solo el código
+
+`npm run build` antes de esta rama generaba **un único fichero**:
+
+```
+dist/assets/index-DV68uIzp.js   674.25 kB │ gzip: 189.27 kB
+```
+
+Después de esta rama, el mismo build genera **10 ficheros**, cada ruta
+(y `Alert`/`Container`, componentes de `react-bootstrap` que `Login`
+usa directamente) en su propio chunk:
+
+| Chunk | Tamaño | gzip | Cuándo se descarga |
+|---|---|---|---|
+| `index-*.js` (App, router, contexto de auth, i18n, Login) | 110.87 kB | 35.83 kB | Siempre, es el punto de entrada |
+| `Alert-*.js` (agrupación de `react-bootstrap` que usa `Login`) | 195.07 kB | 65.89 kB | Siempre (dependencia directa de `Login`) |
+| `Container-*.js` | 16.92 kB | 6.30 kB | Siempre |
+| `rolldown-runtime-*.js` | 0.90 kB | 0.51 kB | Siempre |
+| `RecruiterDashboard-*.js` | 1.18 kB | 0.49 kB | Al visitar `/` (autenticado) |
+| `Row-*.js` | 0.51 kB | 0.37 kB | Junto con `RecruiterDashboard` |
+| `Positions-*.js` | 2.76 kB | 1.05 kB | Al visitar `/positions` |
+| `Spinner-*.js` | 0.41 kB | 0.31 kB | Junto con `Positions` |
+| `positionService-*.js` | 0.64 kB | 0.32 kB | Junto con `Positions`/`PositionProcess` |
+| `PositionProcess-*.js` | 2.62 kB | 1.17 kB | Al visitar `/positions/:id` |
+| `AddCandidateForm-*.js` + su CSS | 344.93 kB + 21.25 kB | 82.38 kB + 2.95 kB | Al visitar `/add-candidate` |
+
+**Lo que de verdad le llega al navegador la primera vez que alguien abre
+la app** (sin sesión, aterriza en `/login`) son los cuatro primeros:
+`110.87 + 195.07 + 16.92 + 0.90 = 323.76 kB` (`108.53 kB` con gzip) — un
+**52% menos** que el único bundle de antes (674.25 kB), un **43% menos**
+ya comprimido. Y quien nunca llega a abrir "Añadir Candidato" en toda su
+sesión (p. ej. alguien que solo consulta el listado de posiciones) no
+descarga jamás los 345 kB de `AddCandidateForm` — el chunk más pesado de
+toda la aplicación, con diferencia, porque arrastra `react-datepicker`.
+
+### 3.20.3 Verificación con tráfico de red real, no solo con el tamaño de los ficheros
+
+El servidor de desarrollo de Vite (`npm run dev`) no *bundlea* ni
+trocea igual que la build de producción — sirve módulos ES sueltos.
+Para ver el comportamiento real había que servir el `dist/` generado por
+`vite build`, con `vite preview`. Se lanzó en el puerto 3000 (no el 4173
+por defecto: el backend solo permite CORS desde `http://localhost:3000`
+— con el 4173 el login fallaba con "Network Error", un error de CORS
+esperado por el puerto equivocado, no un bug de esta rama), y se
+inspeccionaron las peticiones de red reales con cada navegación:
+
+```
+Visita en frío a "/" (sin sesión → /login)
+  → index, rolldown-runtime, Container, Alert   (4 peticiones, 323.76 kB)
+  → NINGUNA de RecruiterDashboard/Positions/PositionProcess/AddCandidateForm
+
+Tras iniciar sesión y aterrizar en "/" (dashboard)
+  → RecruiterDashboard-*.js + Row-*.js          (nuevas, no estaban antes)
+
+Clic en "Ir a Posiciones"
+  → Positions-*.js + Spinner-*.js + positionService-*.js   (nuevas)
+
+Navegación directa a "/add-candidate"
+  → AddCandidateForm-*.js + su CSS               (nuevas, 345 kB — el
+                                                    chunk más pesado de
+                                                    toda la app, solo se
+                                                    paga si se visita
+                                                    esta pantalla)
+```
+
+Cada chunk se pidió **exactamente** la primera vez que la ruta
+correspondiente se visitó, nunca antes — confirmado con
+`read_network_requests`, no asumido a partir de los nombres de fichero.
+
+### 3.20.4 Hallazgo incidental durante la demo: un token de dos días caducó en directo
+
+A mitad de la demostración, la sesión que ya estaba guardada en
+`localStorage` desde una verificación de la rama `api-auth-AGB` (18 de
+septiembre) caducó (JWT con 8h de vigencia, sección 3.19.3) al hacer la
+primera petición real a la API tras cargarse de forma optimista — el
+interceptor de respuesta de `apiClient.js` (sección 3.19.8) hizo
+exactamente lo que estaba diseñado para hacer: limpió la sesión y
+redirigió a `/login` sola, sin intervención. No es un bug de esta rama;
+es la primera vez, de forma no forzada, que se observa ese camino en
+acción.
+
+### 3.20.5 Qué no se ha hecho, y por qué
+
+No se ha dividido nada dentro de `AddCandidateForm` (p. ej. cargar
+`react-datepicker` de forma perezosa solo al pulsar "Añadir Educación").
+El *code splitting* por ruta ya captura la gran mayoría de la ganancia
+posible en esta aplicación (5 pantallas, cada una con su propio punto de
+entrada natural en el router) — trocear más finamente dentro de una
+única pantalla añadiría complejidad (más `Suspense` anidados, más
+posibilidad de parpadeos de carga dentro de un mismo formulario) a
+cambio de un ahorro mucho menor, y no se pidió.
+
+## 13. Verificación del *code splitting* (sección 3.20)
+
+```
+npx tsc -b            → sin errores
+npx eslint .           → sin errores (mismo warning inocuo preexistente
+                          en AuthContext.jsx)
+npm test -- --run      → 6 suites, 29 tests, verde (sin cambios: ningún
+                          test importa App.jsx)
+npm run build          → 2783 módulos, 10 ficheros JS en vez de 1
+                          (tabla completa en 3.20.2)
+
+Verificación con tráfico de red real (vite preview, puerto 3000):
+  Carga en frío de /login          → 4 peticiones JS, 323.76 kB
+                                      (antes: 674.25 kB, un único fichero)
+  Dashboard tras login             → RecruiterDashboard-*.js nuevo
+  Clic en "Ir a Posiciones"        → Positions-*.js + positionService-*.js
+                                      nuevos
+  Navegación a /add-candidate      → AddCandidateForm-*.js (345 kB) nuevo
+  Consola                          → limpia salvo el 401 esperado del
+                                      token de dos días caducado (3.20.4)
+```

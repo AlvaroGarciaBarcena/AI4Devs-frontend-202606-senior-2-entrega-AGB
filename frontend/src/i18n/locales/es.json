@@ -2,6 +2,9 @@
   "languageSwitcher": {
     "label": "Idioma:"
   },
+  "common": {
+    "loadingPage": "Cargando página…"
+  },
   "login": {
     "title": "Iniciar sesión",
     "email": "Correo electrónico",
