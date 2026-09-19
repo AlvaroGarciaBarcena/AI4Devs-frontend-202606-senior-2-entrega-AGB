@@ -14,7 +14,7 @@ const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 // en vez de un "Invalid name" genérico que no dice ni el campo ni el motivo.
 export type ValidationIssue = {
     field: string;
-    code: 'required' | 'tooShort' | 'tooLong' | 'tooManyEntries' | 'invalidCharacters' | 'invalidFormat' | 'invalid';
+    code: 'required' | 'tooShort' | 'tooLong' | 'tooManyEntries' | 'invalidCharacters' | 'invalidFormat' | 'invalidPhoneFormat' | 'invalid';
     params?: Record<string, string | number>;
 };
 
@@ -71,8 +71,12 @@ const validateEmail = (email: string, issues: ValidationIssue[]) => {
 };
 
 const validatePhone = (phone: string, issues: ValidationIssue[]) => {
+    // Código específico (no el 'invalidFormat' genérico que comparten
+    // email/fechas): la regla en sí (9 dígitos, empieza por 6/7/9) es lo
+    // que hacía falta explicar — "no tiene un formato válido" no dice
+    // nada que el usuario pueda corregir sin adivinar.
     if (phone && !PHONE_REGEX.test(phone)) {
-        issues.push({ field: 'phone', code: 'invalidFormat' });
+        issues.push({ field: 'phone', code: 'invalidPhoneFormat' });
     }
 };
 

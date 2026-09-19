@@ -85,6 +85,33 @@ describe('AddCandidateForm', () => {
         expect(sendCandidateData).toHaveBeenCalledTimes(1);
     });
 
+    // Caso reportado por el usuario: tras un error, corregir el campo no
+    // "recargaba" nada visible — el mensaje y el borde rojo seguían ahí
+    // hasta reenviar el formulario, aunque el valor ya fuera válido.
+    it('clears a field error as soon as the user corrects it, without waiting for resubmission', async () => {
+        const user = userEvent.setup();
+        const validationError = new Error('Validation failed');
+        validationError.issues = [{ field: 'phone', code: 'invalidPhoneFormat' }];
+        sendCandidateData.mockRejectedValue(validationError);
+
+        render(<AddCandidateForm />);
+        await fillBasicFields(user, { firstName: 'Juan', lastName: 'Garcia', email: 'juan@example.com' });
+        await user.type(screen.getByLabelText('Teléfono'), '123456789');
+        await user.click(screen.getByRole('button', { name: 'Enviar' }));
+
+        const expectedMessage = 'El teléfono debe tener 9 dígitos y empezar por 6, 7 o 9.';
+        await waitFor(() => {
+            expect(screen.getAllByText(expectedMessage)).toHaveLength(2);
+        });
+
+        await user.clear(screen.getByLabelText('Teléfono'));
+        await user.type(screen.getByLabelText('Teléfono'), '612345678');
+
+        expect(screen.queryByText(expectedMessage)).toBeNull();
+        // El error desaparece por corregir el campo, no por un nuevo envío.
+        expect(sendCandidateData).toHaveBeenCalledTimes(1);
+    });
+
     it('accumulates several field errors in the same summary, not just the first one', async () => {
         const user = userEvent.setup();
         const validationError = new Error('Validation failed');

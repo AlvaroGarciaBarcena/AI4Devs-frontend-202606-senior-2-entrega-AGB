@@ -1,18 +1,18 @@
-# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests + seguridad + auth + code splitting (rama `code-splitting-AGB`)
+# Registro de prompts y arreglos — Integración completa + i18n + Vite + tests + seguridad + auth + code splitting + UX (rama `candidate-form-ux-fixes-AGB`)
 
 Autor: garciabarcenaalvaro@gmail.com
 Asistente: Claude Code (Sonnet 5)
 Fecha: 2026-09-16 / 2026-09-17 / 2026-09-19
 
-Rama base: `api-auth-AGB` (commit `73731bf`), que ya reunía todo lo
+Rama base: `code-splitting-AGB` (commit `947bbc3`), que ya reunía todo lo
 anterior (`backend-AGB` + `frontend-AGB` +
 `candidate-validation-i18n-a11y-AGB` + `positions-proceso-AGB` + la
 migración de i18n a `react-i18next` + la migración de Create React App a
 Vite + tests automáticos + una auditoría de ciberseguridad exhaustiva +
 la migración de `react-router-dom` a v7 + autenticación JWT en toda la
-API). Esta rama no fusiona nada nuevo — cierra la última pieza de deuda
-que quedaba documentada sobre el frontend: el build de producción
-generaba un único fichero JS de ~670KB, sin *code splitting*.
+API + *code splitting* por ruta). Esta rama no fusiona nada nuevo —
+corrige dos bugs de UX reportados por el usuario al usar el formulario
+"Agregar Candidato" de verdad, no encontrados por ninguna auditoría.
 
 > Nota: las secciones 1-13 de este documento son el historial heredado de
 > `i18n-react-i18next-AGB`/`all-fixes-AGB` sin modificar — validación,
@@ -20,8 +20,9 @@ generaba un único fichero JS de ~670KB, sin *code splitting*.
 > migración de CRA a Vite, la 3.15 la incorporación de tests automáticos,
 > la 3.16 la traducción del selector de fichero nativo, la 3.17 la
 > auditoría de ciberseguridad, la 3.18 la migración de `react-router-dom`
-> a v7, la 3.19 la autenticación de las APIs, y la 3.20 el *code
-> splitting* del bundle. El histórico de `positions-proceso-AGB` sigue en
+> a v7, la 3.19 la autenticación de las APIs, la 3.20 el *code splitting*
+> del bundle, y la 3.21 dos bugs de UX en "Agregar Candidato". El
+> histórico de `positions-proceso-AGB` sigue en
 > [`prompts-AGB-positions.md`](./prompts-AGB-positions.md), y el de
 > `backend-AGB`/`frontend-AGB` en
 > [`prompts-AGB-backend.md`](./prompts-AGB-backend.md) /
@@ -29,7 +30,7 @@ generaba un único fichero JS de ~670KB, sin *code splitting*.
 
 ## 0. Resumen ejecutivo: el camino completo, de un vistazo
 
-Esta sesión generó **12 ramas** a partir de `main`, en varias oleadas.
+Esta sesión generó **13 ramas** a partir de `main`, en varias oleadas.
 Esta sección existe para poder entender el conjunto sin tener que leer
 las más de 2700 líneas de detalle de más abajo — cada punto enlaza a la
 sección donde está el porqué completo.
@@ -92,10 +93,17 @@ main (8025b6f) — estado original del repo, sin tocar
                                 │    frontend — cierra el hallazgo más
                                 │    severo de security-audit-AGB
                                 │
-                                └── code-splitting-AGB  ← RAMA ACTUAL
-                                     = React.lazy() + Suspense por ruta:
-                                       de 1 fichero JS (674KB) a 10, con
-                                       -52% en la carga en frío de /login
+                                └── code-splitting-AGB (947bbc3)
+                                    │  = React.lazy() + Suspense por ruta:
+                                    │    de 1 fichero JS (674KB) a 10, con
+                                    │    -52% en la carga en frío de /login
+                                    │
+                                    └── candidate-form-ux-fixes-AGB  ← RAMA ACTUAL
+                                         = 2 bugs de UX en "Agregar
+                                           Candidato": el error de un
+                                           campo no se actualizaba al
+                                           corregirlo, y el teléfono no
+                                           decía por qué era inválido
 ```
 
 Cada rama tiene su propio commit y su propia sección de detalle en este
@@ -125,6 +133,7 @@ integrarlas).
 | 15 | "Documéntalo todo bien, incluyendo los porqués de TS7 y react-router-dom v7, y vamos después, en otra rama nueva, a incluir la autenticación de las APIs" | *(actualización de esta sección 0)* | 0 (este resumen) |
 | 16 | Aclaración de alcance (backend+frontend vs. solo backend; empleados ya sembrados vs. registro público) → "Backend + login en el frontend" + "Los Employee ya sembrados" | `api-auth-AGB` | 3.19 |
 | 17 | "¿Qué es el estado `<Suspense>`?" → "¿Creas porfa una nueva rama y aplicas el code splitting, que quiero ver la diferencia del código y cómo afecta a la experiencia de usuario el resultado final?" | `code-splitting-AGB` | 3.20 |
+| 18 | "Después de un error de entrada en 'Agregar Candidato' no me recarga los valores corregidos. Tampoco da información de porqué el tfno tiene formato inválido a pesar de haber introducido sólo 9 números. ¿Lo mejoras, porfa?" | `candidate-form-ux-fixes-AGB` | 3.21 |
 
 ### 0.3 Qué se hizo, paso a paso, en cada rama
 
@@ -217,11 +226,17 @@ fragmentos de código, verificaciones) está en la sección referenciada.
 5. Hallazgo al testear: auto-mockear `authService.ts` entero también sustituye la clase `AuthError` por una versión simulada sin `.message` real — corregido acotando el mock a solo la función `login`.
 6. +15 tests backend (21→36), +10 tests frontend (19→29); verificado de extremo a extremo en el navegador (login correcto/incorrecto, ambos empleados sembrados, cierre de sesión, redirección tras acceso directo a una ruta protegida sin sesión) y con `curl` para `/upload` (sin equivalente de UI, el navegador no puede pilotar el selector nativo de archivos).
 
-**`code-splitting-AGB`** (detalle en 3.20, rama actual):
+**`code-splitting-AGB`** (detalle en 3.20):
 1. Las 4 rutas protegidas de `App.jsx` pasan a `React.lazy()`, envueltas en un único `<Suspense>`; `Login` se queda con `import` estático a propósito (es lo primero que ve cualquiera sin sesión, y un parpadeo de carga ahí sería el peor sitio para ahorrar KB).
 2. Medido, no solo descrito: de 1 fichero JS (674.25 kB) a 10, con la carga en frío de `/login` en 323.76 kB (4 ficheros) — un 52% menos — y el chunk más pesado de toda la app (`AddCandidateForm`, 345 kB, por `react-datepicker`) sin descargarse nunca si no se visita esa pantalla.
 3. Verificado con tráfico de red real (no con los nombres de fichero): `vite preview` en el puerto 3000 (no el 4173 por defecto, para que el CORS del backend lo aceptase), confirmando con `read_network_requests` que cada chunk se pide exactamente la primera vez que su ruta se visita.
 4. Hallazgo incidental durante la demo en directo: un JWT de dos días caducó a mitad de la verificación, y el interceptor de `apiClient.js` (3.19.8) cerró la sesión y redirigió a `/login` solo, exactamente como estaba diseñado — la primera vez que ese camino se observa en acción sin forzarlo.
+
+**`candidate-form-ux-fixes-AGB`** (detalle en 3.21, rama actual):
+1. Reproducido en el navegador antes de tocar nada; un primer intento salió engañoso por una condición de carrera del propio tooling (clic sobre una captura tomada mientras `/add-candidate` aún mostraba el `Suspense` de "Cargando página…") combinada con una entrada de red residual de una pestaña de larga duración — investigado hasta confirmar que no era un bug de la app, no asumido.
+2. Bug A: `issues` (los errores por campo) solo se actualizaba en `handleSubmit`, nunca al cambiar un campo — corregir un valor no limpiaba su error hasta el siguiente envío. Arreglado con `clearFieldIssue(field)`, sin revalidar en el cliente (esa lógica se queda solo en `validator.ts`).
+3. Bug B: un teléfono de 9 dígitos con el prefijo equivocado daba el código genérico `invalidFormat` ("no tiene un formato válido"), sin explicar la regla real. Nuevo código específico `invalidPhoneFormat`, con un mensaje que sí la explica, en los dos idiomas.
+4. +3 tests backend (36→39), +3 tests frontend (29→32) — incluido uno que codifica exactamente el bug A reportado (corregir sin reenviar hace desaparecer el error). Verificado también en caliente contra el backend de desarrollo real (`curl`) y en el navegador de principio a fin.
 
 ### 0.4 Decisiones clave y por qué (el hilo conductor)
 
@@ -284,18 +299,20 @@ fragmentos de código, verificaciones) está en la sección referenciada.
   se verificó con `npm view <paquete> peerDependencies` en ambos casos
   antes de decidir, no por analogía entre los dos "v7".
 
-### 0.5 Dónde estamos ahora (estado de `code-splitting-AGB`)
+### 0.5 Dónde estamos ahora (estado de `candidate-form-ux-fixes-AGB`)
 
 **Verificado y funcionando**, de extremo a extremo, en el navegador, por
 línea de comandos y con tests automáticos:
 - Backend: Express 4.22.3 + TypeScript + Prisma, con validación
   estructurada (incluido un límite de 20 entradas por
-  `educations`/`workExperiences`), endpoint de listado de posiciones,
-  `isNaN` en todos los `:id`, `helmet` + `express-rate-limit` (general y
-  uno más estricto solo para `/auth/login`), subida de CVs con el nombre
-  de fichero saneado, y **autenticación JWT exigida en `/candidates`,
+  `educations`/`workExperiences`, y un código específico
+  `invalidPhoneFormat` que explica la regla del teléfono en vez del
+  genérico `invalidFormat`), endpoint de listado de posiciones, `isNaN`
+  en todos los `:id`, `helmet` + `express-rate-limit` (general y uno más
+  estricto solo para `/auth/login`), subida de CVs con el nombre de
+  fichero saneado, y **autenticación JWT exigida en `/candidates`,
   `/upload` y `/position`** contra los `Employee` ya sembrados (email +
-  contraseña con hash de bcrypt). 8 suites / **36 tests** en verde
+  contraseña con hash de bcrypt). 8 suites / **39 tests** en verde
   (`npx jest`), `tsc --noEmit` limpio, **`npm audit` → 0
   vulnerabilidades**.
 - Frontend: React + TypeScript sobre **Vite**, con **react-i18next**
@@ -304,15 +321,16 @@ línea de comandos y con tests automáticos:
   ("Browse…"/"No file selected", chrome del navegador sustituido por un
   botón propio) —, formulario de alta de candidato con mensajes de
   validación específicos por campo y accesibles (`aria-invalid`,
-  `aria-describedby`, `role="alert"`), listado de posiciones con datos
-  reales de la API, el tablero "Ver proceso" agrupando candidatos por
-  fase de entrevista, **`react-router-dom` v7**, un **flujo de
-  login/logout real** (`/login` pública, el resto de rutas protegidas
-  con `RequireAuth`, token adjunto automáticamente a toda petición vía
-  un interceptor de axios), y **las 4 rutas protegidas cargadas bajo
-  demanda** (`React.lazy` + `Suspense`): el build pasa de 1 fichero JS
-  (674.25 kB) a 10, con un 52% menos de JS en la carga en frío de
-  `/login` (sección 3.20). 6 suites / **29 tests** en verde (`npm
+  `aria-describedby`, `role="alert"`) que además **se actualizan al
+  instante al corregir un campo**, sin esperar a un nuevo envío, listado
+  de posiciones con datos reales de la API, el tablero "Ver proceso"
+  agrupando candidatos por fase de entrevista, **`react-router-dom` v7**,
+  un **flujo de login/logout real** (`/login` pública, el resto de rutas
+  protegidas con `RequireAuth`, token adjunto automáticamente a toda
+  petición vía un interceptor de axios), y **las 4 rutas protegidas
+  cargadas bajo demanda** (`React.lazy` + `Suspense`): el build pasa de 1
+  fichero JS (674.25 kB) a 10, con un 52% menos de JS en la carga en frío
+  de `/login` (sección 3.20). 6 suites / **32 tests** en verde (`npm
   test`, Vitest), `tsc -b`/`eslint .`/`npm run build` limpios,
   **`npm audit` → 0 vulnerabilidades**.
 - Nada de esto ha tocado la base de datos de forma permanente más allá de
@@ -365,9 +383,9 @@ se detectaron, ninguna oculta):
   la mayor parte de la ganancia posible.
 
 **Nada se ha subido a `origin`** en ningún momento de esta sesión — las
-12 ramas son enteramente locales. Si se quiere consolidar, el camino
-natural sería fusionar `code-splitting-AGB` sobre `main` cuando el
-usuario lo decida explícitamente.
+13 ramas son enteramente locales. Si se quiere consolidar, el camino
+natural sería fusionar `candidate-form-ux-fixes-AGB` sobre `main` cuando
+el usuario lo decida explícitamente.
 
 ### 0.6 Análisis de ventajas: por qué esto debería haber sido así desde el principio
 
@@ -3068,4 +3086,139 @@ Verificación con tráfico de red real (vite preview, puerto 3000):
   Navegación a /add-candidate      → AddCandidateForm-*.js (345 kB) nuevo
   Consola                          → limpia salvo el 401 esperado del
                                       token de dos días caducado (3.20.4)
+```
+
+## 3.21 Dos bugs de UX en "Agregar Candidato" (`candidate-form-ux-fixes-AGB`)
+
+Prompt del usuario: *"Después de un error de entrada en 'Agregar
+Candidato' no me recarga los valores corregidos. Tampoco da información
+de porqué el tfno tiene formato inválido a pesar de haber introducido
+sólo 9 números. ¿Lo mejoras, porfa?"*
+
+### 3.21.1 Metodología: reproducir antes de arreglar
+
+Ninguno de los dos se "arregló" a partir de leer el código y suponer —
+ambos se reprodujeron primero en el navegador, con un intento fallido de
+por medio que merece registrarse porque explica un patrón a tener en
+cuenta con el propio tooling de esta sesión: el primer intento de
+reproducir el fallo del teléfono dio un resultado desconcertante (todos
+los campos en blanco tras enviar, y un `POST /candidates → 201 Created`
+en el registro de red) que no encajaba con nada del código. Investigando
+antes de concluir que era un bug de la app, se confirmó que era una
+condición de carrera del propio `computer` del navegador: la primera
+captura de pantalla se tomó mientras la ruta `/add-candidate` (cargada
+de forma perezosa desde `code-splitting-AGB`, sección 3.20) aún mostraba
+el `Suspense` de "Cargando página…"; para cuando el clic se ejecutó, el
+formulario real ya había sustituido ese `fallback` en el DOM, y la
+herramienta rechazó el clic por coordenadas ("this tab has loaded a
+different site or document") — el texto tecleado a continuación no
+llegó a ningún campo, y el `201 Created` del registro de red resultó ser
+una entrada residual de una verificación anterior en la misma pestaña
+(el mismo patrón de pestaña de larga duración con estado acumulado ya
+documentado en 3.16.3 y 3.20.4). Se cerró la pestaña, se abrió una
+nueva, y se esperó a que la captura de pantalla reflejara el formulario
+real antes de hacer clic — con eso, la reproducción fue limpia y
+repetible.
+
+### 3.21.2 Bug A: el error de un campo no se actualizaba al corregirlo
+
+**Causa**: `issues` (el array de `{field, code, params}` que alimenta
+`getFieldError`) solo se actualizaba dentro de `handleSubmit` — nunca al
+cambiar un campo. Los `onChange` de `firstName`/`lastName`/`email`/
+`phone`/`address` llamaban a `setCandidate(...)` en línea, sin tocar
+`issues` en absoluto. Resultado: tras un envío fallido, corregir el
+valor de un campo actualizaba `candidate` (el dato que se enviaría en el
+próximo intento) pero dejaba el borde rojo, el icono y el mensaje de
+error exactamente como estaban, mostrando información sobre un valor que
+ya no existía, hasta el siguiente clic en "Enviar". El usuario lo
+describió con precisión ("no me recarga los valores corregidos"): la UI
+no reflejaba la corrección, aunque el dato sí se hubiera corregido por
+debajo.
+
+**Arreglo**, en
+[`AddCandidateForm.jsx`](frontend/src/components/AddCandidateForm.jsx):
+una función `clearFieldIssue(field)` que quita del array `issues`
+cualquier entrada de ese campo, invocada desde un `handleFieldChange`
+nuevo (que sustituye los 5 `onChange` en línea) y también desde
+`handleInputChange`/`handleDateChange` (los campos dentro de
+`educations`/`workExperiences`, con la misma clase de bug aunque no
+fuera el caso reportado — mismo arreglo, por consistencia). **No
+revalida en el cliente** — eso seguiría viviendo solo en
+`validator.ts`, según la arquitectura ya establecida (3.1) — simplemente
+deja de mostrar un error que ya no corresponde al valor actual, hasta
+que el siguiente envío confirme (o no) que la corrección es válida de
+verdad.
+
+### 3.21.3 Bug B: el teléfono decía "formato inválido" sin decir cuál
+
+**Causa**: `validatePhone` en `validator.ts` usa
+`PHONE_REGEX = /^(6|7|9)\d{8}$/` — 9 dígitos, pero el primero tiene que
+ser 6, 7 o 9 (prefijos de móvil/fijo español). Un teléfono de 9 dígitos
+que empiece por otra cifra (el caso exacto que describió el usuario) la
+incumple, pero el código de error que se lanzaba era el genérico
+`invalidFormat` — el mismo que comparten el email y las fechas, con un
+mensaje que solo dice "El teléfono no tiene un formato válido." sin
+explicar la regla real (ni la longitud ni el prefijo esperado).
+
+**Arreglo**: nuevo código específico `invalidPhoneFormat` (añadido a la
+unión de tipos de `ValidationIssue`), usado solo por `validatePhone`, con
+su propio mensaje en
+[`es.json`](frontend/src/i18n/locales/es.json)/[`en.json`](frontend/src/i18n/locales/en.json):
+*"El teléfono debe tener 9 dígitos y empezar por 6, 7 o 9."* / *"The
+phone number must have 9 digits and start with 6, 7, or 9."* — mismo
+patrón que ya usa `invalidCharacters` (código específico con un mensaje
+que explica la regla, no solo que falló) en vez de forzarlo dentro del
+`invalidFormat` genérico, que habría exigido diferenciar el mensaje por
+`field` además de por `code`, algo que la arquitectura actual de
+`translateValidationIssue` no contempla.
+
+### 3.21.4 Cobertura de tests añadida
+
+**Backend (+3, 36→39)**: en `validator.test.ts` — un teléfono de 9
+dígitos con el prefijo equivocado da `invalidPhoneFormat` (no el
+genérico `invalidFormat`, que no tenía ningún test de teléfono hasta
+ahora); teléfonos válidos empezando por 6/7/9 no lanzan; un teléfono
+vacío tampoco (es opcional).
+
+**Frontend (+3, 29→32)**: en `validationMessages.test.js` — el mensaje
+de `invalidPhoneFormat` explica la regla real, en español y en inglés.
+En `AddCandidateForm.test.jsx` — el test que codifica exactamente el bug
+reportado: se envía con un teléfono inválido, aparece el mensaje
+específico duplicado (como el resto de errores, 3.15.4), se corrige el
+campo **sin volver a pulsar "Enviar"**, y el mensaje desaparece de
+inmediato — con `sendCandidateData` seguía habiéndose llamado una sola
+vez, confirmando que la desaparición es por la corrección, no por un
+reenvío.
+
+## 14. Verificación de los arreglos de "Agregar Candidato" (sección 3.21)
+
+```
+Backend
+  npx tsc --noEmit    → sin errores
+  npx jest             → 8 suites, 39 tests (antes 36; +3 nuevos), verde
+  npm run build        → sin errores, dist/ sin ficheros *.test.js
+  curl (POST /candidates, autenticado, teléfono "123456789")
+                        → {"errors":[{"field":"phone","code":"invalidPhoneFormat"}]}
+                          (confirmado contra el servidor de desarrollo real,
+                          no solo con el test)
+
+Frontend
+  npx tsc -b           → sin errores
+  npx eslint .          → sin errores (mismo warning inocuo preexistente)
+  npm test -- --run     → 6 suites, 32 tests (antes 29; +3 nuevos), verde
+  npm run build         → 10 ficheros JS, chunking intacto (sección 3.20)
+
+Navegador (reproducido y verificado tras cerrar la pestaña obsoleta,
+sección 3.21.1):
+  Envío con teléfono "123456789"   → "El teléfono debe tener 9 dígitos
+                                      y empezar por 6, 7 o 9." (antes:
+                                      "no tiene un formato válido.")
+  Corregir a "612345678" sin
+    reenviar                        → el borde rojo, el icono y el
+                                       mensaje desaparecen al instante
+                                       (antes: seguían ahí hasta el
+                                       siguiente envío)
+  Enviar tras la corrección         → "Candidato añadido con éxito"
+                                       (candidato de prueba borrado tras
+                                       verificar)
 ```

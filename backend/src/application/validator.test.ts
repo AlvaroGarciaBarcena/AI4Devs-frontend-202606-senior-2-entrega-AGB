@@ -61,4 +61,24 @@ describe('validateCandidateData', () => {
         }));
         expect(() => validateCandidateData({ ...baseCandidate, educations })).not.toThrow();
     });
+
+    // Caso reportado por el usuario: un teléfono de 9 dígitos que no
+    // empieza por 6, 7 o 9 (aquí, un móvil español real) daba
+    // 'invalidFormat', el mismo código genérico que email/fechas — sin
+    // decir qué esperaba el validador. Código específico para poder
+    // explicarlo (ver frontend/src/i18n/locales/{es,en}.json).
+    it('reports a specific code (not the generic invalidFormat) for a 9-digit phone with the wrong prefix', () => {
+        const error = getValidationError({ ...baseCandidate, phone: '123456789' });
+        expect(error.issues).toContainEqual({ field: 'phone', code: 'invalidPhoneFormat' });
+    });
+
+    it('accepts a phone that starts with 6, 7 or 9 and has 9 digits', () => {
+        expect(() => validateCandidateData({ ...baseCandidate, phone: '612345678' })).not.toThrow();
+        expect(() => validateCandidateData({ ...baseCandidate, phone: '712345678' })).not.toThrow();
+        expect(() => validateCandidateData({ ...baseCandidate, phone: '912345678' })).not.toThrow();
+    });
+
+    it('accepts an empty phone (it is optional)', () => {
+        expect(() => validateCandidateData({ ...baseCandidate, phone: '' })).not.toThrow();
+    });
 });

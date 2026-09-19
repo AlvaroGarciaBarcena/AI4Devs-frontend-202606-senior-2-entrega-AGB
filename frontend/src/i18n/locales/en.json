@@ -117,6 +117,7 @@
       "invalidCharacters": "{{field}} contains a character that is not allowed: \"{{char}}\". Only letters and spaces are allowed.",
       "invalidCharactersGeneric": "{{field}} contains characters that are not allowed. Only letters and spaces are allowed.",
       "invalidFormat": "{{field}} has an invalid format.",
+      "invalidPhoneFormat": "{{field}} must have 9 digits and start with 6, 7, or 9.",
       "invalid": "{{field}} is not valid."
     }
   }

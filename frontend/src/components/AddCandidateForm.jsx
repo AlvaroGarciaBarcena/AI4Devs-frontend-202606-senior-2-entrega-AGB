@@ -37,11 +37,26 @@ const AddCandidateForm = () => {
     const fieldErrors = translateValidationIssues(issues);
     const getFieldError = (field) => fieldErrors.find((issue) => issue.field === field);
 
+    // `issues` solo se actualizaba en handleSubmit: si un campo se marcaba
+    // inválido y el usuario lo corregía sin volver a enviar, el mensaje y
+    // el borde rojo seguían ahí, sin reflejar la corrección, hasta el
+    // siguiente intento de envío. Se limpia el issue de un campo en cuanto
+    // cambia — no se revalida en el cliente (esa lógica solo vive en
+    // validator.ts, ver la cabecera de este fichero de arriba), simplemente
+    // deja de mostrarse un error sobre un valor que ya no existe.
+    const clearFieldIssue = (field) => setIssues((prev) => prev.filter((issue) => issue.field !== field));
+
+    const handleFieldChange = (field, value) => {
+        setCandidate((prev) => ({ ...prev, [field]: value }));
+        clearFieldIssue(field);
+    };
+
     const handleInputChange = (e, index, section) => {
         const updatedSection = [...candidate[section]];
         if (updatedSection[index]) {
             updatedSection[index][e.target.name] = e.target.value;
             setCandidate({ ...candidate, [section]: updatedSection });
+            clearFieldIssue(`${section}[${index}].${e.target.name}`);
         }
     };
 
@@ -50,6 +65,7 @@ const AddCandidateForm = () => {
         if (updatedSection[index]) {
             updatedSection[index][field] = date;
             setCandidate({ ...candidate, [section]: updatedSection });
+            clearFieldIssue(`${section}[${index}].${field}`);
         }
     };
 
@@ -120,7 +136,7 @@ const AddCandidateForm = () => {
                                     type="text"
                                     name="firstName"
                                     required
-                                    onChange={(e) => setCandidate({ ...candidate, firstName: e.target.value })}
+                                    onChange={(e) => handleFieldChange('firstName', e.target.value)}
                                     className="form-control shadow-sm"
                                     isInvalid={!!getFieldError('firstName')}
                                     aria-invalid={!!getFieldError('firstName')}
@@ -138,7 +154,7 @@ const AddCandidateForm = () => {
                                     type="text"
                                     name="lastName"
                                     required
-                                    onChange={(e) => setCandidate({ ...candidate, lastName: e.target.value })}
+                                    onChange={(e) => handleFieldChange('lastName', e.target.value)}
                                     className="form-control shadow-sm"
                                     isInvalid={!!getFieldError('lastName')}
                                     aria-invalid={!!getFieldError('lastName')}
@@ -156,7 +172,7 @@ const AddCandidateForm = () => {
                                     type="email"
                                     name="email"
                                     required
-                                    onChange={(e) => setCandidate({ ...candidate, email: e.target.value })}
+                                    onChange={(e) => handleFieldChange('email', e.target.value)}
                                     className="form-control shadow-sm"
                                     isInvalid={!!getFieldError('email')}
                                     aria-invalid={!!getFieldError('email')}
@@ -173,7 +189,7 @@ const AddCandidateForm = () => {
                                 <Form.Control
                                     type="tel"
                                     name="phone"
-                                    onChange={(e) => setCandidate({ ...candidate, phone: e.target.value })}
+                                    onChange={(e) => handleFieldChange('phone', e.target.value)}
                                     className="form-control shadow-sm"
                                     isInvalid={!!getFieldError('phone')}
                                     aria-invalid={!!getFieldError('phone')}
@@ -190,7 +206,7 @@ const AddCandidateForm = () => {
                                 <Form.Control
                                     type="text"
                                     name="address"
-                                    onChange={(e) => setCandidate({ ...candidate, address: e.target.value })}
+                                    onChange={(e) => handleFieldChange('address', e.target.value)}
                                     className="form-control shadow-sm"
                                     isInvalid={!!getFieldError('address')}
                                     aria-invalid={!!getFieldError('address')}

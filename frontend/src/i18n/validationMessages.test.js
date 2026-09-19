@@ -63,6 +63,21 @@ describe('translateValidationIssue', () => {
         const message = translateValidationIssue({ field: 'educations', code: 'tooManyEntries', params: { max: 20 } });
         expect(message).toBe('Educación no puede tener más de 20 entradas.');
     });
+
+    // Caso reportado por el usuario: un teléfono de 9 dígitos que no
+    // empieza por 6/7/9 daba el mensaje genérico de invalidFormat, sin
+    // explicar la regla real. Cubre el código específico añadido en
+    // backend/src/application/validator.ts.
+    it('explains the actual rule for an invalid phone, in both languages', () => {
+        expect(translateValidationIssue({ field: 'phone', code: 'invalidPhoneFormat' }))
+            .toBe('El teléfono debe tener 9 dígitos y empezar por 6, 7 o 9.');
+    });
+
+    it('explains the phone rule in English when the active language changes', async () => {
+        await i18n.changeLanguage('en');
+        expect(translateValidationIssue({ field: 'phone', code: 'invalidPhoneFormat' }))
+            .toBe('The phone number must have 9 digits and start with 6, 7, or 9.');
+    });
 });
 
 describe('translateValidationIssues', () => {
