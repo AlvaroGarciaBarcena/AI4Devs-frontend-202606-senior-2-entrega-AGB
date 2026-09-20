@@ -4888,3 +4888,43 @@ npx playwright test          → 48 passed (1.1m) -- ninguna de las
 Verificado también a mano en el navegador: `/positions`,
 `/positions/:id` y `/add-candidate` renderizan igual que antes del
 refactor, con datos reales.
+
+## 3.37 `docs/adr/`: 11 decisiones de arquitectura reales, formato corto (`adrs-AGB`)
+
+Segunda rama del proceso de refactorización, encadenada sobre
+`reusable-hooks-AGB`. Formato elegido: el clásico de Michael Nygard
+(Estado/Contexto/Decisión/Alternativas/Consecuencias), el más extendido
+y el más fácil de llevar tal cual a un proyecto futuro -- explicado en
+`docs/adr/README.md` junto con la distinción deliberada entre esto y
+`prompts-AGB.md` (ADR = decisión corta y atemporal; el diario = proceso
+completo, cronológico, con los hallazgos por el camino).
+
+11 ADRs (`0000` la propia decisión de usar ADRs, `0001`-`0010` las
+decisiones reales), cada uno verificado contra su sección real de
+`prompts-AGB.md` antes de escribirse -- no solo por el título, releyendo
+el contenido: Vite vs CRA, `react-i18next` vs el sistema casero, auth
+JWT sin estado con mensaje genérico, interceptor global de axios vs
+instancia dedicada, *code splitting* con `React.lazy`+`Suspense`
+(marcado como **reemplazado** por el ADR de `createBrowserRouter`, no
+borrado -- un ADR reemplazado sigue siendo información real sobre qué
+se intentó primero y por qué no bastó), migración a
+`react-router-dom` v7, adopción de OpenSpec por capacidad, elección de
+Playwright-BDD, el replanteamiento de qué cuenta como "verificable" en
+esa suite, y la migración final a `createBrowserRouter`.
+
+Misma disciplina que en `BRANCHES_LOG` (sección 3.35): los 12 enlaces
+a `prompts-AGB.md` desde las ADRs, y todos los enlaces cruzados entre
+ADRs, se generaron y verificaron con el mismo script de Python
+(slugificador + comprobación contra encabezados reales) antes de
+darlos por buenos -- un enlace se encontró apuntando a un encabezado
+que no era el correcto en el primer intento (`§3.19.8` existe de
+verdad como sección propia dentro de `§3.19`, pero se había enlazado
+al ancla de `§3.19` a secas) y se corrigió antes de comprobar el resto.
+
+`README-ES.md`/`README-EN.md` añaden `docs/adr/` y `BRANCHES_LOG` a su
+sección de "más documentación", para que no queden solo descubribles
+por quien ya sepa que existen.
+
+```
+npm test (frontend)   → 40 passed, sin cambios (rama de documentación pura)
+```
