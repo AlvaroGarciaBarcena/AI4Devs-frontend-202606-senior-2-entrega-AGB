@@ -35,7 +35,8 @@ línea de cada rama, y para saber dónde empieza cada tema hay que saber esto).
 | 18 | `reusable-hooks-AGB` | 2026-09-20 10:45 | `8005560` | [§3.36](./prompts-AGB.md#336-useasyncdata-el-primer-hook-genérico-extraído-de-una-duplicación-real-reusable-hooks-agb) |
 | 19 | `adrs-AGB` | 2026-09-20 10:49 | `9707384` | [§3.37](./prompts-AGB.md#337-docsadr-11-decisiones-de-arquitectura-reales-formato-corto-adrs-agb) |
 | 20 | `reusable-components-AGB` | 2026-09-20 11:03 | `2004e38`·`8cddaab` | [§3.38](./prompts-AGB.md#338-segunda-pasada-de-refactorización-a-componentes-reutilizables-reusable-components-agb) |
-| 21 | `unassigned-candidates-AGB` | 2026-09-20 11:34 | `aae8b56`·`d0e63dc`·`a07d8c4` | [§3.39](./prompts-AGB.md#339-candidatos-sin-asignar-elegir-posición-pasa-a-ser-opcional-unassigned-candidates-agb) · [§3.40](./prompts-AGB.md#340-se-corrige-el-hallazgo-de-339-el-escenario-ningún-candidato-sin-asignar-borraba-candidatos-reales) |
+| 21 | `unassigned-candidates-AGB` | 2026-09-20 11:34 | `aae8b56`·`d0e63dc`·`a07d8c4`·`9532f2d` | [§3.39](./prompts-AGB.md#339-candidatos-sin-asignar-elegir-posición-pasa-a-ser-opcional-unassigned-candidates-agb) · [§3.40](./prompts-AGB.md#340-se-corrige-el-hallazgo-de-339-el-escenario-ningún-candidato-sin-asignar-borraba-candidatos-reales) |
+| 22 | `positions-filter-AGB` | 2026-09-20 12:23 | `3996598` | [§3.41](./prompts-AGB.md#341-filtro-real-del-catálogo-de-posiciones-positions-filter-agb) |
 
 ## Cómo leer esto
 
