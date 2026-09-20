@@ -42,6 +42,9 @@ jest.mock('@prisma/client', () => {
   return { PrismaClient: jest.fn(() => mockPrisma) };
 });
 
+const COMPANY_ID = 1;
+const OTHER_COMPANY_ID = 2;
+
 describe('addCandidate', () => {
   const baseCandidateData = {
     firstName: 'Ana',
@@ -63,6 +66,7 @@ describe('addCandidate', () => {
     jest.spyOn(prisma.candidate, 'create').mockResolvedValue({ id: 10, ...baseCandidateData } as any);
     jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
       id: 1,
+      companyId: COMPANY_ID,
       interviewFlow: {
         interviewSteps: [
           { id: 100, orderIndex: 1, name: 'Initial Screening' },
@@ -79,7 +83,7 @@ describe('addCandidate', () => {
       notes: null,
     });
 
-    await addCandidate(baseCandidateData);
+    await addCandidate(baseCandidateData, COMPANY_ID);
 
     expect(prisma.position.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 1 } }));
     expect(prisma.application.create).toHaveBeenCalledWith({
@@ -101,6 +105,7 @@ describe('addCandidate', () => {
     jest.spyOn(prisma.education, 'create').mockResolvedValue({ id: 1 } as any);
     jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
       id: 1,
+      companyId: COMPANY_ID,
       interviewFlow: { interviewSteps: [{ id: 100, orderIndex: 1, name: 'Initial Screening' }] },
     } as any);
     jest.spyOn(prisma.application, 'create').mockResolvedValue({ id: 500 } as any);
@@ -108,7 +113,7 @@ describe('addCandidate', () => {
     await addCandidate({
       ...baseCandidateData,
       educations: [{ institution: 'Uni X', title: 'Grado X', startDate: '2018-09-01', endDate: '2020-09-01' }],
-    });
+    }, COMPANY_ID);
 
     expect(prisma.education.create).toHaveBeenCalledTimes(1);
   });
@@ -117,10 +122,11 @@ describe('addCandidate', () => {
     jest.spyOn(prisma.candidate, 'create').mockResolvedValue({ id: 10, ...baseCandidateData } as any);
     jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
       id: 1,
+      companyId: COMPANY_ID,
       interviewFlow: { interviewSteps: [] },
     } as any);
 
-    await expect(addCandidate(baseCandidateData)).rejects.toThrow('does not have an interview process configured');
+    await expect(addCandidate(baseCandidateData, COMPANY_ID)).rejects.toThrow('does not have an interview process configured');
     expect(prisma.application.create).not.toHaveBeenCalled();
   });
 
@@ -132,10 +138,11 @@ describe('addCandidate', () => {
     jest.spyOn(prisma.candidate, 'create').mockResolvedValue({ id: 10, ...baseCandidateData } as any);
     jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
       id: 1,
+      companyId: COMPANY_ID,
       interviewFlow: { interviewSteps: [] },
     } as any);
 
-    await expect(addCandidate(baseCandidateData)).rejects.toThrow('does not have an interview process configured');
+    await expect(addCandidate(baseCandidateData, COMPANY_ID)).rejects.toThrow('does not have an interview process configured');
     expect(prisma.candidate.create).not.toHaveBeenCalled();
   });
 
@@ -146,8 +153,24 @@ describe('addCandidate', () => {
     jest.spyOn(prisma.candidate, 'create').mockResolvedValue({ id: 10, ...baseCandidateData } as any);
     jest.spyOn(prisma.position, 'findUnique').mockResolvedValue(null as any);
 
-    await expect(addCandidate(baseCandidateData)).rejects.toThrow('Selected position not found');
+    await expect(addCandidate(baseCandidateData, COMPANY_ID)).rejects.toThrow('Selected position not found');
     expect(prisma.application.create).not.toHaveBeenCalled();
+    expect(prisma.candidate.create).not.toHaveBeenCalled();
+  });
+
+  // Hallazgo real con PoC, sección 3.61: antes de este arreglo, un
+  // empleado podía vincular un candidato nuevo a una posición de OTRA
+  // empresa -- mismo mensaje que "no existe", no uno distinto que
+  // confirmara que el id era real.
+  it('treats a position belonging to another company the same as a non-existent one', async () => {
+    jest.spyOn(prisma.candidate, 'create').mockResolvedValue({ id: 10, ...baseCandidateData } as any);
+    jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
+      id: 1,
+      companyId: OTHER_COMPANY_ID,
+      interviewFlow: { interviewSteps: [{ id: 100, orderIndex: 1, name: 'Initial Screening' }] },
+    } as any);
+
+    await expect(addCandidate(baseCandidateData, COMPANY_ID)).rejects.toThrow('Selected position not found');
     expect(prisma.candidate.create).not.toHaveBeenCalled();
   });
 
@@ -159,7 +182,7 @@ describe('addCandidate', () => {
     const { positionId, ...withoutPositionId } = baseCandidateData;
     jest.spyOn(prisma.candidate, 'create').mockResolvedValue({ id: 10, ...withoutPositionId } as any);
 
-    await addCandidate(withoutPositionId);
+    await addCandidate(withoutPositionId, COMPANY_ID);
 
     expect(prisma.candidate.create).toHaveBeenCalledTimes(1);
     expect(prisma.position.findUnique).not.toHaveBeenCalled();
@@ -222,7 +245,7 @@ describe('updateCandidateProfile', () => {
     jest.spyOn(prisma.education, 'create').mockResolvedValue({ id: 1 } as any);
     jest.spyOn(prisma.workExperience, 'deleteMany').mockResolvedValue({ count: 0 } as any);
 
-    await updateCandidateProfile(20, updateData);
+    await updateCandidateProfile(20, updateData, COMPANY_ID);
 
     expect(prisma.candidate.update).toHaveBeenCalledWith({
       where: { id: 20 },
@@ -250,15 +273,31 @@ describe('updateCandidateProfile', () => {
     jest.spyOn(prisma.workExperience, 'deleteMany').mockResolvedValue({ count: 0 } as any);
     jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
       id: 1,
+      companyId: COMPANY_ID,
       interviewFlow: { interviewSteps: [{ id: 100, orderIndex: 1, name: 'Initial Screening' }] },
     } as any);
     jest.spyOn(prisma.application, 'create').mockResolvedValue({ id: 500 } as any);
 
-    await updateCandidateProfile(20, { ...updateData, positionId: 1 });
+    await updateCandidateProfile(20, { ...updateData, positionId: 1 }, COMPANY_ID);
 
     expect(prisma.application.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ positionId: 1, candidateId: 20, currentInterviewStep: 100 }),
     });
+  });
+
+  // Hallazgo real con PoC, sección 3.61: asignar por primera vez una
+  // posición de OTRA empresa se rechaza igual que si no existiera.
+  it('treats a position belonging to another company the same as a non-existent one', async () => {
+    jest.spyOn(prisma.candidate, 'findUnique').mockResolvedValueOnce({ ...existingCandidate, applications: [] } as any);
+    jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
+      id: 1,
+      companyId: OTHER_COMPANY_ID,
+      interviewFlow: { interviewSteps: [{ id: 100, orderIndex: 1, name: 'Initial Screening' }] },
+    } as any);
+
+    await expect(updateCandidateProfile(20, { ...updateData, positionId: 1 }, COMPANY_ID))
+      .rejects.toThrow('Selected position not found');
+    expect(prisma.candidate.update).not.toHaveBeenCalled();
   });
 
   // Regla explícita: reasignar la posición de un candidato que ya tiene
@@ -272,7 +311,7 @@ describe('updateCandidateProfile', () => {
       applications: [{ id: 1, positionId: 1, candidateId: 20 }],
     } as any);
 
-    await expect(updateCandidateProfile(20, { ...updateData, positionId: 2 }))
+    await expect(updateCandidateProfile(20, { ...updateData, positionId: 2 }, COMPANY_ID))
       .rejects.toThrow('Cannot change the position');
     expect(prisma.candidate.update).not.toHaveBeenCalled();
   });
@@ -280,7 +319,7 @@ describe('updateCandidateProfile', () => {
   it('throws a clear error when the candidate does not exist', async () => {
     jest.spyOn(prisma.candidate, 'findUnique').mockResolvedValueOnce(null as any);
 
-    await expect(updateCandidateProfile(999, updateData)).rejects.toThrow('Candidate not found');
+    await expect(updateCandidateProfile(999, updateData, COMPANY_ID)).rejects.toThrow('Candidate not found');
   });
 });
 
@@ -301,11 +340,12 @@ describe('updateCandidateStage', () => {
       ...mockApplication,
       currentInterviewStep: 2,
     });
+    jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({ id: 1, companyId: COMPANY_ID } as any);
     jest.spyOn(prisma.interview, 'create').mockResolvedValue({ id: 1 } as any);
   });
 
   it('should update the candidate stage and return the updated application', async () => {
-    const result = await updateCandidateStage(1, 1, 2, 7, 5);
+    const result = await updateCandidateStage(1, 1, 2, 7, COMPANY_ID, 5);
     expect(result).toEqual(expect.objectContaining({
       ...mockApplication,
       currentInterviewStep: 2,
@@ -317,7 +357,7 @@ describe('updateCandidateStage', () => {
   // el valor de `currentInterviewStep` ANTES de actualizarlo), no la de
   // destino.
   it('creates an Interview record for the stage being left, with the given score', async () => {
-    await updateCandidateStage(1, 1, 2, 7, 5);
+    await updateCandidateStage(1, 1, 2, 7, COMPANY_ID, 5);
 
     expect(prisma.interview.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -333,7 +373,7 @@ describe('updateCandidateStage', () => {
   // sí debe quedar constancia de que la fase se completó sin puntuación
   // (score en null, no ausencia de registro).
   it('creates the Interview record with a null score when no score is given', async () => {
-    await updateCandidateStage(1, 1, 2, 7, undefined);
+    await updateCandidateStage(1, 1, 2, 7, COMPANY_ID, undefined);
 
     expect(prisma.interview.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ score: undefined }),
@@ -343,7 +383,19 @@ describe('updateCandidateStage', () => {
   it('throws when the application does not exist, without creating an Interview', async () => {
     jest.spyOn(prisma.application, 'findFirst').mockResolvedValueOnce(null as any);
 
-    await expect(updateCandidateStage(999, 1, 2, 7, 5)).rejects.toThrow('Application not found');
+    await expect(updateCandidateStage(999, 1, 2, 7, COMPANY_ID, 5)).rejects.toThrow('Application not found');
+    expect(prisma.interview.create).not.toHaveBeenCalled();
+  });
+
+  // Hallazgo real con PoC, sección 3.61: antes de este arreglo, un
+  // empleado podía mover la candidatura de un candidato en el proceso de
+  // OTRA empresa con solo conocer su applicationId -- mismo mensaje que
+  // "no existe", para no confirmar que el id es real.
+  it('throws "Application not found" (not moving anything) when the application\'s position belongs to another company', async () => {
+    jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({ id: 1, companyId: OTHER_COMPANY_ID } as any);
+
+    await expect(updateCandidateStage(1, 1, 2, 7, COMPANY_ID, 5)).rejects.toThrow('Application not found');
+    expect(prisma.application.update).not.toHaveBeenCalled();
     expect(prisma.interview.create).not.toHaveBeenCalled();
   });
 });

@@ -10,7 +10,7 @@ import { getFirstInterviewStepForPosition } from './positionService';
 
 const prisma = new PrismaClient();
 
-export const addCandidate = async (candidateData: any) => {
+export const addCandidate = async (candidateData: any, companyId: number) => {
     validateCandidateData(candidateData); // Validar los datos del candidato (lanza su propio Error con mensaje claro si falla)
 
     // Elegir posición es opcional: un candidato puede registrarse sin
@@ -30,7 +30,7 @@ export const addCandidate = async (candidateData: any) => {
     // candidato aparece igualmente en la tabla Candidate).
     let firstStep = null;
     if (candidateData.positionId) {
-        firstStep = await getFirstInterviewStepForPosition(candidateData.positionId);
+        firstStep = await getFirstInterviewStepForPosition(candidateData.positionId, companyId);
         if (firstStep === undefined) {
             throw new Error('Selected position not found');
         }
@@ -131,7 +131,7 @@ export const getUnassignedCandidatesService = async () => {
 // historial de entrevistas de por medio es una decisión de producto
 // mayor (¿qué pasa con esas entrevistas?) que esta edición no intenta
 // resolver.
-export const updateCandidateProfile = async (id: number, candidateData: any) => {
+export const updateCandidateProfile = async (id: number, candidateData: any, companyId: number) => {
     validateCandidateData(candidateData);
 
     const existing = await prisma.candidate.findUnique({ where: { id }, include: { applications: true } });
@@ -147,7 +147,7 @@ export const updateCandidateProfile = async (id: number, candidateData: any) => 
                 throw new Error('Cannot change the position of a candidate that already has an application');
             }
         } else {
-            firstStep = await getFirstInterviewStepForPosition(candidateData.positionId);
+            firstStep = await getFirstInterviewStepForPosition(candidateData.positionId, companyId);
             if (firstStep === undefined) {
                 throw new Error('Selected position not found');
             }
@@ -245,10 +245,22 @@ export const updateCandidateStage = async (
     applicationIdNumber: number,
     currentInterviewStep: number,
     employeeId: number,
+    companyId: number,
     score?: number,
 ) => {
     const application = await Application.findOneByPositionCandidateId(applicationIdNumber, id);
     if (!application) {
+        throw new Error('Application not found');
+    }
+
+    // La candidatura pertenece a una posición, y la posición a una
+    // empresa -- sin esto, cualquier empleado autenticado podía mover la
+    // candidatura de un candidato en el proceso de OTRA empresa, con solo
+    // conocer su applicationId (ver prompts-AGB.md, sección 3.61). Mismo
+    // mensaje que "no existe": no hay que confirmar que el id es real si
+    // no es tuyo.
+    const position = await prisma.position.findUnique({ where: { id: application.positionId } });
+    if (!position || position.companyId !== companyId) {
         throw new Error('Application not found');
     }
 

@@ -5,7 +5,7 @@ import { ValidationError } from '../../application/validator';
 export const addCandidateController = async (req: Request, res: Response) => {
     try {
         const candidateData = req.body;
-        const candidate = await addCandidate(candidateData);
+        const candidate = await addCandidate(candidateData, req.employee!.companyId);
         res.status(201).json({ message: 'Candidate added successfully', data: candidate });
     } catch (error: unknown) {
         if (error instanceof ValidationError) {
@@ -52,7 +52,7 @@ export const updateCandidateProfileController = async (req: Request, res: Respon
         if (isNaN(id)) {
             return res.status(400).json({ error: 'Invalid ID format' });
         }
-        const candidate = await updateCandidateProfile(id, req.body);
+        const candidate = await updateCandidateProfile(id, req.body, req.employee!.companyId);
         res.status(200).json({ message: 'Candidate updated successfully', data: candidate });
     } catch (error: unknown) {
         if (error instanceof ValidationError) {
@@ -98,7 +98,7 @@ export const updateCandidateStageController = async (req: Request, res: Response
         // -- de lo contrario esta petición nunca habría llegado hasta aquí.
         const employeeId = req.employee!.sub;
 
-        const updatedCandidate = await updateCandidateStage(id, applicationIdNumber, currentInterviewStepNumber, employeeId, scoreValue);
+        const updatedCandidate = await updateCandidateStage(id, applicationIdNumber, currentInterviewStepNumber, employeeId, req.employee!.companyId, scoreValue);
         res.status(200).json({ message: 'Candidate stage updated successfully', data: updatedCandidate });
     } catch (error: unknown) {
         if (error instanceof Error) {

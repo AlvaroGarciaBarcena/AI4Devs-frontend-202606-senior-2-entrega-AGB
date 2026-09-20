@@ -6432,3 +6432,102 @@ paso 6 (instalación de dependencias), que es cuando se activa.
 git commit real → hook disparado correctamente, "no leaks found",
                    commit completado
 ```
+
+## 3.61 Auditoría de ciberseguridad completa: aislamiento entre empresas roto (`tenant-isolation-AGB`)
+
+Pedido del usuario: repetir la auditoría de `security-audit-AGB` (§3.17),
+ahora exhaustiva sobre todo lo construido desde entonces -- selector de
+posición, candidatos sin asignar, editar candidato, arrastrar y soltar,
+añadir fase, puntuar entrevistas, CORS configurable, los hooks de
+pre-commit. Mismo estándar: cada hallazgo con PoC real, nada "a ojo".
+
+### Hallazgo principal: control de acceso roto entre empresas
+
+**Severidad: alta. Confirmado con PoC real, no supuesto.**
+
+El JWT lleva `companyId` (`api-auth-AGB`, sección 3.19) pero ningún
+servicio lo usaba para filtrar nada. PoC: creada una posición de prueba
+en una empresa distinta a la de Alice (`companyId=1`, "LTI"), y
+comprobado que ella podía:
+
+- **Verla** en `GET /position` (listado general de posiciones).
+- **Ver sus candidatos** (`GET /position/:id/candidates`) y su flujo de
+  entrevistas (`GET /position/:id/interviewflow`).
+- **Escribir en ella**: `POST /position/:id/interviewflow/steps` devolvió
+  `201 Created` al añadirle una fase nueva.
+
+Mismo patrón confirmado en el código (sin PoC nueva, mismo `positionId`
+sin comprobar) en `POST /candidates` y `PATCH /candidates/:id`
+(`positionId` aceptado sin comprobar la empresa) y en
+`PUT /candidates/:id` (mover la candidatura de un candidato en el
+proceso de otra empresa, con solo conocer su `applicationId`).
+
+### Arreglo
+
+`companyId` sale siempre de `req.employee.companyId` (el JWT), nunca de
+algo que mande el cliente. Añadido a las cinco funciones de
+`positionService.ts` que tocan una posición
+(`getAllPositionsService`, `getCandidatesByPositionService`,
+`getFirstInterviewStepForPosition`, `getInterviewFlowByPositionService`,
+`addInterviewStepService`) y a las tres de `candidateService.ts` que
+dependen de una (`addCandidate`, `updateCandidateProfile`,
+`updateCandidateStage`) -- ocho funciones, dos ficheros de servicio, sus
+tres controladores.
+
+**Mismo mensaje ("Position not found"/"Application not found") tanto si
+el recurso no existe como si es de otra empresa** -- a propósito:
+distinguir los dos casos confirmaría a quien pregunta que el id es real,
+solo que no es suyo (mismo criterio que un 404 en vez de un 403 para
+IDOR).
+
+### Alcance decidido a propósito, no todo lo posible
+
+`Candidate` no tiene `companyId` propio -- su relación con una empresa es
+siempre transitiva (vía `Application` → `Position` → `Company`), y un
+candidato sin ninguna `Application` ("sin asignar") no tiene relación
+con ninguna empresa todavía. Por eso quedan **fuera** de esta rama,
+señalados como hallazgo pendiente de una decisión de producto (mismo
+tratamiento que el propio hallazgo de "sin autenticación" del audit
+original, sección 3.17.2, antes de `api-auth-AGB`):
+
+- `GET /candidates/:id`, `PATCH /candidates/:id` (edición de datos
+  personales sin cambiar de posición) -- ¿debería un empleado de otra
+  empresa poder ver/editar los datos personales de un candidato con
+  candidatura en una empresa distinta a la suya?
+- `GET /candidates/unassigned` -- ¿es un fondo de candidatos compartido
+  entre empresas hasta que alguna se los "queda", o debería acotarse
+  también, y a qué exactamente, si el candidato mismo no tiene empresa?
+
+Resolverlo bien exigiría además saber qué empleado/empresa dio de alta
+cada candidato sin asignar -- un cambio de esquema, no solo de consulta.
+Se documenta aquí para que la decisión se tome con la información
+completa, no se toma unilateralmente en esta rama.
+
+### El hallazgo secundario de la auditoría (fase destino no validada) queda para la siguiente rama, tal como pidió el usuario
+
+`updateCandidateStage` acepta `currentInterviewStep` (el id de la fase
+destino) sin comprobar que pertenezca al flujo de entrevistas de la
+propia posición de la candidatura -- corrupción de datos posible, no
+fuga de información. Pendiente de una rama propia.
+
+### Verificación
+
+```
+npx jest (backend)          → 92 passed (80 + 12 nuevos, incluidas las
+                               regresiones exactas de cada PoC de arriba)
+npx tsc --noEmit (backend)  → OK
+npm run build (backend)     → OK
+npx vitest run (frontend)   → 119 passed, sin cambios (el contrato de
+                               éxito de la API no cambió, solo se añadió
+                               un nuevo caso de fallo)
+```
+
+Verificado también contra el backend real, repitiendo la PoC original
+tras el arreglo: la misma posición de otra empresa ya no aparece en el
+listado, y las tres rutas que antes leían/escribían en ella devuelven
+ahora `404 Position not found`. Confirmado sin regresión que Alice
+sigue viendo con normalidad las dos posiciones reales de su propia
+empresa, y probado de extremo a extremo en el navegador (login, tablero
+de proceso, mover candidatos) sin ningún cambio de comportamiento para
+el propio usuario. Datos de la PoC borrados en ambas verificaciones,
+antes y después del arreglo.

@@ -20,8 +20,14 @@ const calculateAverageScore = (interviews: any[]) => {
 const countUngradedInterviews = (interviews: any[]) =>
     interviews.filter((interview) => interview.score === null || interview.score === undefined).length;
 
-export const getAllPositionsService = async () => {
+// `companyId` sale siempre del JWT (`req.employee.companyId`), nunca de
+// algo que mande el cliente -- ver prompts-AGB.md, sección 3.61 (hallazgo
+// real con PoC: sin este filtro, cualquier empleado autenticado veía y
+// modificaba posiciones de OTRAS empresas, con solo conocer o adivinar un
+// id secuencial).
+export const getAllPositionsService = async (companyId: number) => {
     const positions = await prisma.position.findMany({
+        where: { companyId },
         include: {
             company: {
                 select: { name: true }
@@ -40,7 +46,18 @@ export const getAllPositionsService = async () => {
     }));
 };
 
-export const getCandidatesByPositionService = async (positionId: number) => {
+export const getCandidatesByPositionService = async (positionId: number, companyId: number) => {
+    const position = await prisma.position.findUnique({ where: { id: positionId } });
+    // Mismo mensaje tanto si la posición no existe como si es de otra
+    // empresa -- distinguirlos confirmaría a quien pregunta que el id sí
+    // existe, solo que no es suyo. Fuera del try/catch de abajo a
+    // propósito: ese catch envuelve cualquier error en uno genérico, y
+    // este mensaje concreto sí importa distinguirlo (lo usa el controlador
+    // para responder 404 en vez de 500).
+    if (!position || position.companyId !== companyId) {
+        throw new Error('Position not found');
+    }
+
     try {
         const applications = await prisma.application.findMany({
             where: { positionId },
@@ -76,7 +93,7 @@ export const getCandidatesByPositionService = async (positionId: number) => {
 // ninguna fase configurada en su flujo) se distinguen a propósito: son
 // dos fallos distintos y quien llama (candidateService.ts) necesita
 // poder dar un mensaje que no los confunda.
-export const getFirstInterviewStepForPosition = async (positionId: number) => {
+export const getFirstInterviewStepForPosition = async (positionId: number, companyId: number) => {
     const position = await prisma.position.findUnique({
         where: { id: positionId },
         include: {
@@ -88,11 +105,14 @@ export const getFirstInterviewStepForPosition = async (positionId: number) => {
         }
     });
 
-    if (!position) return undefined;
+    // Una posición de otra empresa se trata igual que una inexistente --
+    // quien llama (candidateService.ts) ya distingue undefined/null, no
+    // hace falta un tercer caso.
+    if (!position || position.companyId !== companyId) return undefined;
     return position.interviewFlow.interviewSteps[0] ?? null;
 };
 
-export const getInterviewFlowByPositionService = async (positionId: number) => {
+export const getInterviewFlowByPositionService = async (positionId: number, companyId: number) => {
     const positionWithInterviewFlow = await prisma.position.findUnique({
         where: { id: positionId },
         include: {
@@ -104,7 +124,7 @@ export const getInterviewFlowByPositionService = async (positionId: number) => {
         }
     });
 
-    if (!positionWithInterviewFlow) {
+    if (!positionWithInterviewFlow || positionWithInterviewFlow.companyId !== companyId) {
         throw new Error('Position not found');
     }
 
@@ -133,7 +153,7 @@ export const getInterviewFlowByPositionService = async (positionId: number) => {
 // reutilizar tipos entre fases, así que esto no rompe nada -- solo evita
 // tener que construir además un selector de tipos que la interfaz no
 // necesitaba hasta ahora.
-export const addInterviewStepService = async (positionId: number, name: string) => {
+export const addInterviewStepService = async (positionId: number, name: string, companyId: number) => {
     const position = await prisma.position.findUnique({
         where: { id: positionId },
         include: {
@@ -143,7 +163,7 @@ export const addInterviewStepService = async (positionId: number, name: string) 
         }
     });
 
-    if (!position) {
+    if (!position || position.companyId !== companyId) {
         throw new Error('Position not found');
     }
 
