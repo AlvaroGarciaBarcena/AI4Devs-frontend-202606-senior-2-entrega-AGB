@@ -5124,3 +5124,11 @@ seguían existiendo en la base de datos y seguían sin ninguna `Application`
 npx playwright test hiring-pipeline   → 5 passed
 npm run test:e2e (suite completa)     → 50 passed, sin cambios en el resto
 ```
+
+Además, se recrearon los 5 candidatos reales sin asignar borrados por el
+hallazgo de 3.39 (mismo nombre/email que los originales, `createdAt` fijado
+a mano al 19 de septiembre para no fingir que se dieron de alta hoy), y se
+auditaron a mano todos los `deleteMany`/`delete` de `e2e/steps/*.ts`:
+salvo el ya corregido aquí, cada uno está acotado por un id o email exacto
+generado por ese mismo escenario -- ninguno más usa un filtro amplio que
+pueda alcanzar datos reales.
