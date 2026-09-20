@@ -6218,3 +6218,68 @@ como lo que es: un hallazgo real, no corregido, con el porqué explícito
 y los factores que atenúan el riesgo mientras tanto -- mismo estándar
 que el resto de hallazgos de seguridad dejados fuera de alcance a
 propósito en esta sesión (sección 3.17.6).
+
+## 3.58 Verificación real de que el README basta para levantar el entorno desde cero
+
+Comprobando la resistencia del argumento de `JUSTIFICACION-ENTREGA.md`,
+surgió la duda de si la IP local del propio equipo (`192.168.1.151`)
+podía quedar fijada en algún sitio que un evaluador externo, clonando el
+repositorio en su propia máquina, heredase por error. Antes de responder
+de memoria: comprobado con `git ls-files` que ni `frontend/.env` ni
+`backend/.env` están trackeados (siguen ignorados desde `backend-AGB`),
+que las plantillas `.env.example` tienen esa variable comentada, y que
+el código cae a `localhost` por defecto -- con un test que ya lo prueba
+(`config.test.js`). No había ningún hueco ahí.
+
+El usuario pidió ir más allá de leer el código: clonar el repositorio de
+verdad, en un directorio aparte, y comprobar que levanta desde cero,
+igual que lo haría el profesor. Hecho tal cual, sin atajos:
+
+1. Clon nuevo del repositorio privado (rama `interview-scoring-on-move-AGB`,
+   la más completa) en un directorio distinto, sin ningún `.env` ni
+   `SECRETS.md`.
+2. Pausados (no eliminados) los servidores de desarrollo propios para
+   liberar los puertos reales 3000/3010 -- máxima fidelidad al README,
+   sin desviarse a puertos alternativos que habrían dejado de probar el
+   camino que de verdad sigue cualquiera.
+3. Base de datos de la prueba en un contenedor y puerto aparte (`5433`,
+   no `5432`) para no tocar en ningún momento el contenedor real de
+   cuatro días con datos que no convenía perder -- el propio README
+   contempla cambiar el puerto sin problema.
+4. Seguidos los pasos 4 a 10 del README al pie de la letra:
+   `.env`/`backend/.env` desde las plantillas, `JWT_SECRET` generado de
+   verdad, `docker compose up -d`, las tres instalaciones de
+   dependencias, `prisma generate`/`migrate dev`/`seed`, backend y
+   frontend arrancados, y login real en el navegador con
+   `alice.johnson@lti.com` / `Changeme123!`.
+
+**Resultado: funciona de principio a fin, sin ningún cambio de código ni
+paso que el README no documente ya.** Verificados además dos puntos
+concretos que podrían haber fallado en silencio: el hash de la
+contraseña sembrada se calcula en el momento de sembrar
+(`bcrypt.hashSync('Changeme123!', 10)` en `seed.ts`), no se copia de un
+valor fijo, así que nunca puede desincronizarse de lo que documenta el
+README; y tras el login, el dashboard, "Posiciones" y el tablero de
+proceso cargaron con los datos reales del seed.
+
+Una falsa alarma real durante la propia verificación, descartada antes
+de concluir nada: al iniciar sesión en la pestaña del navegador que
+llevaba abierta toda la sesión (reconectada a varios servidores Vite
+distintos a lo largo del día), la consola mostró errores de módulos y
+de rutas -- residuo de conexiones de recarga en caliente antiguas, no
+un fallo del código nuevo. Con una pestaña recién abierta, todo cargó
+limpio.
+
+**Conclusión sobre el `ENVIRONMENT_SETUP.md` que el usuario planteó como
+posible hueco**: no hace falta -- el README ya cubre exactamente lo
+necesario, verificado ahora de extremo a extremo, no solo leído. Se
+añadió en su lugar una nota de verificación fechada al principio de
+`README-ES.md`/`README-EN.md`, en vez de un documento nuevo que habría
+duplicado lo que ya funciona.
+
+Entorno de prueba desmontado por completo al terminar (contenedor y
+volumen de la base de datos, `docker compose down -v`; procesos de
+backend/frontend de la prueba parados) y los servidores de desarrollo
+propios reiniciados exactamente como estaban, sin pérdida de datos del
+contenedor real (`ai4devs-frontend-202606-senior-2-db-1`, 4 días
+corriendo, nunca tocado).
