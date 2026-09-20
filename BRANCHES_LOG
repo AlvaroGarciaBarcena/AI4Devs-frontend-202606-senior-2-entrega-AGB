@@ -8,7 +8,7 @@ línea de cada rama, y para saber dónde empieza cada tema hay que saber esto).
 `main` sigue en el *Initial commit* — nada de esto se ha fusionado ahí todavía.
 
 > **Publicación (2026-09-20, sección 3.56):** `origin` (arriba) sigue sin
-> tocarse — es el repo público de la organización del bootcamp. Las 34 ramas
+> tocarse — es el repo público de la organización del bootcamp. Las 35 ramas
 > de esta tabla están publicadas en un repositorio **privado** propio,
 > https://github.com/AlvaroGarciaBarcena/AI4Devs-frontend-202606-senior-2-AGB,
 > como segundo remoto (`personal`), con un PR por rama contra su rama padre
@@ -56,7 +56,8 @@ línea de cada rama, y para saber dónde empieza cada tema hay que saber esto).
 | 31 | `position-steps-i18n-AGB` | 2026-09-20 16:44 | `6b8cc68` | [§3.52](./prompts-AGB.md#352-traduce-los-nombres-de-las-fases-del-proceso-de-selección-position-steps-i18n-agb) |
 | 32 | `candidate-drag-drop-AGB` | 2026-09-20 17:00 | `3a26a5d`·`0da6c2b`·`66bf944`·`e1b25b3` | [§3.53](./prompts-AGB.md#353-mover-un-candidato-a-otra-fase-arrastrando-su-ficha-candidate-drag-drop-agb) |
 | 33 | `add-interview-phase-AGB` | 2026-09-20 17:33 | `5ff860f`·`5f2bb19` | [§3.54](./prompts-AGB.md#354-añadir-una-fase-nueva-al-proceso-de-selección-add-interview-phase-agb) |
-| 34 | `interview-scoring-on-move-AGB` | 2026-09-20 17:53 | `ec8ced0` | [§3.55](./prompts-AGB.md#355-puntuar-la-entrevista-al-mover-a-un-candidato-de-fase-interview-scoring-on-move-agb) |
+| 34 | `interview-scoring-on-move-AGB` | 2026-09-20 22:14 | `ec8ced0`·`704a789`·`81d4b56`·`e37eb0b`·`da0d52f`·`be07b36`·`16d8e7b`·`bc7bd05`·`7e920e0`·`126b9b9`·`7922c95`·`acfc133`·`6512dd2` | [§3.55](./prompts-AGB.md#355-puntuar-la-entrevista-al-mover-a-un-candidato-de-fase-interview-scoring-on-move-agb)–[§3.60](./prompts-AGB.md#360-dos-hooks-de-pre-commit-husky-que-no-vuelva-a-pasar-lo-de-la-sección-359) |
+| 35 | `tenant-isolation-AGB` | 2026-09-20 22:40 | `28c5c8c` | [§3.61](./prompts-AGB.md#361-auditoría-de-ciberseguridad-completa-aislamiento-entre-empresas-roto-tenant-isolation-agb) |
 
 ## Cómo leer esto
 
