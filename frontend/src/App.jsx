@@ -67,6 +67,7 @@ const router = createBrowserRouter([
             { path: '/positions', lazy: lazyProtectedRoute(() => import('./components/Positions')) },
             { path: '/positions/:id', lazy: lazyProtectedRoute(() => import('./components/PositionProcess')) },
             { path: '/candidates/unassigned', lazy: lazyProtectedRoute(() => import('./components/UnassignedCandidates')) },
+            { path: '/candidates/:id/edit', lazy: lazyProtectedRoute(() => import('./components/AddCandidateForm')) },
         ],
     },
 ]);

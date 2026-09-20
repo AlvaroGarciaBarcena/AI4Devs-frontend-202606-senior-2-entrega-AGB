@@ -55,7 +55,15 @@
     "submit": "Submit",
     "reviewFields": "Please review the following fields:",
     "success": "Candidate added successfully",
-    "genericErrorPrefix": "Error adding candidate: "
+    "genericErrorPrefix": "Error adding candidate: ",
+    "editTitle": "Edit Candidate",
+    "saveChanges": "Save changes",
+    "updateSuccess": "Candidate updated successfully",
+    "updateGenericErrorPrefix": "Error updating candidate: ",
+    "positionLockedNote": "This candidate already has an application; the position cannot be changed from here.",
+    "back": "← Back",
+    "loadingCandidate": "Loading candidate…",
+    "loadCandidateError": "Error loading the candidate"
   },
   "fileUploader": {
     "ariaLabel": "File",
@@ -92,6 +100,7 @@
     "noFlow": "This position does not have an interview flow configured.",
     "noCandidatesInStep": "No candidates in this stage.",
     "averageScore": "Average score: ",
+    "editCandidate": "Edit candidate",
     "fetchError": "Error fetching this position's process"
   },
   "unassignedCandidates": {
@@ -100,6 +109,8 @@
     "name": "Name",
     "email": "Email",
     "registeredAt": "Registered on",
+    "actions": "Actions",
+    "edit": "Edit",
     "empty": "There are no unassigned candidates.",
     "fetchError": "Error fetching unassigned candidates"
   },

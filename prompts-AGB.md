@@ -5228,3 +5228,67 @@ npm run build (frontend) → OK, tsc + vite build sin errores
 npm run test:e2e         → 52 passed, sin cambios (mismo comportamiento,
                              solo reorganizado en componentes)
 ```
+
+## 3.43 Editar un candidato reutilizando el formulario de alta (`edit-candidate-AGB`)
+
+Confirmación del usuario tras la aclaración de la sección anterior: "Sí,
+adelante con el Edit". Mismo `AddCandidateForm.jsx` para
+`/add-candidate` y `/candidates/:id/edit` -- la diferencia es solo si hay
+un `:id` en la ruta (`useParams`), no dos componentes separados.
+
+**Backend**: nueva `updateCandidateProfile(id, data)` en
+`candidateService.ts`, expuesta como `PATCH /candidates/:id` (no `PUT`:
+ese verbo+ruta ya está tomado por `updateCandidateStageController`, un
+payload y un propósito totalmente distintos). Reutiliza
+`validateCandidateData` tal cual. Las listas de educación/experiencia se
+sustituyen enteras (se borran las filas anteriores del candidato y se
+recrean con lo que llega en el formulario) -- más simple y predecible que
+intentar adivinar cuáles de las entradas anteriores "son la misma", y el
+formulario no manda ningún id de entrada de todos modos. Un CV nuevo se
+añade sin sustituir al anterior (igual que en el alta: un candidato puede
+tener varios resumes).
+
+**Decisión deliberada, con una razón de base de datos real**: la edición
+NO permite cambiar ni quitar la posición de un candidato que ya tiene
+candidatura -- solo asignar una cuando todavía no tenía ninguna.
+`Interview.applicationId` es `RESTRICT` (`schema.prisma`): borrar la
+`Application` de un candidato con entrevistas ya registradas fallaría a
+medio camino con una violación de clave foránea, dejando el candidato en
+un estado a medio actualizar. Reasignar posición con historial de
+entrevistas de por medio es una decisión de producto mayor (¿qué pasa con
+esas entrevistas?) que esta edición no intenta resolver -- el desplegable
+se bloquea, con una nota explicando por qué, en vez de dejar que se
+intente y falle a medias.
+
+**Frontend**: `candidateFromExisting()` convierte la forma de
+`GET /candidates/:id` (fechas en string ISO, posición dentro de
+`applications[0].position.id`) a la forma que el formulario edita
+(`Date` de verdad para `DatePicker`, `positionId` suelto) -- lo inverso
+de lo que `handleSubmit` ya hacía para el alta. Título, texto del botón y
+mensaje de éxito cambian según el modo (`editTitle`/`saveChanges`/
+`updateSuccess` en los locales), reutilizando el resto de claves de
+`addCandidate.*` tal cual. Tras guardar una edición, a diferencia del
+alta, el formulario NO se vacía -- vaciarlo justo después de guardar
+sería confuso ("¿se ha guardado o no?").
+
+Enlaces "Editar" añadidos donde aparecen candidatos: en el listado de
+`/candidates/unassigned` y en cada tarjeta del tablero
+`PositionProcess`.
+
+Nueva capacidad OpenSpec `candidate-editing` (antes no existía ninguna
+para editar, solo para alta) y `e2e/features/candidate-editing.feature`
+con sus 3 escenarios, cubriendo los tres casos reales: editar datos
+personales, asignar posición a alguien sin asignar, y el bloqueo cuando
+ya tiene una.
+
+```
+npm test (backend)       → 53 passed (49 + 4 nuevos)
+npm run build (backend)  → OK, tsc sin errores
+npm test (frontend)      → 77 passed (69 + 8 nuevos)
+npm run build (frontend) → OK, tsc + vite build sin errores
+npm run test:e2e         → 55 passed (52 + 3 nuevos)
+```
+
+Verificado también a mano en el navegador: los 5 candidatos reales
+sin asignar (recreados tras el hallazgo de la sección 3.40) siguen
+existiendo después de toda esta ronda de tests.

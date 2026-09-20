@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import axios from 'axios';
-import { sendCandidateData, uploadCV } from './candidateService';
+import { sendCandidateData, uploadCV, getCandidateById, updateCandidateData } from './candidateService';
 
 vi.mock('axios');
 
@@ -56,6 +56,46 @@ describe('sendCandidateData', () => {
         axios.post.mockRejectedValue(new Error('Network Error'));
 
         await expect(sendCandidateData({})).rejects.toThrow('Network Error');
+    });
+});
+
+describe('getCandidateById', () => {
+    it('returns the candidate on success', async () => {
+        axios.get.mockResolvedValue({ data: { id: 1, firstName: 'Ana' } });
+
+        const result = await getCandidateById(1);
+
+        expect(axios.get).toHaveBeenCalledWith('http://localhost:3010/candidates/1');
+        expect(result).toEqual({ id: 1, firstName: 'Ana' });
+    });
+});
+
+describe('updateCandidateData', () => {
+    it('PATCHes to /candidates/:id and returns the updated candidate', async () => {
+        axios.patch.mockResolvedValue({ data: { message: 'Candidate updated successfully', data: { id: 1 } } });
+
+        const result = await updateCandidateData(1, { firstName: 'Ana' });
+
+        expect(axios.patch).toHaveBeenCalledWith('http://localhost:3010/candidates/1', { firstName: 'Ana' });
+        expect(result).toEqual({ message: 'Candidate updated successfully', data: { id: 1 } });
+    });
+
+    // Mismo formato de error estructurado que sendCandidateData -- lo
+    // devuelve el mismo validador del backend para ambas rutas.
+    it('propagates structured validation issues, same as sendCandidateData', async () => {
+        axios.patch.mockRejectedValue({
+            response: {
+                data: {
+                    message: 'Validation failed',
+                    errors: [{ field: 'email', code: 'invalidFormat' }],
+                },
+            },
+        });
+
+        await expect(updateCandidateData(1, {})).rejects.toMatchObject({
+            message: 'Validation failed',
+            issues: [{ field: 'email', code: 'invalidFormat' }],
+        });
     });
 });
 

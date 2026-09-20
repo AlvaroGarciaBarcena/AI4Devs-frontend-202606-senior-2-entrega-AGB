@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { addCandidate, findCandidateById, updateCandidateStage, getUnassignedCandidatesService } from '../../application/services/candidateService';
+import { addCandidate, findCandidateById, updateCandidateStage, updateCandidateProfile, getUnassignedCandidatesService } from '../../application/services/candidateService';
 import { ValidationError } from '../../application/validator';
 
 export const addCandidateController = async (req: Request, res: Response) => {
@@ -43,6 +43,29 @@ export const getCandidateById = async (req: Request, res: Response) => {
         res.json(candidate);
     } catch (error) {
         res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const updateCandidateProfileController = async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid ID format' });
+        }
+        const candidate = await updateCandidateProfile(id, req.body);
+        res.status(200).json({ message: 'Candidate updated successfully', data: candidate });
+    } catch (error: unknown) {
+        if (error instanceof ValidationError) {
+            res.status(400).json({ message: 'Validation failed', errors: error.issues });
+        } else if (error instanceof Error) {
+            if (error.message === 'Candidate not found') {
+                res.status(404).json({ message: 'Candidate not found', error: error.message });
+            } else {
+                res.status(400).json({ message: 'Error updating candidate', error: error.message });
+            }
+        } else {
+            res.status(400).json({ message: 'Error updating candidate', error: 'Unknown error' });
+        }
     }
 };
 

@@ -120,6 +120,106 @@ export const getUnassignedCandidatesService = async () => {
     }));
 };
 
+// Edita un candidato ya existente: datos personales, educación y
+// experiencia laboral, y opcionalmente asignarle una posición si todavía
+// no tenía ninguna. A propósito NO permite cambiar o quitar una posición
+// ya asignada -- Interview.applicationId es RESTRICT (ver
+// schema.prisma), así que borrar la Application de un candidato con
+// entrevistas ya registradas fallaría a medio camino, dejando el
+// candidato en un estado a medio actualizar. Reasignar posición con
+// historial de entrevistas de por medio es una decisión de producto
+// mayor (¿qué pasa con esas entrevistas?) que esta edición no intenta
+// resolver.
+export const updateCandidateProfile = async (id: number, candidateData: any) => {
+    validateCandidateData(candidateData);
+
+    const existing = await prisma.candidate.findUnique({ where: { id }, include: { applications: true } });
+    if (!existing) {
+        throw new Error('Candidate not found');
+    }
+
+    const hasExistingApplication = existing.applications.length > 0;
+    let firstStep = null;
+    if (candidateData.positionId) {
+        if (hasExistingApplication) {
+            if (candidateData.positionId !== existing.applications[0].positionId) {
+                throw new Error('Cannot change the position of a candidate that already has an application');
+            }
+        } else {
+            firstStep = await getFirstInterviewStepForPosition(candidateData.positionId);
+            if (firstStep === undefined) {
+                throw new Error('Selected position not found');
+            }
+            if (firstStep === null) {
+                throw new Error('The selected position does not have an interview process configured');
+            }
+        }
+    }
+
+    try {
+        await prisma.candidate.update({
+            where: { id },
+            data: {
+                firstName: candidateData.firstName,
+                lastName: candidateData.lastName,
+                email: candidateData.email,
+                phone: candidateData.phone,
+                address: candidateData.address,
+            },
+        });
+
+        // Las listas de educación/experiencia se sustituyen enteras por lo
+        // que llega en el formulario -- más simple y predecible que
+        // intentar adivinar cuáles de las entradas anteriores siguen
+        // siendo "la misma" para actualizarlas en vez de recrearlas (el
+        // formulario no manda ningún id de entrada, solo su contenido).
+        await prisma.education.deleteMany({ where: { candidateId: id } });
+        if (candidateData.educations) {
+            for (const education of candidateData.educations) {
+                const educationModel = new Education(education);
+                educationModel.candidateId = id;
+                await educationModel.save();
+            }
+        }
+
+        await prisma.workExperience.deleteMany({ where: { candidateId: id } });
+        if (candidateData.workExperiences) {
+            for (const experience of candidateData.workExperiences) {
+                const experienceModel = new WorkExperience(experience);
+                experienceModel.candidateId = id;
+                await experienceModel.save();
+            }
+        }
+
+        if (firstStep) {
+            const applicationModel = new Application({
+                positionId: candidateData.positionId,
+                candidateId: id,
+                applicationDate: new Date(),
+                currentInterviewStep: firstStep.id,
+            });
+            await applicationModel.save();
+        }
+
+        // Un CV nuevo se AÑADE, no sustituye al anterior -- igual que en
+        // addCandidate, un candidato puede tener varios resumes (ver
+        // Candidate.resumes en el modelo de dominio); decidir cuál es "el
+        // vigente" no es algo que esta edición necesite resolver todavía.
+        if (candidateData.cv && Object.keys(candidateData.cv).length > 0) {
+            const resumeModel = new Resume(candidateData.cv);
+            resumeModel.candidateId = id;
+            await resumeModel.save();
+        }
+
+        return await Candidate.findOne(id);
+    } catch (error: any) {
+        if (error.code === 'P2002') {
+            throw new Error('The email already exists in the database');
+        }
+        throw error;
+    }
+};
+
 export const findCandidateById = async (id: number): Promise<Candidate | null> => {
     try {
         const candidate = await Candidate.findOne(id); // Cambio aquí: pasar directamente el id

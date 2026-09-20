@@ -55,7 +55,15 @@
     "submit": "Enviar",
     "reviewFields": "Revisa los siguientes campos:",
     "success": "Candidato añadido con éxito",
-    "genericErrorPrefix": "Error al añadir candidato: "
+    "genericErrorPrefix": "Error al añadir candidato: ",
+    "editTitle": "Editar Candidato",
+    "saveChanges": "Guardar cambios",
+    "updateSuccess": "Candidato actualizado con éxito",
+    "updateGenericErrorPrefix": "Error al actualizar candidato: ",
+    "positionLockedNote": "Ya tiene una candidatura asignada; no se puede cambiar la posición desde aquí.",
+    "back": "← Volver",
+    "loadingCandidate": "Cargando candidato…",
+    "loadCandidateError": "Error al cargar el candidato"
   },
   "fileUploader": {
     "ariaLabel": "Archivo",
@@ -92,6 +100,7 @@
     "noFlow": "Esta posición no tiene un flujo de entrevistas configurado.",
     "noCandidatesInStep": "Sin candidatos en esta fase.",
     "averageScore": "Puntuación media: ",
+    "editCandidate": "Editar candidato",
     "fetchError": "Error al obtener el proceso de esta posición"
   },
   "unassignedCandidates": {
@@ -100,6 +109,8 @@
     "name": "Nombre",
     "email": "Email",
     "registeredAt": "Fecha de alta",
+    "actions": "Acciones",
+    "edit": "Editar",
     "empty": "No hay ningún candidato sin asignar.",
     "fetchError": "Error al obtener los candidatos sin asignar"
   },

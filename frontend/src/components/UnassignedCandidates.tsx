@@ -39,6 +39,7 @@ const UnassignedCandidates: React.FC = () => {
                             <th>{t('unassignedCandidates.name')}</th>
                             <th>{t('unassignedCandidates.email')}</th>
                             <th>{t('unassignedCandidates.registeredAt')}</th>
+                            <th>{t('unassignedCandidates.actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -47,6 +48,7 @@ const UnassignedCandidates: React.FC = () => {
                                 <td>{candidate.fullName}</td>
                                 <td>{candidate.email}</td>
                                 <td>{new Date(candidate.createdAt).toLocaleDateString()}</td>
+                                <td><Link to={`/candidates/${candidate.id}/edit`}>{t('unassignedCandidates.edit')}</Link></td>
                             </tr>
                         ))}
                     </tbody>

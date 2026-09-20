@@ -348,3 +348,27 @@ paths:
           description: Candidate or application not found
         '500':
           description: Internal server error
+    patch:
+      summary: Update a candidate's profile
+      description: Updates a candidate's personal data, education and work experience. Educations and work experiences are replaced wholesale with the ones in the request body, not merged. May assign a position (creating an Application in its first interview step) only if the candidate does not already have one — changing or removing an already-assigned position is not supported here.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: ID of the candidate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Same shape as the POST /candidates body (see above), minus cv.
+      responses:
+        '200':
+          description: Candidate updated successfully
+        '400':
+          description: Invalid input data, or an attempt to change an already-assigned position
+        '404':
+          description: Candidate not found

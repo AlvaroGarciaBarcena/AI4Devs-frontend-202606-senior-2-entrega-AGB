@@ -1,4 +1,4 @@
-import { addCandidate, getUnassignedCandidatesService, updateCandidateStage } from './candidateService';
+import { addCandidate, getUnassignedCandidatesService, updateCandidateProfile, updateCandidateStage } from './candidateService';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -13,9 +13,16 @@ jest.mock('@prisma/client', () => {
     candidate: {
       create: jest.fn(),
       findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
     },
     education: {
       create: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    workExperience: {
+      create: jest.fn(),
+      deleteMany: jest.fn(),
     },
     position: {
       findUnique: jest.fn(),
@@ -174,6 +181,100 @@ describe('getUnassignedCandidatesService', () => {
       { id: 18, fullName: 'Bad Position', email: 'bad.position3@example.com', createdAt: new Date('2026-09-19') },
       { id: 10, fullName: 'Nombre Apellido', email: 'nombre1apellido1@email.com', createdAt: new Date('2026-09-10') },
     ]);
+  });
+});
+
+describe('updateCandidateProfile', () => {
+  const existingCandidate = {
+    id: 20,
+    firstName: 'Ana',
+    lastName: 'García',
+    email: 'ana.garcia@example.com',
+    phone: null,
+    address: null,
+  };
+  const updateData = {
+    firstName: 'Ana',
+    lastName: 'García Actualizada',
+    email: 'ana.garcia@example.com',
+    phone: '612345678',
+    address: 'Nueva dirección',
+    educations: [{ institution: 'MIT', title: 'BSc', startDate: '2018-01-01', endDate: '2020-01-01' }],
+    workExperiences: [],
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('updates the personal fields and replaces educations/workExperiences wholesale', async () => {
+    jest.spyOn(prisma.candidate, 'findUnique')
+      .mockResolvedValueOnce({ ...existingCandidate, applications: [] } as any) // comprobación de candidatura existente
+      .mockResolvedValueOnce({ ...existingCandidate, ...updateData, educations: [], workExperiences: [], resumes: [], applications: [] } as any); // Candidate.findOne al final
+    jest.spyOn(prisma.candidate, 'update').mockResolvedValue(existingCandidate as any);
+    jest.spyOn(prisma.education, 'deleteMany').mockResolvedValue({ count: 1 } as any);
+    jest.spyOn(prisma.education, 'create').mockResolvedValue({ id: 1 } as any);
+    jest.spyOn(prisma.workExperience, 'deleteMany').mockResolvedValue({ count: 0 } as any);
+
+    await updateCandidateProfile(20, updateData);
+
+    expect(prisma.candidate.update).toHaveBeenCalledWith({
+      where: { id: 20 },
+      data: expect.objectContaining({
+        firstName: 'Ana',
+        lastName: 'García Actualizada',
+        phone: '612345678',
+        address: 'Nueva dirección',
+      }),
+    });
+    // Las listas se sustituyen enteras: se borran todas las entradas
+    // anteriores del candidato y se recrean las que llegan en el payload,
+    // no se intenta adivinar cuáles "son la misma" entrada de antes.
+    expect(prisma.education.deleteMany).toHaveBeenCalledWith({ where: { candidateId: 20 } });
+    expect(prisma.education.create).toHaveBeenCalledTimes(1);
+    expect(prisma.workExperience.deleteMany).toHaveBeenCalledWith({ where: { candidateId: 20 } });
+  });
+
+  it('assigns a position when the candidate did not have one yet', async () => {
+    jest.spyOn(prisma.candidate, 'findUnique')
+      .mockResolvedValueOnce({ ...existingCandidate, applications: [] } as any)
+      .mockResolvedValueOnce({ ...existingCandidate, educations: [], workExperiences: [], resumes: [], applications: [] } as any);
+    jest.spyOn(prisma.candidate, 'update').mockResolvedValue(existingCandidate as any);
+    jest.spyOn(prisma.education, 'deleteMany').mockResolvedValue({ count: 0 } as any);
+    jest.spyOn(prisma.workExperience, 'deleteMany').mockResolvedValue({ count: 0 } as any);
+    jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
+      id: 1,
+      interviewFlow: { interviewSteps: [{ id: 100, orderIndex: 1, name: 'Initial Screening' }] },
+    } as any);
+    jest.spyOn(prisma.application, 'create').mockResolvedValue({ id: 500 } as any);
+
+    await updateCandidateProfile(20, { ...updateData, positionId: 1 });
+
+    expect(prisma.application.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ positionId: 1, candidateId: 20, currentInterviewStep: 100 }),
+    });
+  });
+
+  // Regla explícita: reasignar la posición de un candidato que ya tiene
+  // candidatura no se soporta desde esta edición (ver el comentario junto
+  // a updateCandidateProfile en candidateService.ts) -- Interview.
+  // applicationId es RESTRICT, borrar esa Application a medias podría
+  // dejar el candidato en un estado inconsistente.
+  it('rejects changing the position of a candidate that already has an application', async () => {
+    jest.spyOn(prisma.candidate, 'findUnique').mockResolvedValueOnce({
+      ...existingCandidate,
+      applications: [{ id: 1, positionId: 1, candidateId: 20 }],
+    } as any);
+
+    await expect(updateCandidateProfile(20, { ...updateData, positionId: 2 }))
+      .rejects.toThrow('Cannot change the position');
+    expect(prisma.candidate.update).not.toHaveBeenCalled();
+  });
+
+  it('throws a clear error when the candidate does not exist', async () => {
+    jest.spyOn(prisma.candidate, 'findUnique').mockResolvedValueOnce(null as any);
+
+    await expect(updateCandidateProfile(999, updateData)).rejects.toThrow('Candidate not found');
   });
 });
 

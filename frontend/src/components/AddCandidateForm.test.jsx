@@ -2,8 +2,9 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import AddCandidateForm from './AddCandidateForm';
-import { sendCandidateData } from '../services/candidateService';
+import { sendCandidateData, getCandidateById, updateCandidateData } from '../services/candidateService';
 import { getPositions } from '../services/positionService';
 import i18n from '../i18n/i18n';
 
@@ -16,6 +17,8 @@ import i18n from '../i18n/i18n';
 
 vi.mock('../services/candidateService', () => ({
     sendCandidateData: vi.fn(),
+    getCandidateById: vi.fn(),
+    updateCandidateData: vi.fn(),
     uploadCV: vi.fn(),
 }));
 
@@ -33,6 +36,19 @@ beforeEach(async () => {
     await i18n.changeLanguage('es');
     getPositions.mockResolvedValue(MOCK_POSITIONS);
 });
+
+// useParams()/useNavigate() (modo edición) exigen un contexto de router
+// de verdad, no solo <MemoryRouter> -- sin <Routes>/<Route> no hay
+// coincidencia de ruta de la que leer el :id.
+const renderForm = (path = '/add-candidate') =>
+    render(
+        <MemoryRouter initialEntries={[path]}>
+            <Routes>
+                <Route path="/add-candidate" element={<AddCandidateForm />} />
+                <Route path="/candidates/:id/edit" element={<AddCandidateForm />} />
+            </Routes>
+        </MemoryRouter>,
+    );
 
 // Las posiciones se cargan de forma asíncrona (useEffect + GET /position),
 // así que el desplegable arranca vacío salvo el placeholder — hace falta
@@ -53,7 +69,7 @@ describe('AddCandidateForm', () => {
         validationError.issues = [{ field: 'lastName', code: 'invalidCharacters', params: { char: '_' } }];
         sendCandidateData.mockRejectedValue(validationError);
 
-        render(<AddCandidateForm />);
+        renderForm();
         await fillBasicFields(user, { firstName: 'Juan', lastName: 'Garcia_', email: 'juan@example.com' });
         await user.click(screen.getByRole('button', { name: 'Enviar' }));
 
@@ -81,7 +97,7 @@ describe('AddCandidateForm', () => {
         validationError.issues = [{ field: 'lastName', code: 'invalidCharacters', params: { char: '_' } }];
         sendCandidateData.mockRejectedValue(validationError);
 
-        render(<AddCandidateForm />);
+        renderForm();
         await fillBasicFields(user, { firstName: 'Juan', lastName: 'Garcia_', email: 'juan@example.com' });
         await user.click(screen.getByRole('button', { name: 'Enviar' }));
 
@@ -111,7 +127,7 @@ describe('AddCandidateForm', () => {
         validationError.issues = [{ field: 'phone', code: 'invalidPhoneFormat' }];
         sendCandidateData.mockRejectedValue(validationError);
 
-        render(<AddCandidateForm />);
+        renderForm();
         await fillBasicFields(user, { firstName: 'Juan', lastName: 'Garcia', email: 'juan@example.com' });
         await user.type(screen.getByLabelText('Teléfono'), '123456789');
         await user.click(screen.getByRole('button', { name: 'Enviar' }));
@@ -139,7 +155,7 @@ describe('AddCandidateForm', () => {
         ];
         sendCandidateData.mockRejectedValue(validationError);
 
-        render(<AddCandidateForm />);
+        renderForm();
         // Campos requeridos por el navegador (HTML5 "required"): hace falta
         // rellenarlos con algo válido en formato para que el submit llegue a
         // disparar handleSubmit, y así probar la validación acumulada que
@@ -164,7 +180,7 @@ describe('AddCandidateForm', () => {
         const user = userEvent.setup();
         sendCandidateData.mockResolvedValue({ id: 1, firstName: 'Ana', lastName: 'García', email: 'ana@example.com' });
 
-        render(<AddCandidateForm />);
+        renderForm();
         const positionSelect = await screen.findByLabelText(/Posición a la que se presenta/);
 
         expect(screen.getByRole('option', { name: 'Senior Full-Stack Engineer — LTI' })).toBeTruthy();
@@ -190,7 +206,7 @@ describe('AddCandidateForm', () => {
         const user = userEvent.setup();
         sendCandidateData.mockResolvedValue({ id: 1, firstName: 'Sin', lastName: 'Posicion', email: 'sin.posicion@example.com' });
 
-        render(<AddCandidateForm />);
+        renderForm();
         await screen.findByLabelText(/Posición a la que se presenta/);
         await user.type(screen.getByLabelText('Nombre'), 'Sin');
         await user.type(screen.getByLabelText('Apellido'), 'Posicion');
@@ -206,7 +222,7 @@ describe('AddCandidateForm', () => {
         const user = userEvent.setup();
         sendCandidateData.mockResolvedValue({ id: 1, firstName: 'Ana', lastName: 'García', email: 'ana@example.com' });
 
-        render(<AddCandidateForm />);
+        renderForm();
         await fillBasicFields(user, { firstName: 'Ana', lastName: 'García', email: 'ana@example.com' });
         await user.click(screen.getByRole('button', { name: 'Enviar' }));
 
@@ -222,7 +238,7 @@ describe('AddCandidateForm', () => {
         const user = userEvent.setup();
         sendCandidateData.mockResolvedValue({ id: 1, firstName: 'Ana', lastName: 'García', email: 'ana@example.com' });
 
-        render(<AddCandidateForm />);
+        renderForm();
         await fillBasicFields(user, { firstName: 'Ana', lastName: 'García', email: 'ana@example.com' });
         await user.type(screen.getByLabelText('Teléfono'), '612345678');
         await user.type(screen.getByLabelText('Dirección'), 'Calle Falsa 123');
@@ -238,5 +254,95 @@ describe('AddCandidateForm', () => {
         expect(screen.getByLabelText('Teléfono').value).toBe('');
         expect(screen.getByLabelText('Dirección').value).toBe('');
         expect(screen.getByLabelText(/Posición a la que se presenta/).value).toBe('');
+    });
+});
+
+// Mismo componente que "Añadir Candidato", en /candidates/:id/edit --
+// reutilizado a propósito (pedido explícito del usuario) en vez de
+// construir una pantalla de edición aparte.
+describe('AddCandidateForm in edit mode', () => {
+    const EXISTING_CANDIDATE_NO_APPLICATION = {
+        id: 42,
+        firstName: 'Nombre',
+        lastName: 'Apellido',
+        email: 'nombre1apellido1@email.com',
+        phone: '623456789',
+        address: 'Aquí vivo yo',
+        educations: [{ id: 1, institution: 'MIT', title: 'BSc', startDate: '2018-01-01T00:00:00.000Z', endDate: '2020-01-01T00:00:00.000Z' }],
+        workExperiences: [],
+        resumes: [],
+        applications: [],
+    };
+
+    it('prefills every field with the fetched candidate', async () => {
+        getCandidateById.mockResolvedValue(EXISTING_CANDIDATE_NO_APPLICATION);
+
+        renderForm('/candidates/42/edit');
+
+        await waitFor(() => {
+            expect(screen.getByLabelText('Nombre').value).toBe('Nombre');
+        });
+        expect(screen.getByLabelText('Apellido').value).toBe('Apellido');
+        expect(screen.getByLabelText('Correo Electrónico').value).toBe('nombre1apellido1@email.com');
+        expect(screen.getByLabelText('Teléfono').value).toBe('623456789');
+        expect(screen.getByLabelText('Dirección').value).toBe('Aquí vivo yo');
+        expect(screen.getByDisplayValue('MIT')).toBeTruthy();
+        expect(getCandidateById).toHaveBeenCalledWith('42');
+    });
+
+    it('shows the edit title and a "save changes" button, not the create-mode ones', async () => {
+        getCandidateById.mockResolvedValue(EXISTING_CANDIDATE_NO_APPLICATION);
+
+        renderForm('/candidates/42/edit');
+
+        await waitFor(() => {
+            expect(screen.getByRole('heading', { name: 'Editar Candidato' })).toBeTruthy();
+        });
+        expect(screen.getByRole('button', { name: 'Guardar cambios' })).toBeTruthy();
+    });
+
+    it('calls updateCandidateData (not sendCandidateData) on submit, and keeps the values visible on success', async () => {
+        const user = userEvent.setup();
+        getCandidateById.mockResolvedValue(EXISTING_CANDIDATE_NO_APPLICATION);
+        updateCandidateData.mockResolvedValue({ data: EXISTING_CANDIDATE_NO_APPLICATION });
+
+        renderForm('/candidates/42/edit');
+        await waitFor(() => expect(screen.getByLabelText('Nombre').value).toBe('Nombre'));
+
+        await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+        await waitFor(() => {
+            expect(updateCandidateData).toHaveBeenCalledWith('42', expect.objectContaining({ firstName: 'Nombre' }));
+        });
+        expect(sendCandidateData).not.toHaveBeenCalled();
+        expect(screen.getByText('Candidato actualizado con éxito')).toBeTruthy();
+        // A diferencia del alta, no se vacía tras guardar.
+        expect(screen.getByLabelText('Nombre').value).toBe('Nombre');
+    });
+
+    it('leaves the position dropdown enabled when the candidate has no application yet', async () => {
+        getCandidateById.mockResolvedValue(EXISTING_CANDIDATE_NO_APPLICATION);
+
+        renderForm('/candidates/42/edit');
+
+        await waitFor(() => expect(screen.getByLabelText('Nombre').value).toBe('Nombre'));
+        expect(screen.getByLabelText(/Posición a la que se presenta/).disabled).toBe(false);
+        expect(screen.queryByText(/Ya tiene una candidatura asignada/)).toBeNull();
+    });
+
+    // No se puede reasignar la posición de un candidato que ya tiene
+    // candidatura desde este formulario (ver candidateService.ts) -- el
+    // desplegable se bloquea para que no parezca que sí se puede.
+    it('locks the position dropdown and explains why when the candidate already has an application', async () => {
+        getCandidateById.mockResolvedValue({
+            ...EXISTING_CANDIDATE_NO_APPLICATION,
+            applications: [{ id: 1, positionId: 1, position: { id: 1, title: 'Senior Full-Stack Engineer' } }],
+        });
+
+        renderForm('/candidates/42/edit');
+
+        await waitFor(() => expect(screen.getByLabelText('Nombre').value).toBe('Nombre'));
+        expect(screen.getByLabelText(/Posición a la que se presenta/).disabled).toBe(true);
+        expect(screen.getByText(/Ya tiene una candidatura asignada/)).toBeTruthy();
     });
 });

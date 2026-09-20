@@ -90,6 +90,7 @@ const PositionProcess: React.FC = () => {
                                                 <Card.Text className="mb-0 small text-muted">
                                                     {t('positionProcess.averageScore')}{candidate.averageScore.toFixed(1)}
                                                 </Card.Text>
+                                                <Link to={`/candidates/${candidate.id}/edit`} className="small">{t('positionProcess.editCandidate')}</Link>
                                             </Card.Body>
                                         </Card>
                                     ))}
