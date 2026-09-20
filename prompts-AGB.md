@@ -5937,3 +5937,81 @@ que no llegó a crearse; el commit real vive aquí.
 npx vitest run (frontend)  → 106 passed, sin cambios
 npx tsc --noEmit (frontend) → OK
 ```
+
+## 3.54 Añadir una fase nueva al proceso de selección (`add-interview-phase-AGB`)
+
+El usuario preguntó cómo añadir una fase más al proceso de contratación.
+Investigado antes de responder: no había ningún endpoint ni interfaz
+para ello -- las fases (`InterviewStep`) son datos fijos que solo
+`backend/prisma/seed.ts` crea al sembrar la base de datos. Respondida
+la pregunta con los dos caminos disponibles hoy (Prisma Studio a mano,
+o editar el seed para la próxima vez que se siembre desde cero -- sin
+poder reutilizarlo sobre la base de datos actual, porque el script no
+borra nada antes de crear). El usuario pidió entonces construir la
+funcionalidad de verdad, en su propia rama, documentada y probada como
+siempre.
+
+**Backend**: nuevo `POST /position/:id/interviewflow/steps`
+(`addInterviewStepService`). Reutiliza `domain/models/InterviewType.ts`
+e `InterviewStep.ts` -- clases con su propio `.save()` que ya existían
+en el proyecto (parte del scaffolding original de este bootcamp) pero
+no estaban conectadas a ningún controlador ni ruta hasta ahora, en vez
+de escribir persistencia nueva a mano. La fase se añade siempre al
+final del flujo (`orderIndex` = el máximo existente + 1; empieza en 1
+si el flujo no tenía ninguna).
+
+**Decisión de diseño, no trivial**: cada `InterviewStep` exige un
+`InterviewType` (clave foránea obligatoria) -- el "tipo" de entrevista
+(HR/Technical/Hiring manager), un concepto separado del nombre de la
+fase en sí. En vez de forzar a elegir entre los tres tipos ya
+sembrados (que hoy no se muestran en ningún sitio de la interfaz, así
+que pedir elegir uno habría sido una pregunta sin contexto para quien
+la respondiera) o construir además un selector de tipos, se crea un
+`InterviewType` propio con el mismo nombre que la fase. El esquema no
+obliga a reutilizar tipos entre fases, así que esto no rompe nada --
+solo mantiene el formulario a un único campo. Reversible sin tocar
+nada más si en el futuro se quiere gestionar tipos por separado.
+
+**Validación**: sin el validador estructurado de `validator.ts`
+(pensado para el formulario de 10+ campos de "Agregar Candidato",
+sería sobredimensionado para un único campo) -- comprobación directa en
+el controlador: nombre obligatorio tras recortar espacios, máximo 100
+caracteres.
+
+**Frontend**: nueva `addInterviewStep(positionId, name)` en
+`positionService.js` -- a propósito **sin** usar el `throwServiceError`
+que usan las demás funciones del fichero, porque ese helper antepone un
+prefijo fijo en español al mensaje (`getErrorMessage`), sin pasar por
+i18n; se detectó al escribir el test de esta función nueva, antes de
+que llegara a la interfaz con un prefijo duplicado y sin traducir.
+Ahora lanza solo el detalle en crudo (mismo patrón que
+`candidateService.js`), y es `PositionProcess.tsx` quien antepone su
+propio prefijo, ya traducido -- igual que ya hacía `moveCandidate` de
+la sección 3.53.
+
+Formulario de una sola línea ("Nombre de la nueva fase" + botón
+"Añadir fase") encima de las columnas. Actualización optimista de la
+lista de fases -- mismo patrón que ya se usaba para `candidates` en
+`candidate-drag-drop-AGB`, extendido ahora también a `steps` (antes una
+constante calculada en cada render, ahora estado local resincronizado
+con cada fetch nuevo). La fase añadida aparece de inmediato como
+columna y como opción en todos los selectores "Mover a otra fase" de
+las tarjetas existentes, sin ningún cambio adicional -- ambas
+funcionalidades comparten el mismo estado `steps`.
+
+```
+npx jest (backend)          → 72 passed (65 + 7 nuevos)
+npx tsc && build (backend)  → OK
+npx vitest run (frontend)   → 112 passed (106 + 6 nuevos)
+npx tsc --noEmit (frontend) → OK
+```
+
+Verificado también a mano en el navegador con sesión real: añadida una
+fase de prueba ("Prueba técnica en vivo"), confirmada como columna
+nueva y como opción en los selectores, movido un candidato a ella, y
+comprobado que sigue ahí tras recargar la página (no solo en el estado
+local). Revertido el candidato a su fase original y eliminada la fase
+de prueba con un script puntual de Prisma (`interviewStep.delete` +
+`interviewType.delete`, sin endpoint `DELETE` por ahora -- fuera de lo
+pedido) antes de terminar, para no dejar datos de esta verificación en
+el entorno de desarrollo real del usuario.

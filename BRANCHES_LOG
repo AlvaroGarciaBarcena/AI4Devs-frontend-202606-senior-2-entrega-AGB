@@ -46,7 +46,8 @@ línea de cada rama, y para saber dónde empieza cada tema hay que saber esto).
 | 29 | `backend-listening-message-AGB` | 2026-09-20 15:43 | `432f449`·`6b0877b` | [§3.48](./prompts-AGB.md#348-depuración-real-en-vivo-del-acceso-desde-la-red-local) · [§3.49](./prompts-AGB.md#349-mensaje-de-arranque-del-backend-listar-las-direcciones-reales-backend-listening-message-agb) |
 | 30 | `network-error-message-AGB` | 2026-09-20 16:19 | `2c65449` | [§3.50](./prompts-AGB.md#350-network-error-deja-de-ser-el-mensaje-que-ve-el-usuario-network-error-message-agb) |
 | 31 | `position-steps-i18n-AGB` | 2026-09-20 16:44 | `6b8cc68` | [§3.52](./prompts-AGB.md#352-traduce-los-nombres-de-las-fases-del-proceso-de-selección-position-steps-i18n-agb) |
-| 32 | `candidate-drag-drop-AGB` | 2026-09-20 17:00 | `3a26a5d`·`0da6c2b`·`66bf944` | [§3.53](./prompts-AGB.md#353-mover-un-candidato-a-otra-fase-arrastrando-su-ficha-candidate-drag-drop-agb) |
+| 32 | `candidate-drag-drop-AGB` | 2026-09-20 17:00 | `3a26a5d`·`0da6c2b`·`66bf944`·`e1b25b3` | [§3.53](./prompts-AGB.md#353-mover-un-candidato-a-otra-fase-arrastrando-su-ficha-candidate-drag-drop-agb) |
+| 33 | `add-interview-phase-AGB` | 2026-09-20 17:33 | `5ff860f` | [§3.54](./prompts-AGB.md#354-añadir-una-fase-nueva-al-proceso-de-selección-add-interview-phase-agb) |
 
 ## Cómo leer esto
 
