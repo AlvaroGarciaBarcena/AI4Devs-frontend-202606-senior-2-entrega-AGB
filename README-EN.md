@@ -6,6 +6,8 @@ A full-stack recruiting/ATS application: a React + TypeScript frontend (built wi
 
 This guide assumes a fresh **Ubuntu** machine with nothing installed yet. If you already have git, Node.js and Docker set up, skip straight to [Get the code](#3-get-the-code).
 
+> ✅ **Verified end-to-end on 2026-09-20**: these steps, exactly as written, were followed one by one against a fresh clone of the repository (no `.env` files, no prior data) and ended in a real login with the credentials from [step 10](#10-log-in). No extra knowledge or files beyond what's documented here are needed.
+
 ## Contents
 
 - [1. Prerequisites](#1-prerequisites)

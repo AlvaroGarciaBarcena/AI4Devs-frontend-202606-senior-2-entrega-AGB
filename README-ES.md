@@ -6,6 +6,8 @@ Una aplicación full-stack de reclutamiento (ATS): un frontend en React + TypeSc
 
 Esta guía asume una máquina **Ubuntu** recién instalada, sin nada configurado todavía. Si ya tienes git, Node.js y Docker instalados, salta directamente a [Obtén el código](#3-obtén-el-código).
 
+> ✅ **Verificado de extremo a extremo el 2026-09-20**: estos pasos, tal cual están escritos, se siguieron uno por uno sobre un clon nuevo del repositorio (sin ningún `.env` ni dato previo) y terminaron en un inicio de sesión real con las credenciales del [paso 10](#10-inicia-sesión). No hace falta ningún conocimiento ni fichero adicional a los que ya se documentan aquí.
+
 ## Contenido
 
 - [1. Requisitos previos](#1-requisitos-previos)
