@@ -1,17 +1,13 @@
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { createBdd } from 'playwright-bdd';
 import { expect, APIResponse } from '@playwright/test';
+import { SEEDED_EMPLOYEE } from './support/seededEmployee';
+import { runNpm } from './support/npmChildProcess';
 
 const { Given, When, Then } = createBdd();
 
 const API_URL = 'http://localhost:3010';
 const REPO_ROOT = path.resolve(__dirname, '../..');
-
-const SEEDED_EMPLOYEE = {
-  email: 'alice.johnson@lti.com',
-  password: 'Changeme123!',
-};
 
 let responses: APIResponse[] = [];
 let authToken: string;
@@ -19,27 +15,13 @@ let auditedVulnerabilityCounts: Record<string, number>;
 
 type NpmAuditReport = { metadata: { vulnerabilities: { total: number } } };
 
-// npm_config_allow_scripts queda en el entorno de esta sesión desde que se
-// aprobaron los scripts de instalación de @fission-ai/openspec (ver
-// prompts-AGB.md, adopción de OpenSpec) -- heredarlo aquí rompe `npm audit`
-// en esta versión de npm con un EALLOWSCRIPTS que no tiene nada que ver con
-// vulnerabilidades. Se quita solo para este proceso hijo, sin tocar el
-// entorno real de la sesión ni ningún .npmrc.
-const npmEnvWithoutAllowScripts = Object.fromEntries(
-  Object.entries(process.env).filter(([key]) => key !== 'npm_config_allow_scripts'),
-);
-
 const runNpmAuditProductionVulnerabilityCount = (cwd: string): number => {
   // npm audit termina con código de salida != 0 en cuanto encuentra alguna
   // vulnerabilidad -- por eso no se puede usar el helper habitual que
   // lanza si el proceso falla, hay que capturar la salida igualmente y
   // leer el JSON para decidir qué significa ese fallo.
   try {
-    const output = execFileSync('npm', ['audit', '--omit=dev', '--json'], {
-      cwd,
-      encoding: 'utf-8',
-      env: npmEnvWithoutAllowScripts,
-    });
+    const output = runNpm(['audit', '--omit=dev', '--json'], cwd);
     return (JSON.parse(output) as NpmAuditReport).metadata.vulnerabilities.total;
   } catch (error) {
     const output = (error as { stdout?: string }).stdout;

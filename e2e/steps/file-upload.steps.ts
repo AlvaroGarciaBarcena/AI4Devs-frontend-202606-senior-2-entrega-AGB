@@ -2,15 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createBdd } from 'playwright-bdd';
 import { expect, APIResponse } from '@playwright/test';
+import { SEEDED_EMPLOYEE } from './support/seededEmployee';
 
 const { Given, When, Then } = createBdd();
 
 const API_URL = 'http://localhost:3010';
-
-const SEEDED_EMPLOYEE = {
-  email: 'alice.johnson@lti.com',
-  password: 'Changeme123!',
-};
 
 let authToken: string;
 let response: APIResponse;

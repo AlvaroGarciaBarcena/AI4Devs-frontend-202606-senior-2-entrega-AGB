@@ -1,14 +1,10 @@
 import { createBdd } from 'playwright-bdd';
 import { expect } from '@playwright/test';
+import { SEEDED_EMPLOYEE } from './support/seededEmployee';
 
 const { Given, When, Then } = createBdd();
 
 const API_URL = 'http://localhost:3010';
-
-const SEEDED_EMPLOYEE = {
-  email: 'alice.johnson@lti.com',
-  password: 'Changeme123!',
-};
 
 let lastResponse: { status: () => number };
 
@@ -17,7 +13,11 @@ Given('un mismo origen ya ha agotado el número de intentos de login permitidos 
   // intentos fallidos antes del "intento adicional" del WHEN.
   for (let i = 0; i < 10; i += 1) {
     await request.post(`${API_URL}/auth/login`, {
-      data: { email: SEEDED_EMPLOYEE.email, password: 'contraseña-incorrecta' },
+      // NOSONAR (typescript:S2068): no es una contraseña real filtrada, es
+      // un valor deliberadamente incorrecto para forzar el fallo de login
+      // que agota el limitador -- el propio análisis estático no puede
+      // distinguir "credencial real" de "texto que a propósito no lo es".
+      data: { email: SEEDED_EMPLOYEE.email, password: 'contraseña-incorrecta' }, // NOSONAR
     });
   }
 });

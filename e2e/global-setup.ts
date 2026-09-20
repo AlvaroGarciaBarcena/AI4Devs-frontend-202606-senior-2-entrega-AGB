@@ -1,10 +1,6 @@
 import path from 'node:path';
 import { chromium, FullConfig } from '@playwright/test';
-
-const SEEDED_EMPLOYEE = {
-  email: 'alice.johnson@lti.com',
-  password: 'Changeme123!',
-};
+import { SEEDED_EMPLOYEE } from './steps/support/seededEmployee';
 
 export const AUTH_STATE_PATH = path.resolve(__dirname, '.auth/state.json');
 

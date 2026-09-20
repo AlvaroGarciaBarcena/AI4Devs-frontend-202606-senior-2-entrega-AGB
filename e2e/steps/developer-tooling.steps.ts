@@ -1,25 +1,15 @@
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createBdd } from 'playwright-bdd';
 import { expect } from '@playwright/test';
+import { runNpm } from './support/npmChildProcess';
 
 const { Given, When, Then } = createBdd();
 
 const REPO_ROOT = path.resolve(__dirname, '../..');
 const BACKEND_DIR = path.join(REPO_ROOT, 'backend');
 const FRONTEND_DIR = path.join(REPO_ROOT, 'frontend');
-
-// Mismo hallazgo que en security-hardening.steps.ts: npm_config_allow_scripts
-// queda en el entorno de esta sesión desde que se aprobaron los scripts de
-// instalación de @fission-ai/openspec, y rompe cualquier `npm` que se
-// lance como proceso hijo con un EALLOWSCRIPTS ajeno al propio comando.
-const npmEnvWithoutAllowScripts = Object.fromEntries(
-  Object.entries(process.env).filter(([key]) => key !== 'npm_config_allow_scripts'),
-);
-
-const runNpm = (args: string[], cwd: string) =>
-  execFileSync('npm', args, { cwd, encoding: 'utf-8', env: npmEnvWithoutAllowScripts, maxBuffer: 1024 * 1024 * 20 });
 
 type JestJsonResult = { numPassedTests: number; numFailedTests: number; numTotalTests: number };
 
@@ -80,9 +70,12 @@ When('se ejecuta "npm run dev"', async () => {
   // el siguiente intento (hallazgo real: la siguiente ejecución fallaba
   // con --strictPort contra un puerto que ya estaba en uso, sin ninguna
   // salida).
+  // El binario de vite se lanza directo, no a través de `npm` -- el filtro
+  // de npm_config_allow_scripts (ver support/npmChildProcess.ts) es
+  // irrelevante aquí, así que hereda el entorno tal cual (comportamiento
+  // por defecto de `spawn` sin `env` explícito).
   devServerProcess = spawn(path.join(FRONTEND_DIR, 'node_modules', '.bin', 'vite'), ['--port', '5999', '--strictPort'], {
     cwd: FRONTEND_DIR,
-    env: npmEnvWithoutAllowScripts,
   });
 });
 

@@ -3,20 +3,12 @@ import { config as loadBackendEnv } from 'dotenv';
 import jwt from 'jsonwebtoken';
 import { createBdd } from 'playwright-bdd';
 import { expect } from '@playwright/test';
+import { SEEDED_EMPLOYEE } from './support/seededEmployee';
 
 const { Given, When, Then } = createBdd();
 
 let lastResponse: { status: () => number };
 let expiredToken: string;
-
-// Credenciales de desarrollo documentadas en SECRETS.md (gitignorado) y en
-// prompts-AGB.md, sección 3.19.5 -- el mismo empleado sembrado que se ha
-// usado para verificar el login a mano durante toda la sesión.
-const SEEDED_EMPLOYEE = {
-  email: 'alice.johnson@lti.com',
-  password: 'Changeme123!',
-  name: 'Alice Johnson',
-};
 
 // El backend corre en un puerto distinto al frontend (baseURL de
 // playwright.config.ts apunta al frontend, :3000); los escenarios que
