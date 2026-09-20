@@ -27,7 +27,7 @@ const Login = () => {
             const redirectTo = location.state?.from?.pathname ?? '/';
             navigate(redirectTo, { replace: true });
         } catch (err) {
-            setError(t('login.genericErrorPrefix') + err.message);
+            setError(err.isNetworkError ? t('common.networkError') : t('login.genericErrorPrefix') + err.message);
         } finally {
             setSubmitting(false);
         }

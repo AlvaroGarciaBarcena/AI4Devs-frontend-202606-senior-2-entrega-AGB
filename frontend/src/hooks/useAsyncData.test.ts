@@ -24,6 +24,29 @@ describe('useAsyncData', () => {
     expect(result.current.data).toBeNull();
   });
 
+  // Convención opcional, no específica de este hook: cualquier función de
+  // fetch puede marcar un error con `isNetworkError: true` cuando el
+  // servidor no respondió en absoluto (ver frontend/src/services/apiErrors.js).
+  it('prefers networkErrorMessage over the raw Error message when isNetworkError is set', async () => {
+    const networkError = Object.assign(new Error('Network Error'), { isNetworkError: true });
+    const fetchFn = vi.fn().mockRejectedValue(networkError);
+    const { result } = renderHook(() =>
+      useAsyncData(fetchFn, [], { networkErrorMessage: 'No se pudo conectar con el servidor.' }),
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBe('No se pudo conectar con el servidor.');
+  });
+
+  it('uses the raw Error message when isNetworkError is set but no networkErrorMessage was given', async () => {
+    const networkError = Object.assign(new Error('Network Error'), { isNetworkError: true });
+    const fetchFn = vi.fn().mockRejectedValue(networkError);
+    const { result } = renderHook(() => useAsyncData(fetchFn, []));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBe('Network Error');
+  });
+
   it('falls back to fallbackErrorMessage when the rejection is not an Error', async () => {
     const fetchFn = vi.fn().mockRejectedValue('not an Error instance');
     const { result } = renderHook(() =>

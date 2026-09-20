@@ -4,7 +4,8 @@
   },
   "common": {
     "loadingPage": "Loading page…",
-    "backToDashboard": "← Back to home"
+    "backToDashboard": "← Back to home",
+    "networkError": "Could not connect to the server. Check your connection, or that the server is running."
   },
   "login": {
     "title": "Log in",

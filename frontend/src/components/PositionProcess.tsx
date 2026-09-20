@@ -34,7 +34,7 @@ const PositionProcess: React.FC = () => {
     const { data, loading, error } = useAsyncData<[InterviewFlow, Candidate[]]>(
         () => Promise.all([getInterviewFlowByPosition(id as string), getCandidatesByPosition(id as string)]),
         [id],
-        { fallbackErrorMessage: t('positionProcess.fetchError'), enabled: !!id },
+        { fallbackErrorMessage: t('positionProcess.fetchError'), networkErrorMessage: t('common.networkError'), enabled: !!id },
     );
     const [flow, candidates] = data ?? [null, []];
 

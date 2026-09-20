@@ -39,7 +39,7 @@ const FileUploader = ({ onChange, onUpload, uploadFn }) => {
         onUpload(data);
       } catch (error) {
         console.error(error);
-        setError(error.message);
+        setError(error.isNetworkError ? t('common.networkError') : error.message);
       } finally {
         setLoading(false); // Asegura que loading se establezca a false después de la operación
       }

@@ -99,7 +99,7 @@ const AddCandidateForm = () => {
         data: positionsData,
         loading: positionsLoading,
         error: positionsError,
-    } = useAsyncData(getPositions, []);
+    } = useAsyncData(getPositions, [], { networkErrorMessage: t('common.networkError') });
     const positions = positionsData ?? [];
 
     const {
@@ -108,6 +108,7 @@ const AddCandidateForm = () => {
         error: candidateLoadError,
     } = useAsyncData(() => getCandidateById(id), [id], {
         fallbackErrorMessage: t('addCandidate.loadCandidateError'),
+        networkErrorMessage: t('common.networkError'),
         enabled: isEditMode,
     });
 
@@ -208,6 +209,9 @@ const AddCandidateForm = () => {
             if (Array.isArray(err.issues)) {
                 setIssues(err.issues);
                 setError('');
+            } else if (err.isNetworkError) {
+                setIssues([]);
+                setError(t('common.networkError'));
             } else {
                 setIssues([]);
                 const prefix = isEditMode ? t('addCandidate.updateGenericErrorPrefix') : t('addCandidate.genericErrorPrefix');

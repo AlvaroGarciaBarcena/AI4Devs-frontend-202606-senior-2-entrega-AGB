@@ -37,6 +37,26 @@ describe('login', () => {
         await expect(login('alice.johnson@lti.com', 'wrong')).rejects.toThrow('Email o contraseña incorrectos');
         expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     });
+
+    // Caso real que motivó esto: el backend caído devuelve axios "Network
+    // Error" en error.message (sin respuesta en absoluto, solo
+    // error.request) -- se marca para que Login.jsx pueda dar un mensaje
+    // traducido y accionable en vez de ese texto interno en inglés.
+    it('tags the thrown error as isNetworkError when the backend never responds', async () => {
+        axios.post.mockRejectedValue({ request: {}, message: 'Network Error' });
+
+        await expect(login('alice.johnson@lti.com', 'x')).rejects.toMatchObject({ isNetworkError: true });
+    });
+
+    it('does not tag a real credentials rejection as a network error', async () => {
+        axios.post.mockRejectedValue({
+            request: {},
+            response: { data: { message: 'Email o contraseña incorrectos' } },
+        });
+
+        const error = await login('alice.johnson@lti.com', 'wrong').catch((e) => e);
+        expect(error.isNetworkError).toBeUndefined();
+    });
 });
 
 describe('logout', () => {

@@ -65,6 +65,25 @@ describe('sendCandidateData', () => {
 
         await expect(sendCandidateData({})).rejects.toThrow('Network Error');
     });
+
+    // Forma real de un error de red de axios (con `request`, sin
+    // `response`, ver apiErrors.js) -- se marca para que AddCandidateForm
+    // pueda dar un mensaje traducido en vez del "Network Error" interno.
+    it('tags the thrown error as isNetworkError when the backend never responds', async () => {
+        axios.post.mockRejectedValue({ request: {}, message: 'Network Error' });
+
+        await expect(sendCandidateData({})).rejects.toMatchObject({ isNetworkError: true });
+    });
+
+    it('does not tag a real validation rejection as a network error', async () => {
+        axios.post.mockRejectedValue({
+            request: {},
+            response: { data: { message: 'Validation failed', errors: [{ field: 'email', code: 'invalidFormat' }] } },
+        });
+
+        const error = await sendCandidateData({}).catch((e) => e);
+        expect(error.isNetworkError).toBeUndefined();
+    });
 });
 
 describe('getCandidateById', () => {
@@ -75,6 +94,12 @@ describe('getCandidateById', () => {
 
         expect(axios.get).toHaveBeenCalledWith(`${API_BASE_URL}/candidates/1`);
         expect(result).toEqual({ id: 1, firstName: 'Ana' });
+    });
+
+    it('tags the thrown error as isNetworkError when the backend never responds', async () => {
+        axios.get.mockRejectedValue({ request: {}, message: 'Network Error' });
+
+        await expect(getCandidateById(1)).rejects.toMatchObject({ isNetworkError: true });
     });
 });
 

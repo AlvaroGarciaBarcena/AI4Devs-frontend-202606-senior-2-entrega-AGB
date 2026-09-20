@@ -5623,3 +5623,131 @@ npm run build (backend) → OK, tsc sin errores
 Verificado también arrancando el servidor de verdad y comparando contra
 `ss -tlnp`: las direcciones que imprime coinciden exactamente con las
 interfaces reales de la máquina.
+
+## 3.50 "Network Error" deja de ser el mensaje que ve el usuario (`network-error-message-AGB`)
+
+El usuario preguntó si "Network Error" se podía identificar y cambiar por
+algo menos críptico cuando el backend está caído -- intentó reproducir el
+"Hey developer" que había visto antes parando el backend a propósito, y
+no volvió a salir (parece que aquel mensaje venía de algún estado
+transitorio mientras yo cambiaba algo, no de un backend simplemente
+parado; queda pendiente de identificar con el texto exacto si vuelve a
+aparecer).
+
+**Causa del "Network Error"**: axios pone ese texto literal, siempre en
+inglés, en `error.message` cuando la petición se llegó a mandar pero no
+volvió ninguna respuesta (backend caído, red cortada, bloqueado por
+CORS) -- documentado por el propio axios: en ese caso `error.request`
+existe pero `error.response` no
+(https://axios-http.com/docs/handling_errors). Todos los servicios
+(`authService.js`, `positionService.js`, `candidateService.js`) caían a
+`error.message` sin distinguir este caso de un rechazo real del backend.
+
+**Diseño**: mismo patrón que ya existía para errores de validación
+(`err.issues`, sin traducir en el servicio, traducido por quien lo
+muestra) -- nuevo `apiErrors.js` con `isNetworkError(error)`/
+`tagNetworkError(builtError, originalError)`, que marca el Error ya
+construido por cada servicio con `isNetworkError: true` cuando
+corresponde, sin cambiar nada más de su comportamiento. `useAsyncData.ts`
+(el hook genérico y reutilizable de `reusable-hooks-AGB`) gana una opción
+más, `networkErrorMessage`, con el mismo patrón que `fallbackErrorMessage`
+-- sigue sin depender de nada específico de esta app ni de i18n
+directamente, cada proyecto que lo use decide su propio texto.
+
+Nueva clave compartida `common.networkError` (un único texto, reutilizado
+en `Login.jsx`, `AddCandidateForm.jsx` -- create y edit -- ,
+`FileUploader.jsx`, y los tres consumidores de `useAsyncData` que
+muestran listas: `Positions.tsx`, `PositionProcess.tsx`,
+`UnassignedCandidates.tsx`) en vez de un texto por sitio.
+
+Verificado también a mano en el navegador, parando el backend de verdad:
+el login pasó de mostrar "Error al iniciar sesión: Network Error" a
+mostrar "No se pudo conectar con el servidor. Comprueba tu conexión, o
+que el servidor esté en marcha." -- en el idioma activo.
+
+```
+npm test (frontend)      → 99 passed (81 + 18 nuevos, incluido un
+                             positionService.test.js nuevo -- no tenía
+                             ningún test hasta ahora)
+npm run build (frontend) → OK, tsc + vite build sin errores
+```
+
+### Incidente durante la propia verificación: residuos de pruebas interrumpidas a medio camino
+
+Al relanzar la suite E2E completa después de este cambio, 3 escenarios
+fallaron por datos de prueba duplicados ("resolved to 12 elements" donde
+se esperaba 1) -- residuo directo de haber matado el backend a media
+ejecución de una tanda anterior (para reproducir el mensaje "Hey
+developer" a petición del usuario), que dejó fixtures de varios
+escenarios sin su propia limpieza final. Peor: el escenario "Ningún
+candidato sin asignar" (sección 3.40) también se había interrumpido a
+medias, dejando los **5 candidatos reales del usuario** con una
+`Application`-marcador huérfana -- exactamente el riesgo que ya se había
+documentado en el comentario de ese mismo escenario. Recuperado sin
+pérdida de datos: identificados por id (`298, 294, 296, 301, 297`) y
+borradas solo esas 5 `Application` concretas, no los candidatos.
+Lección: interrumpir una ejecución de la suite E2E a mitad de camino deja
+las cosas en un estado real intermedio, hay que revisar la base de datos
+después, no solo relanzar y asumir que está limpia. Esto se repitió
+**tres veces más** en las siguientes relanzadas (cada limpieza revelaba
+el mismo patrón: 5-8 candidatos de prueba sueltos, y los 5 candidatos
+reales con una `Application`-marcador huérfana) hasta dar con la causa
+real de fondo, más abajo.
+
+### La causa real de fondo: mis propias herramientas de navegador no alcanzan la IP de la LAN
+
+Tras limpiar la base de datos por tercera vez, la suite seguía fallando
+en bloque -- hasta escenarios que solo leen datos del seed, sin crear
+nada (`Posición con candidatos en distintas fases`). El propio
+`global-setup.ts` (el login real único de toda la suite) se quedaba
+colgado 30s esperando la navegación tras pulsar "Entrar". `curl` directo
+al backend funcionaba perfectamente (200, token válido) -- la
+contradicción (curl bien, navegador mal) fue la pista.
+
+Reproducido a mano con mi propia herramienta de navegador: un
+`fetch('http://192.168.1.151:3010/...')` desde dentro de la página
+fallaba con `Failed to fetch`, mientras que el mismo `fetch` a
+`http://localhost:3010/...` respondía `401` (correcto, solo falta
+sesión). **Mis propias herramientas de navegador/Playwright no tienen
+ruta a la IP de tu red local**, aunque mi terminal sí la tenga vía
+`curl` -- una limitación de sandboxing de este entorno de trabajo, no un
+bug del código ni de tu configuración. Como `frontend/.env` tiene
+`VITE_API_URL=http://192.168.1.151:3010` (necesario para que TÚ accedas
+desde tu equipo externo), cualquier prueba con un navegador real desde
+mi lado se rompía en cuanto intentaba hablar con el backend.
+
+Solución para poder verificar: cambiar `VITE_API_URL` a
+`http://localhost:3010` **temporalmente**, solo para las pruebas,
+reiniciando Vite para que lo recoja -- y devolverlo exactamente a tu
+valor real (`http://192.168.1.151:3010`) al terminar, con una copia de
+seguridad del fichero hecha antes de tocarlo por si acaso.
+
+Con eso resuelto: 53/58, con 5 fallos restantes -- todos rate-limiting
+real (login directo por API en `file-upload`/`security-hardening`,
+agotado por las MUCHAS relanzadas de esta sesión de depuración) más el
+mismo residuo de fixture en `hiring-pipeline`. Reiniciado el backend
+(limpia el limitador en memoria) y relanzados solo esos dos ficheros:
+**9/9**. Al revisar el último residuo de `hiring-pipeline`
+("Posición con candidatos en distintas fases", "resolved to 2 elements"
+en vez de 1), la segunda `Application` en la fase "Initial Screening"
+resultó ser de un candidato real -- "Nico alaslla" (`67@gmail.com`), sin
+el patrón de nombres `E2E ...` de mis fixtures -- así que **no se ha
+tocado**: convive con el dato de seed que el test espera encontrar solo,
+y el fallo de ese escenario concreto es el esperado mientras ese dato
+real siga ahí, no una regresión.
+
+```
+npm test (backend)                        → 64 passed, sin cambios
+npm run build (backend)                   → OK
+npm test (frontend)                       → 99 passed, sin cambios
+npm run build (frontend)                  → OK
+npx playwright test file-upload security-hardening → 9 passed (backend
+                                              reiniciado antes, limitador limpio)
+npx playwright test hiring-pipeline.feature.spec.js:6 → 1 failed, causa
+                                              real identificada (dato real
+                                              de un candidato, no un bug)
+```
+
+`frontend/.env` restaurado a `VITE_API_URL=http://192.168.1.151:3010`
+(tu valor real) y Vite reiniciado para recogerlo, antes de dar esto por
+cerrado.

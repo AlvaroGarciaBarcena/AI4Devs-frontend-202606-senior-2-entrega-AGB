@@ -255,6 +255,23 @@ describe('AddCandidateForm', () => {
         expect(screen.getByLabelText('Dirección').value).toBe('');
         expect(screen.getByLabelText(/Posición a la que se presenta/).value).toBe('');
     });
+
+    // Caso real que motivó esto: con el backend caído, axios lanza
+    // "Network Error" (sin traducir) en vez de un rechazo real del
+    // servidor -- se distingue con isNetworkError (candidateService.js/
+    // apiErrors.js) para mostrar un mensaje traducido y accionable.
+    it('shows the translated network-error message, not the raw "Network Error" text, when the backend is unreachable', async () => {
+        const user = userEvent.setup();
+        sendCandidateData.mockRejectedValue(Object.assign(new Error('Network Error'), { isNetworkError: true }));
+
+        renderForm();
+        await fillBasicFields(user, { firstName: 'Ana', lastName: 'García', email: 'ana@example.com' });
+        await user.click(screen.getByRole('button', { name: 'Enviar' }));
+
+        await waitFor(() => {
+            expect(screen.getByText('No se pudo conectar con el servidor. Comprueba tu conexión, o que el servidor esté en marcha.')).toBeTruthy();
+        });
+    });
 });
 
 // Mismo componente que "Añadir Candidato", en /candidates/:id/edit --

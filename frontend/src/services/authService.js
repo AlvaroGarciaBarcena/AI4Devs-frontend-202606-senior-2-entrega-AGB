@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
+import { tagNetworkError } from './apiErrors';
 
 const STORAGE_KEY = 'lti_auth';
 
@@ -11,8 +12,11 @@ export const login = async (email, password) => {
     } catch (error) {
         // Igual que candidateService/uploadCV: solo el detalle que manda el
         // backend, sin prefijo propio — el prefijo traducido lo añade quien
-        // muestre el error (Login.jsx).
-        throw new Error(error.response?.data?.message || error.message, { cause: error });
+        // muestre el error (Login.jsx). `isNetworkError` deja que ese mismo
+        // sitio distinga "el backend no respondió en absoluto" de un
+        // rechazo real (credenciales incorrectas), y dé un mensaje claro en
+        // vez del "Network Error" interno de axios.
+        throw tagNetworkError(new Error(error.response?.data?.message || error.message, { cause: error }), error);
     }
 };
 

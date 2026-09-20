@@ -4,7 +4,8 @@
   },
   "common": {
     "loadingPage": "Cargando página…",
-    "backToDashboard": "← Volver al inicio"
+    "backToDashboard": "← Volver al inicio",
+    "networkError": "No se pudo conectar con el servidor. Comprueba tu conexión, o que el servidor esté en marcha."
   },
   "login": {
     "title": "Iniciar sesión",

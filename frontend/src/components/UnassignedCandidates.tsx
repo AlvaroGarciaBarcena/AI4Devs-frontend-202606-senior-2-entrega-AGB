@@ -18,6 +18,7 @@ const UnassignedCandidates: React.FC = () => {
     const navigate = useNavigate();
     const { data, loading, error } = useAsyncData<UnassignedCandidate[]>(getUnassignedCandidates, [], {
         fallbackErrorMessage: t('unassignedCandidates.fetchError'),
+        networkErrorMessage: t('common.networkError'),
     });
     const candidates = data ?? [];
 

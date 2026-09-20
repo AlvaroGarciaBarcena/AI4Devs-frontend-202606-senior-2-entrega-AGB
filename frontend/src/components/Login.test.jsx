@@ -63,4 +63,26 @@ describe('Login', () => {
         });
         expect(screen.queryByText('Dashboard')).toBeNull();
     });
+
+    // Caso real que motivó esto: con el backend caído, axios lanza
+    // "Network Error" (en inglés, sin traducir) en vez de un rechazo real
+    // de credenciales -- se distingue con `isNetworkError` (ver
+    // authService.js/apiErrors.js) para dar un mensaje claro y traducido
+    // en vez de ese texto interno.
+    it('shows the translated network-error message, not the raw "Network Error" text, when the backend is unreachable', async () => {
+        const user = userEvent.setup();
+        authService.login.mockRejectedValue(Object.assign(new Error('Network Error'), { isNetworkError: true }));
+
+        renderLogin();
+        await user.type(screen.getByLabelText('Correo electrónico'), 'alice.johnson@lti.com');
+        await user.type(screen.getByLabelText('Contraseña'), 'Changeme123!');
+        await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+        await waitFor(() => {
+            expect(screen.getByRole('alert').textContent).toBe(
+                'No se pudo conectar con el servidor. Comprueba tu conexión, o que el servidor esté en marcha.',
+            );
+        });
+        expect(screen.queryByText('Dashboard')).toBeNull();
+    });
 });

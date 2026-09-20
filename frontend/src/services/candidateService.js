@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
+import { tagNetworkError } from './apiErrors';
 
 export const uploadCV = async (file) => {
     const formData = new FormData();
@@ -17,7 +18,9 @@ export const uploadCV = async (file) => {
         // (FileUploader.js) sabe en qué idioma traducirlo. El detalle en sí
         // (mensaje del servidor o de red) no está traducido — ver el límite
         // de alcance explicado en AddCandidateForm.js/candidateService.js.
-        throw new Error(error.response?.data?.error || error.message, { cause: error });
+        // `isNetworkError` deja distinguir un fallo real de conexión de un
+        // rechazo del backend (tipo de fichero no permitido, etc.).
+        throw tagNetworkError(new Error(error.response?.data?.error || error.message, { cause: error }), error);
     }
 };
 
@@ -26,7 +29,7 @@ export const getUnassignedCandidates = async () => {
         const response = await axios.get(`${API_BASE_URL}/candidates/unassigned`);
         return response.data;
     } catch (error) {
-        throw new Error(error.response?.data?.error || error.message, { cause: error });
+        throw tagNetworkError(new Error(error.response?.data?.error || error.message, { cause: error }), error);
     }
 };
 
@@ -44,7 +47,7 @@ export const getCandidateById = async (id) => {
         const response = await axios.get(`${API_BASE_URL}/candidates/${id}`);
         return response.data;
     } catch (error) {
-        throw new Error(error.response?.data?.error || error.message, { cause: error });
+        throw tagNetworkError(new Error(error.response?.data?.error || error.message, { cause: error }), error);
     }
 };
 
@@ -66,6 +69,8 @@ const buildCandidateSubmitError = (error) => {
     // Errores de validación: el backend devuelve { message, errors: [{ field, code, params }] }
     // en vez de un texto ya redactado, para que se puedan traducir y
     // asociar a cada campo del formulario (ver i18n/validationMessages.js).
+    // Si hay `response`, por definición no es un fallo de red -- no hace
+    // falta tagNetworkError aquí.
     if (Array.isArray(responseData?.errors)) {
         const validationError = new Error(responseData.message || 'Validation failed');
         validationError.issues = responseData.errors;
@@ -74,5 +79,5 @@ const buildCandidateSubmitError = (error) => {
 
     // Igual que en uploadCV: solo el detalle, sin prefijo. El prefijo
     // traducido lo añade AddCandidateForm.js con t('addCandidate.genericErrorPrefix').
-    return new Error(responseData?.error || error.message, { cause: error });
+    return tagNetworkError(new Error(responseData?.error || error.message, { cause: error }), error);
 };

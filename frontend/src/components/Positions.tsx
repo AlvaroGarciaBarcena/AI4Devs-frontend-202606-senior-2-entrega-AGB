@@ -28,6 +28,7 @@ const Positions: React.FC = () => {
     // (t() se re-evalúa en cada render igualmente) -- por eso deps: [].
     const { data, loading, error } = useAsyncData<Position[]>(getPositions, [], {
         fallbackErrorMessage: t('positions.fetchError'),
+        networkErrorMessage: t('common.networkError'),
     });
     const positions = data ?? [];
 
