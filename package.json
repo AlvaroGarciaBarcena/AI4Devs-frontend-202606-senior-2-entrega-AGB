@@ -1,7 +1,8 @@
 {
   "scripts": {
     "test:e2e": "bddgen && playwright test",
-    "test:e2e:ui": "bddgen && playwright test --ui"
+    "test:e2e:ui": "bddgen && playwright test --ui",
+    "prepare": "husky"
   },
   "dependencies": {
     "dotenv": "^16.4.5"
@@ -12,6 +13,7 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@types/jsonwebtoken": "^9.0.10",
+    "husky": "^9.1.7",
     "jsonwebtoken": "^9.0.3",
     "playwright-bdd": "^9.2.1"
   }

@@ -1,0 +1,17 @@
+echo "Pre-commit: credenciales y llamadas a npm resueltas por PATH..."
+
+# Hook 1/2: credenciales (gitleaks, ver README-ES.md/README-EN.md para
+# instalarlo -- 'sudo apt install -y gitleaks' en Ubuntu). Avisa y deja
+# pasar el commit si no está instalado, en vez de bloquear a quien todavía
+# no lo tiene -- mejor que se instale que no que nadie pueda commitear.
+if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks protect --staged --redact --no-banner || exit 1
+else
+    echo "⚠️  gitleaks no está instalado -- se omite la comprobación de credenciales."
+    echo "   Instálalo con: sudo apt install -y gitleaks (ver README-ES.md)"
+fi
+
+# Hook 2/2: 'npm' resuelto por PATH en vez de una ruta fija (ver
+# scripts/check-bare-npm.sh -- mismo hallazgo real que bajó a C el
+# quality gate del PR #22, prompts-AGB.md sección 3.59).
+sh "$(dirname "$0")/../scripts/check-bare-npm.sh" || exit 1
