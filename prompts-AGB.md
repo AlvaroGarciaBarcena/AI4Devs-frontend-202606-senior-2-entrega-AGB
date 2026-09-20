@@ -6531,3 +6531,40 @@ empresa, y probado de extremo a extremo en el navegador (login, tablero
 de proceso, mover candidatos) sin ningún cambio de comportamiento para
 el propio usuario. Datos de la PoC borrados en ambas verificaciones,
 antes y después del arreglo.
+
+## 3.62 Hallazgo secundario de la auditoría: la fase destino no se validaba (`step-validation-AGB`)
+
+Segundo hallazgo de la auditoría completa de la sección 3.61, en su
+propia rama tal como pidió el usuario. `updateCandidateStage` guardaba
+`currentInterviewStep` (el id de la fase destino) tal cual llegaba del
+cliente, sin comprobar que perteneciera al flujo de entrevistas de la
+propia posición de la candidatura -- no es una fuga de datos como el
+hallazgo principal (con el arreglo de la sección 3.61, ya no se puede
+apuntar a la fase de una posición de otra empresa), pero sí corrupción
+de datos: nada impedía dejar a un candidato "en" una fase de un
+**proceso distinto**, aunque fuera de la misma empresa. El desplegable
+de la interfaz solo ofrece las fases reales, pero eso no es una
+comprobación del lado del servidor -- cualquiera que llame al endpoint
+directamente podía saltárselo.
+
+**Arreglo**: la consulta que ya se hacía para comprobar la empresa
+(sección 3.61) se amplía para traer también las fases reales del flujo
+de la posición (`include: { interviewFlow: { include: { interviewSteps:
+true } } }`), y se comprueba que `currentInterviewStep` sea el id de
+una de ellas antes de guardar nada.
+
+```
+npx jest (backend)          → 93 passed (92 + 1 nuevo)
+npx tsc --noEmit (backend)  → OK
+npm run build (backend)     → OK
+npx vitest run (frontend)   → 119 passed, sin cambios
+```
+
+Verificado también contra el backend real, con un caso concreto:
+intentar mover a John Doe (en el proceso de "Senior Full-Stack
+Engineer") a la fase "Initial Screening" del flujo de "Data Scientist"
+(mismo nombre, pero un `id` de una posición y un flujo completamente
+distintos) -- rechazado con `400` y el mensaje claro de que esa fase no
+pertenece al flujo de su posición. Confirmado sin regresión que
+moverlo de vuelta a una fase real de su propio proceso sigue
+funcionando con normalidad.

@@ -259,9 +259,27 @@ export const updateCandidateStage = async (
     // conocer su applicationId (ver prompts-AGB.md, sección 3.61). Mismo
     // mensaje que "no existe": no hay que confirmar que el id es real si
     // no es tuyo.
-    const position = await prisma.position.findUnique({ where: { id: application.positionId } });
+    const position = await prisma.position.findUnique({
+        where: { id: application.positionId },
+        include: { interviewFlow: { include: { interviewSteps: true } } },
+    });
     if (!position || position.companyId !== companyId) {
         throw new Error('Application not found');
+    }
+
+    // Hallazgo secundario de la auditoría de la sección 3.61: `currentInterviewStep`
+    // llegaba del cliente sin comprobar que esa fase perteneciera al flujo
+    // de entrevistas de la propia posición -- se podía dejar a un
+    // candidato "en" una fase de un proceso completamente distinto (aunque
+    // fuera de la misma empresa, tras el arreglo anterior), sin que nada
+    // lo impidiera si algo llama a este endpoint directamente (el
+    // desplegable de la interfaz solo ofrece las fases reales, pero eso no
+    // es una comprobación real del lado del servidor).
+    const targetStepBelongsToFlow = position.interviewFlow.interviewSteps.some(
+        (step) => step.id === currentInterviewStep,
+    );
+    if (!targetStepBelongsToFlow) {
+        throw new Error('The target interview step does not belong to this position\'s interview flow');
     }
 
     const previousInterviewStep = application.currentInterviewStep;

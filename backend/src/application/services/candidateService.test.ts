@@ -340,7 +340,11 @@ describe('updateCandidateStage', () => {
       ...mockApplication,
       currentInterviewStep: 2,
     });
-    jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({ id: 1, companyId: COMPANY_ID } as any);
+    jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
+      id: 1,
+      companyId: COMPANY_ID,
+      interviewFlow: { interviewSteps: [{ id: 1, orderIndex: 1 }, { id: 2, orderIndex: 2 }] },
+    } as any);
     jest.spyOn(prisma.interview, 'create').mockResolvedValue({ id: 1 } as any);
   });
 
@@ -395,6 +399,18 @@ describe('updateCandidateStage', () => {
     jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({ id: 1, companyId: OTHER_COMPANY_ID } as any);
 
     await expect(updateCandidateStage(1, 1, 2, 7, COMPANY_ID, 5)).rejects.toThrow('Application not found');
+    expect(prisma.application.update).not.toHaveBeenCalled();
+    expect(prisma.interview.create).not.toHaveBeenCalled();
+  });
+
+  // Hallazgo secundario de la auditoría, sección 3.61/3.62: antes de este
+  // arreglo, `currentInterviewStep` se guardaba tal cual, sin comprobar
+  // que perteneciera al flujo de entrevistas de la propia posición.
+  it('rejects a target step that does not belong to this position\'s interview flow', async () => {
+    // El mock de posición de este describe solo tiene los pasos 1 y 2
+    // (ver beforeEach) -- 999 es de otro flujo cualquiera.
+    await expect(updateCandidateStage(1, 1, 999, 7, COMPANY_ID, 5))
+      .rejects.toThrow('does not belong to this position\'s interview flow');
     expect(prisma.application.update).not.toHaveBeenCalled();
     expect(prisma.interview.create).not.toHaveBeenCalled();
   });
