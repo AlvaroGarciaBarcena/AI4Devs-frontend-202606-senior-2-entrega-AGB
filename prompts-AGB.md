@@ -4813,3 +4813,78 @@ comprobaron los 28 enlaces resultantes contra ese mismo conjunto de
 anclas -- así se encontraron y corrigieron dos fallos propios de guion
 doble en vez de sencillo (causados por flechas/barras en el título
 original que colapsaban a un solo espacio, no a dos).
+
+## 3.36 `useAsyncData`: el primer hook genérico, extraído de una duplicación real (`reusable-hooks-AGB`)
+
+Primera rama del proceso de refactorización a componentes/hooks
+reutilizables que el usuario pidió retomar tras aparcar temporalmente
+el trabajo de GitHub (sin credenciales disponibles en ese momento).
+Antes de crear nada, se encargó una exploración honesta del código
+real (no una lista de "hooks que estaría bien tener"): de cuatro
+candidatos obvios, solo **uno** tenía duplicación real detrás.
+
+### 3.36.1 Rechazados, con motivo
+
+- **Limpieza de error de campo** (`clearFieldIssue`/`handleFieldChange`
+  de `AddCandidateForm.jsx`) -- aparece en un único fichero, `Login.jsx`
+  no hace nada parecido a nivel de campo. Una sola ocurrencia no es
+  duplicación.
+- **Estado de subida de fichero** (`FileUploader.jsx`) -- único
+  componente de subida en toda la app.
+- **Cambio de idioma** (`LanguageSwitcher.jsx`) -- sin lógica de estado
+  propia que extraer, solo una llamada directa a `i18n.changeLanguage()`.
+
+Ninguno de los tres se extrae -- "tres líneas parecidas es mejor que
+una abstracción prematura" aplica aquí tal cual.
+
+### 3.36.2 Confirmado: `useAsyncData`
+
+`Positions.tsx` y `PositionProcess.tsx` repetían, línea por línea, el
+mismo patrón (`loading`/`error` en `useState`, `useEffect` con función
+async, mismo `catch`, mismo `finally`). `AddCandidateForm.jsx` hacía
+una versión más pobre de lo mismo para cargar posiciones -- sin
+`loading` en absoluto, así que el desplegable arrancaba vacío sin
+ninguna señal de que las posiciones reales estaban en camino,
+indistinguible de "no hay posiciones" (hallazgo real de UX, corregido
+de paso al aplicar el hook).
+
+`frontend/src/hooks/useAsyncData.ts` -- genérico, sin nada específico
+de esta app (solo depende de React), con dos mejoras reales sobre el
+código original que un hook pensado para reutilizarse en otros
+proyectos sí necesita:
+
+- **Guarda contra condición de carrera**: si las dependencias cambian
+  mientras una petición anterior sigue en marcha, su respuesta puede
+  llegar DESPUÉS que la nueva y pisar el resultado correcto -- una
+  bandera `cancelled` (cierre del `useEffect`) lo evita. El código
+  original de `PositionProcess.tsx` no se protegía contra esto.
+- **`enabled`**: para el caso de `PositionProcess` (que antes hacía
+  `if (!id) return;` dentro del efecto) sin tener que llamar al hook
+  de forma condicional, que rompería las reglas de los Hooks de React.
+
+Aplicado en los tres sitios; se añade `addCandidate.loadingPositions`
+a `es.json`/`en.json` para el nuevo estado de carga visible del
+desplegable de posición.
+
+### 3.36.3 Test del hook y verificación
+
+`useAsyncData.test.ts` (6 casos, con `renderHook`/`waitFor` de
+`@testing-library/react` -- ya en `^16.3.3`, con `renderHook`
+incluido, no hizo falta ningún paquete nuevo): carga inicial, error
+real, error no-`Error` con `fallbackErrorMessage`, `enabled: false`,
+re-fetch al cambiar dependencias, y un test específico para la guarda
+de condición de carrera (confirma que la respuesta más lenta de una
+petición anterior no pisa la más rápida de la posterior).
+
+```
+npm test (frontend)          → 40 passed (34 + 6 nuevos)
+npx playwright test          → 48 passed (1.1m) -- ninguna de las
+                                 escenarios de position-catalog,
+                                 candidate-intake ni hiring-pipeline
+                                 (que ejercitan estas tres pantallas
+                                 de verdad) se rompió con el refactor
+```
+
+Verificado también a mano en el navegador: `/positions`,
+`/positions/:id` y `/add-candidate` renderizan igual que antes del
+refactor, con datos reales.

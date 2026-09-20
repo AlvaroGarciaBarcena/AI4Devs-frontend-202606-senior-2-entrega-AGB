@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Card, Container, Row, Col, Form, Button, Spinner, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { getPositions } from '../services/positionService';
+import { useAsyncData } from '../hooks/useAsyncData';
 import { useTranslation } from 'react-i18next';
 
 type Position = {
@@ -22,28 +23,13 @@ const STATUS_BADGE_VARIANT: Record<string, string> = {
 
 const Positions: React.FC = () => {
     const { t } = useTranslation();
-    const [positions, setPositions] = useState<Position[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-
-    useEffect(() => {
-        const fetchPositions = async () => {
-            try {
-                const data = await getPositions();
-                setPositions(data);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : t('positions.fetchError'));
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchPositions();
-        // Solo al montar: no queremos volver a pedir las posiciones cada
-        // vez que cambia el idioma, solo re-traducir lo que ya está en
-        // pantalla (t() se re-evalúa en cada render igualmente).
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    // Solo al montar: no queremos volver a pedir las posiciones cada vez
+    // que cambia el idioma, solo re-traducir lo que ya está en pantalla
+    // (t() se re-evalúa en cada render igualmente) -- por eso deps: [].
+    const { data, loading, error } = useAsyncData<Position[]>(getPositions, [], {
+        fallbackErrorMessage: t('positions.fetchError'),
+    });
+    const positions = data ?? [];
 
     return (
         <Container className="mt-5">

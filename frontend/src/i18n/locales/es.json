@@ -32,6 +32,7 @@
     "title": "Agregar Candidato",
     "applyingPosition": "Posición a la que se presenta",
     "selectPositionPlaceholder": "Selecciona una posición",
+    "loadingPositions": "Cargando posiciones…",
     "firstName": "Nombre",
     "lastName": "Apellido",
     "email": "Correo Electrónico",

@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Container, Row, Col, Card, Badge, Spinner, Alert, Button } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import { getCandidatesByPosition, getInterviewFlowByPosition } from '../services/positionService';
+import { useAsyncData } from '../hooks/useAsyncData';
 import { useTranslation } from 'react-i18next';
 
 type Candidate = {
@@ -30,32 +31,12 @@ type InterviewFlow = {
 const PositionProcess: React.FC = () => {
     const { t } = useTranslation();
     const { id } = useParams<{ id: string }>();
-    const [flow, setFlow] = useState<InterviewFlow | null>(null);
-    const [candidates, setCandidates] = useState<Candidate[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-
-    useEffect(() => {
-        if (!id) return;
-
-        const fetchProcess = async () => {
-            try {
-                const [flowData, candidatesData] = await Promise.all([
-                    getInterviewFlowByPosition(id),
-                    getCandidatesByPosition(id),
-                ]);
-                setFlow(flowData);
-                setCandidates(candidatesData);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : t('positionProcess.fetchError'));
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchProcess();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [id]);
+    const { data, loading, error } = useAsyncData<[InterviewFlow, Candidate[]]>(
+        () => Promise.all([getInterviewFlowByPosition(id as string), getCandidatesByPosition(id as string)]),
+        [id],
+        { fallbackErrorMessage: t('positionProcess.fetchError'), enabled: !!id },
+    );
+    const [flow, candidates] = data ?? [null, []];
 
     if (loading) {
         return (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Form, Button, Alert, FormControl, Card, Container, Row, Col } from 'react-bootstrap';
 import { Trash } from 'react-bootstrap-icons';
 import FileUploader from './FileUploader';
@@ -17,6 +17,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 const DatePicker = ReactDatePickerModule.default || ReactDatePickerModule;
 import { sendCandidateData } from '../services/candidateService';
 import { getPositions } from '../services/positionService';
+import { useAsyncData } from '../hooks/useAsyncData';
 import { translateValidationIssues } from '../i18n/validationMessages';
 import { useTranslation } from 'react-i18next';
 
@@ -60,17 +61,17 @@ const AddCandidateForm = () => {
     // reenviar el formulario.
     const [issues, setIssues] = useState([]); // [{ field, code, params }], ver validator.ts del backend
     const [successMessage, setSuccessMessage] = useState('');
-    const [positions, setPositions] = useState([]);
-    // Fallo al cargar el listado de posiciones (p. ej. backend caído): se
-    // muestra aparte de `error` (que es para fallos de envío del
-    // formulario) porque puede ocurrir antes de que nadie haya tocado nada.
-    const [positionsError, setPositionsError] = useState('');
-
-    useEffect(() => {
-        getPositions()
-            .then(setPositions)
-            .catch((err) => setPositionsError(err.message));
-    }, []);
+    // Antes se cargaba con getPositions().then/.catch a mano, sin ningún
+    // estado de carga -- el desplegable arrancaba vacío ("Selecciona una
+    // posición" sin más opciones) sin ninguna señal de que las posiciones
+    // reales todavía estaban en camino, indistinguible de "no hay
+    // posiciones". positionsLoading llena ese hueco real de UX.
+    const {
+        data: positionsData,
+        loading: positionsLoading,
+        error: positionsError,
+    } = useAsyncData(getPositions, []);
+    const positions = positionsData ?? [];
 
     const fieldErrors = translateValidationIssues(issues);
     const getFieldError = (field) => fieldErrors.find((issue) => issue.field === field);
@@ -178,6 +179,7 @@ const AddCandidateForm = () => {
                                 <Form.Select
                                     name="positionId"
                                     required
+                                    disabled={positionsLoading}
                                     value={candidate.positionId}
                                     onChange={(e) => handleFieldChange('positionId', e.target.value)}
                                     className="shadow-sm"
@@ -185,7 +187,9 @@ const AddCandidateForm = () => {
                                     aria-invalid={!!getFieldError('positionId')}
                                     aria-describedby={getFieldError('positionId') ? 'positionId-error' : undefined}
                                 >
-                                    <option value="">{t('addCandidate.selectPositionPlaceholder')}</option>
+                                    <option value="">
+                                        {positionsLoading ? t('addCandidate.loadingPositions') : t('addCandidate.selectPositionPlaceholder')}
+                                    </option>
                                     {positions.map((position) => (
                                         <option key={position.id} value={position.id}>
                                             {position.title} — {position.companyName}
