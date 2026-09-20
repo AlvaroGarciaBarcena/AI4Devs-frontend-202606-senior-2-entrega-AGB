@@ -83,6 +83,7 @@
     "edit": "Edit",
     "editNotImplemented": "Editing positions is not implemented yet",
     "empty": "No positions available.",
+    "noMatches": "No positions match the current filters.",
     "fetchError": "Error fetching positions"
   },
   "positionProcess": {

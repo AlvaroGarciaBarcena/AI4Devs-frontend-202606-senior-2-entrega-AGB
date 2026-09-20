@@ -40,3 +40,37 @@ Then('el sistema navega al tablero de esa posición concreta', async ({ page }) 
   await expect(page).toHaveURL(/\/positions\/\d+$/);
   await expect(page.getByRole('heading', { name: /Proceso de selección.*Senior Full-Stack Engineer/ })).toBeVisible();
 });
+
+Given('existen varias posiciones con títulos distintos', async ({ page }) => {
+  // Lo satisface el seed: "Senior Full-Stack Engineer" y "Data Scientist",
+  // ambas en LTI/Remote/Open con la misma fecha límite -- solo el título
+  // las distingue, así que basta para probar el filtro de texto.
+  await page.goto('/positions');
+  await expect(page.locator('.card', { hasText: 'Senior Full-Stack Engineer' })).toBeVisible();
+  await expect(page.locator('.card', { hasText: 'Data Scientist' })).toBeVisible();
+});
+
+When('el reclutador escribe una parte del título de una de ellas en el buscador', async ({ page }) => {
+  await page.getByLabel('Buscar por título').fill('Data Sci');
+});
+
+Then('solo se muestran las posiciones cuyo título contiene ese texto', async ({ page }) => {
+  await expect(page.locator('.card', { hasText: 'Data Scientist' })).toBeVisible();
+  await expect(page.locator('.card', { hasText: 'Senior Full-Stack Engineer' })).toHaveCount(0);
+});
+
+Given('existen posiciones, pero ninguna cumple el filtro de estado elegido', async ({ page }) => {
+  // El seed no tiene ninguna posición "Closed" -- las dos existentes son
+  // "Open".
+  await page.goto('/positions');
+  await expect(page.locator('.card', { hasText: 'Senior Full-Stack Engineer' })).toBeVisible();
+});
+
+When('el reclutador aplica ese filtro', async ({ page }) => {
+  await page.getByLabel('Estado').selectOption({ label: 'Cerrado' });
+});
+
+Then('el sistema indica que ninguna posición coincide con los filtros', async ({ page }) => {
+  await expect(page.getByText('Ninguna posición coincide con los filtros.')).toBeVisible();
+  await expect(page.locator('.card')).toHaveCount(0);
+});

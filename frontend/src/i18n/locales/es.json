@@ -83,6 +83,7 @@
     "edit": "Editar",
     "editNotImplemented": "Edición de posiciones aún no implementada",
     "empty": "No hay posiciones disponibles.",
+    "noMatches": "Ninguna posición coincide con los filtros.",
     "fetchError": "Error al obtener las posiciones"
   },
   "positionProcess": {

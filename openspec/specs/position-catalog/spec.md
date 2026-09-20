@@ -23,3 +23,18 @@ El sistema SHALL ofrecer, para cada posición listada, un enlace a su tablero de
 - **WHEN** pulsa "Ver proceso" sobre una posición
 - **THEN** el sistema navega al tablero de esa posición concreta
 
+### Requirement: Filtrar el listado por título, fecha límite y estado
+_Rama: `positions-filter-AGB`_
+
+El sistema SHALL permitir filtrar el listado de posiciones por título (subcadena, sin distinguir mayúsculas), por fecha límite (posiciones cuya fecha límite sea esa fecha o anterior) y por estado (coincidencia exacta), combinando los tres filtros a la vez. Cuando existen posiciones pero ninguna cumple los filtros activos, el sistema SHALL mostrar una indicación de que ninguna coincide, distinta de la indicación de que no hay posiciones en absoluto.
+
+#### Scenario: Filtrar por título
+- **GIVEN** existen varias posiciones con títulos distintos
+- **WHEN** el reclutador escribe una parte del título de una de ellas en el buscador
+- **THEN** solo se muestran las posiciones cuyo título contiene ese texto
+
+#### Scenario: Ningún resultado para los filtros activos
+- **GIVEN** existen posiciones, pero ninguna cumple el filtro de estado elegido
+- **WHEN** el reclutador aplica ese filtro
+- **THEN** el sistema indica que ninguna posición coincide con los filtros, no que no hay posiciones
+

@@ -5132,3 +5132,42 @@ auditaron a mano todos los `deleteMany`/`delete` de `e2e/steps/*.ts`:
 salvo el ya corregido aquí, cada uno está acotado por un id o email exacto
 generado por ese mismo escenario -- ninguno más usa un filtro amplio que
 pueda alcanzar datos reales.
+
+## 3.41 Filtro real del catálogo de posiciones (`positions-filter-AGB`)
+
+Encontrado de pasada mientras se investigaba el hallazgo de la sección
+3.39: los tres campos de `Positions.tsx` ("Buscar por título", fecha,
+estado) estaban pintados pero sin `value`/`onChange` -- ningún filtro
+hacía nada, un hueco real de UX que engañaba a quien los usara. Pedido
+explícitamente por el usuario al confirmarlo.
+
+Los tres filtros son de cliente (las posiciones ya se cargan todas de
+golpe con `useAsyncData`), se combinan con Y, y cada uno es una decisión
+tomada sin especificación previa, documentada aquí para poder corregirla
+si no es lo esperado:
+- **Título**: subcadena, sin distinguir mayúsculas/minúsculas.
+- **Fecha**: posiciones cuya fecha límite sea **esa fecha o anterior**
+  (no coincidencia exacta) -- el caso de uso más probable para un
+  reclutador es "¿cuáles cierran pronto?", no una fecha exacta que rara
+  vez conocerá de memoria.
+- **Estado**: coincidencia exacta con el desplegable.
+
+Cuando hay posiciones pero ninguna cumple los filtros activos, se
+distingue de "no hay posiciones en absoluto" con un mensaje propio
+(`positions.noMatches`) -- antes solo existía el mensaje genérico de
+"no hay posiciones disponibles", que habría sido engañoso en ese caso
+(sugiere una base de datos vacía, no un filtro demasiado estricto).
+
+Nuevo `Positions.test.tsx` (6 casos: cada filtro por separado, los tres
+combinados, y el mensaje distinto para "sin resultados" vs "sin
+posiciones") -- primer test de este componente, no tenía ninguno. Dos
+escenarios E2E nuevos en `position-catalog.feature`, usando el propio
+seed (`Senior Full-Stack Engineer` vs `Data Scientist`, distintos
+títulos y fechas límite, ambos "Open" así que el filtro de estado se
+prueba con "Cerrado" para forzar el caso de cero resultados).
+
+```
+npm test (frontend)      → 59 passed (53 + 6 nuevos)
+npm run build (frontend) → OK, tsc + vite build sin errores
+npm run test:e2e         → 52 passed (50 + 2 nuevos)
+```
