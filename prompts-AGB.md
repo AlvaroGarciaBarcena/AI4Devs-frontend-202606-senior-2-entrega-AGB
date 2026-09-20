@@ -4678,3 +4678,103 @@ este cambio -- `NavigationLoadingIndicator` es, de hecho, el primer
 componente de esta sesión escrito ya pensando en esa reutilización
 futura (sin dependencias de la app, props configurables, comentario
 explicando qué necesita para funcionar en otro proyecto).
+
+## 3.34 `README.md` separado en `README-EN.md`/`README-ES.md`, con las instrucciones que le faltaban (`readme-docs-AGB`)
+
+Prompt del usuario: *"¿Antes separas porfa el README.md en
+README-ES.md y README-EN.md y les añades las instrucciones
+faltantes? Están super bien, pero un novato no sería capaz de iniciar
+el entorno. Por ejemplo: 'clona el repo'... ¿cuál es la instrucción
+para ello?. ¿Puedes descargar docker de aquí' sin enlace. Mejor
+indica el comando para descargarlo y asume para las instrucciones que
+el entorno es Linux Ubuntu."*
+
+Rama nueva, no `playwright-bdd-AGB`: documentación de README es un
+tema independiente de la suite E2E, aunque nazca sobre su misma punta
+(las referencias a `openspec/`, `e2e/features/` y `prompts-AGB.md` que
+lleva el nuevo README solo existen ahí).
+
+### 3.34.1 Auditoría del README anterior antes de tocar nada
+
+El README bilingüe (EN arriba, ES abajo, en el mismo fichero) tenía
+varios problemas reales, no solo huecos:
+
+- "Clone the repo" / "Instala Docker... descárgalo desde aquí" sin
+  ningún comando ni enlace, tal como señaló el usuario.
+- Afirmaba que el frontend "se inicia con Create React App" y que su
+  build vive en `build/` -- ambas cosas dejaron de ser ciertas con la
+  migración a Vite (`dist/`, no `build/`; confirmado leyendo
+  `frontend/vite.config.ts`, que no sobreescribe el `outDir` por
+  defecto).
+- Mencionaba un directorio `backend/src/infrastructure/` y
+  `backend/src/tests/` que no existen -- comprobado con `find`, la
+  estructura real es `application/domain/presentation/routes`, con los
+  `*.test.ts` conviviendo con su código fuente, no en un directorio
+  aparte.
+- No mencionaba la autenticación en absoluto -- con el login
+  obligatorio añadido en `api-auth-AGB`, seguir el README tal cual
+  hasta el final dejaba a quien lo siguiera plantado en una pantalla
+  de login sin ninguna credencial con la que entrar.
+- No mencionaba `openspec/`, `e2e/`, `prompts-AGB.md` ni cómo ejecutar
+  ningún test -- todo el trabajo de las últimas ramas, invisible desde
+  el README.
+
+### 3.34.2 Verificación de cada instrucción antes de escribirla
+
+Antes de dar por buena cualquier instrucción, se comprobó contra el
+estado real del repositorio en vez de fiarse de lo que decía el README
+viejo:
+
+- `docker-compose.yml` lee `DB_PASSWORD`/`DB_USER`/`DB_NAME`/`DB_PORT`
+  de un `.env` en la raíz -- y **ya existe** una plantilla
+  `.env.example` en la raíz y otra en `backend/`, con el propio
+  comando para generar un `JWT_SECRET` real incluido como comentario.
+  El README nuevo usa esa plantilla en vez de inventar una explicación
+  paralela.
+- Los scripts de `npm run` documentados (`prisma:generate`,
+  `prisma:seed`, `dev`, `build`, `test`, `test:e2e`) se sacaron
+  directamente de los `package.json` de raíz/backend/frontend, no de
+  memoria -- `prisma:seed` en concreto corrige el comando roto del
+  README anterior (`ts-node seed.ts`, que asumía un directorio de
+  trabajo distinto al real).
+- Las migraciones de Prisma (`backend/prisma/migrations/`) ya están
+  committeadas -- `prisma migrate dev` sobre una base de datos recién
+  creada las aplica sin pedir nada de forma interactiva, comprobado
+  listando el directorio.
+- Las credenciales de login que se documentan
+  (`alice.johnson@lti.com` / `Changeme123!`) están escritas tal cual
+  en el propio `backend/prisma/seed.ts`, ya committeado -- documentar
+  un valor que ya es público en el código fuente del repo no es un
+  problema de seguridad, y sin ellas nadie podría usar la aplicación
+  siguiendo el README.
+- `docker compose version` (sintaxis moderna, con espacio, no
+  `docker-compose` con guion) se confirmó instalado y funcionando en
+  este mismo entorno antes de recomendarlo.
+- Al intentar verificar `docker compose ps` de verdad contra este
+  proyecto, saltó un aviso real (`the attribute 'version' is
+  obsolete`) -- inofensivo, pero se documenta en la sección de
+  solución de problemas de ambos README para que no alarme a quien lo
+  vea por primera vez. No se toca `docker-compose.yml` en sí: no era
+  parte de lo pedido.
+- La instalación de Docker/Node no se pudo probar de principio a fin
+  en esta misma máquina sin arriesgarse a romper el entorno de
+  desarrollo ya en marcha (Node v26 ya instalado, base de datos con
+  horas de trabajo real encima) -- se documentan los comandos
+  oficiales de instalación (script de conveniencia de
+  `get.docker.com`, repositorio de NodeSource para Node LTS), el
+  método estándar y recomendado por ambos proyectos para Ubuntu, en
+  vez de inventar uno propio.
+
+### 3.34.3 Estructura final
+
+- `README.md`: reducido a un selector de idioma de dos líneas (patrón
+  habitual en repositorios multi-idioma -- GitHub siempre renderiza
+  este fichero por defecto).
+- `README-EN.md` / `README-ES.md`: contenido completo y paralelo,
+  numerado en 11 pasos (prerrequisitos → clonar → variables de entorno
+  → base de datos → dependencias → esquema y semilla → backend →
+  frontend → login → tests), con estructura del proyecto corregida,
+  enlaces a la documentación existente (`api-spec.yaml`,
+  `ModeloDatos.md`, `ManifestoBuenasPracticas.md`, `openspec/specs/`,
+  `prompts-AGB.md`) y una sección de solución de problemas con los
+  fallos más probables de un primer intento.
