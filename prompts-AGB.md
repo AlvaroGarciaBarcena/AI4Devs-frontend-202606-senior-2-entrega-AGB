@@ -6157,3 +6157,64 @@ gh pr list (34 PR)         → cadena completa verificada, cada head->base corre
 
 Repositorio: https://github.com/AlvaroGarciaBarcena/AI4Devs-frontend-202606-senior-2-AGB
 (privado).
+
+## 3.57 Evaluación de HTTPS para la validación del profesor: decisión de quedarse en HTTP por ahora
+
+Al revisar el PR #1, surgió la pregunta de si reforzar
+`JUSTIFICACION-ENTREGA.md` con el cifrado en tránsito -- el artículo 32
+RGPD menciona el cifrado como medida técnica apropiada, además del
+control de acceso ya implementado. El usuario coincidió: autenticar
+sobre HTTP sin cifrar deja la mitad del argumento sin cerrar (un token
+interceptado en la misma red da el mismo acceso que no autenticar en
+absoluto). A partir de ahí, evaluadas varias opciones para cerrarlo,
+cada una descartada por un condicionante real, no en abstracto:
+
+1. **Certificado autofirmado, aceptado a mano.** Frontend y backend
+   viven en puertos distintos (orígenes distintos); solo la navegación
+   directa a una URL muestra el aviso con el que se puede "aceptar" --
+   las llamadas de la API en segundo plano no tienen ninguna pantalla en
+   la que hacer clic, así que habría que aceptar cada origen por
+   separado antes de que la app funcionase entera.
+2. **`mkcert`** (autoridad local de confianza). Resuelve los avisos de
+   forma permanente, pero exige instalar su certificado raíz en cada
+   dispositivo, uno a uno. Condicionante decisivo, aportado por el
+   usuario: quien tiene que validar esto es **el profesor, desde su
+   propio móvil** -- pedirle que instale una autoridad de certificación
+   desconocida en su dispositivo personal no es razonable.
+3. **Túnel HTTPS** (Cloudflare Quick Tunnel/ngrok). Resuelve lo
+   anterior -- HTTPS real, sin que el profesor instale nada -- pero
+   introduce un segundo condicionante, también detectado por el
+   usuario: solo existe mientras la máquina de origen esté encendida,
+   con los servicios y el túnel activos en el momento exacto de la
+   validación. Si el profesor lo prueba en otro momento sin coordinarlo
+   en vivo, no hay nada al otro lado.
+4. **Despliegue real** (Render u otra plataforma, conectada al
+   repositorio de GitHub). El único que resuelve los dos condicionantes
+   a la vez. Comprobado el coste real, no supuesto (`WebSearch` contra
+   la documentación/prensa de Render, septiembre 2026): gratis para una
+   validación puntual dentro de los primeros 30 días -- con avisos
+   honestos, el backend gratuito se duerme tras 15 min sin uso (~1 min
+   para despertar) y la base de datos gratuita caduca a los 30 días --,
+   o del orden de 13-15€/mes si se quisiera mantener indefinidamente.
+   Trae infraestructura nueva encima del propio ejercicio: cuenta en la
+   plataforma, repositorio conectado, tres piezas configuradas con sus
+   variables de entorno.
+
+**Los tres condicionantes reales que decidieron esto**: quién valida (un
+evaluador externo, desde su propio dispositivo -- descarta 1 y 2), cuándo
+valida (un momento no coordinado en vivo -- descarta 3), y qué se evalúa
+(el ejercicio en sí, no la infraestructura de despliegue -- hace la
+opción 4 desproporcionada para una validación puntual, con el riesgo
+añadido de que algo de esa infraestructura nueva falle justo el día de
+la validación).
+
+**Decisión del usuario**: quedarse en HTTP para esta entrega concreta --
+no por falta de opciones (las cuatro son técnicamente viables y se
+evaluaron con su coste real), sino porque ninguna de las que funcionan
+sin fricción para el profesor es proporcionada al objetivo puntual de
+validar el ejercicio. Documentado en
+[`JUSTIFICACION-ENTREGA.md`](./JUSTIFICACION-ENTREGA.md) (sección 6)
+como lo que es: un hallazgo real, no corregido, con el porqué explícito
+y los factores que atenúan el riesgo mientras tanto -- mismo estándar
+que el resto de hallazgos de seguridad dejados fuera de alcance a
+propósito en esta sesión (sección 3.17.6).
