@@ -169,12 +169,49 @@ rastro: [`BRANCHES_LOG`](./BRANCHES_LOG) enlaza cada rama con su sección,
 y [`PROMPTS_POR_PR.md`](./PROMPTS_POR_PR.md) recoge el prompt exacto que
 originó cada una.
 
-## 6. Resumen
+## 6. Limitación conocida, decidida a propósito: el transporte sigue sin cifrar (HTTP, no HTTPS)
+
+El propio artículo 32 del RGPD (sección 3) menciona el cifrado como
+ejemplo de medida técnica apropiada, junto al control de acceso — así
+que, siendo estrictos, esta entrega cierra la mitad del hallazgo de la
+sección 3.17.2 (quién puede acceder) pero no la otra mitad (cómo viaja
+el dato una vez autenticado). Con la aplicación sirviendo por HTTP, un
+token JWT interceptado en la misma red durante sus 8h de vigencia
+concede el mismo acceso que tendría sin cifrar la conexión.
+
+Se decidió explícitamente no cerrar este hallazgo en esta entrega, tras
+evaluar el coste real de las alternativas: un certificado autofirmado
+exige que cada dispositivo que valide la entrega instale manualmente una
+autoridad de confianza (inviable pedírselo a un evaluador externo); un
+túnel HTTPS (Cloudflare/ngrok) depende de que la máquina de origen esté
+encendida y los servicios activos en el momento exacto de la validación;
+y un despliegue real (dominio + hosting, gratuito para una validación
+puntual, del orden de 13-15€/mes si se quisiera mantener de forma
+permanente) añade piezas de infraestructura ajenas al propio ejercicio.
+Para validar el ejercicio en concreto, cualquiera de las tres opciones
+complicaba la entrega más de lo que aportaba.
+
+**Factores que atenúan el riesgo real mientras esto no se resuelve**: la
+aplicación no está expuesta a internet — corre en local o, como mucho,
+en una red WiFi de confianza acotada por firewall (sección 3.48); el
+control de acceso en sí (a quién se le expide un token) sigue intacto,
+así que esto no reabre el hallazgo original de la sección 3.17.2 (acceso
+sin ninguna credencial); y la ventana de exposición es la de una
+validación puntual, no un servicio en producción con tráfico continuo.
+
+Queda documentado aquí como lo que es: un hallazgo real, no corregido,
+con el porqué explícito de por qué no se ha corregido — el mismo
+estándar que el resto de decisiones de esta sesión (ver, por ejemplo, la
+sección 3.17.6 de `prompts-AGB.md` para el mismo tratamiento aplicado a
+otros hallazgos de seguridad dejados fuera de alcance a propósito).
+
+## 7. Resumen
 
 | | Backend original | Backend entregado |
 |---|---|---|
 | Autenticación/autorización | Ninguna — cualquiera lee/escribe PII con un id secuencial | JWT + `bcrypt`, toda ruta protegida |
-| Cumplimiento RGPD (art. 5.1.f, art. 32) | No — sin medida de seguridad de acceso alguna | Sí, en lo que respecta a control de acceso |
+| Cifrado en tránsito (HTTPS) | No | Tampoco — limitación conocida, ver sección 6 |
+| Cumplimiento RGPD (art. 5.1.f, art. 32) | No — sin ninguna medida de seguridad | Parcial: control de acceso sí, cifrado en tránsito no (sección 6) |
 | Subida de ficheros | Tipo de archivo confiado al cliente; nombre sin sanear | Filtro + saneado explícito (defensa en profundidad) |
 | Dependencias | 20 vulnerabilidades (backend), 3 altas (frontend) | 0 |
 | Credenciales | Contraseña de BD en texto plano, commiteada | Vía `.env`, no trackeado |
