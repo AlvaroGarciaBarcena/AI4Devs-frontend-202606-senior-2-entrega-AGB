@@ -1,4 +1,4 @@
-import { getAllPositionsService, getCandidatesByPositionService } from './positionService';
+import { getAllPositionsService, getCandidatesByPositionService, addInterviewStepService } from './positionService';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -10,6 +10,18 @@ jest.mock('@prisma/client', () => {
     },
     position: {
       findMany: jest.fn(),
+      findUnique: jest.fn(),
+    },
+    // InterviewType/InterviewStep (domain/models/*.ts) instancian su propio
+    // PrismaClient -- con este mock global, `new PrismaClient()` siempre
+    // devuelve este mismo objeto, así que sus llamadas internas a
+    // `prisma.interviewType.create`/`prisma.interviewStep.create` acaban
+    // aquí también, no en un cliente real aparte.
+    interviewType: {
+      create: jest.fn(),
+    },
+    interviewStep: {
+      create: jest.fn(),
     },
   };
   return { PrismaClient: jest.fn(() => mockPrisma) };
@@ -72,6 +84,73 @@ describe('getCandidatesByPositionService', () => {
         applicationId: 1,
       },
     ]);
+  });
+});
+
+describe('addInterviewStepService', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('creates a new interview type and step, placed after the existing ones', async () => {
+    jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
+      id: 1,
+      interviewFlow: {
+        id: 10,
+        interviewSteps: [
+          { id: 1, orderIndex: 1 },
+          { id: 2, orderIndex: 2 },
+        ],
+      },
+    } as any);
+    jest.spyOn(prisma.interviewType, 'create').mockResolvedValue({ id: 99, name: 'Live coding test', description: undefined } as any);
+    jest.spyOn(prisma.interviewStep, 'create').mockResolvedValue({
+      id: 50,
+      interviewFlowId: 10,
+      interviewTypeId: 99,
+      name: 'Live coding test',
+      orderIndex: 3,
+    } as any);
+
+    const result = await addInterviewStepService(1, 'Live coding test');
+
+    expect(prisma.interviewType.create).toHaveBeenCalledWith({ data: { name: 'Live coding test', description: undefined } });
+    expect(prisma.interviewStep.create).toHaveBeenCalledWith({
+      data: { interviewFlowId: 10, interviewTypeId: 99, name: 'Live coding test', orderIndex: 3 },
+    });
+    expect(result).toEqual({ id: 50, interviewFlowId: 10, interviewTypeId: 99, name: 'Live coding test', orderIndex: 3 });
+  });
+
+  // El flujo de la posición 2 llegó a estar vacío de fases de verdad (ver
+  // el comentario del seed, sección 3.39) -- la primera fase que se añade
+  // no debe intentar comparar contra un array vacío y explotar.
+  it('starts at orderIndex 1 when the flow has no steps yet', async () => {
+    jest.spyOn(prisma.position, 'findUnique').mockResolvedValue({
+      id: 2,
+      interviewFlow: { id: 20, interviewSteps: [] },
+    } as any);
+    jest.spyOn(prisma.interviewType, 'create').mockResolvedValue({ id: 100, name: 'Primera fase' } as any);
+    jest.spyOn(prisma.interviewStep, 'create').mockResolvedValue({
+      id: 51,
+      interviewFlowId: 20,
+      interviewTypeId: 100,
+      name: 'Primera fase',
+      orderIndex: 1,
+    } as any);
+
+    const result = await addInterviewStepService(2, 'Primera fase');
+
+    expect(prisma.interviewStep.create).toHaveBeenCalledWith({
+      data: { interviewFlowId: 20, interviewTypeId: 100, name: 'Primera fase', orderIndex: 1 },
+    });
+    expect(result.orderIndex).toBe(1);
+  });
+
+  it('throws when the position does not exist', async () => {
+    jest.spyOn(prisma.position, 'findUnique').mockResolvedValue(null);
+
+    await expect(addInterviewStepService(999, 'Cualquier fase')).rejects.toThrow('Position not found');
+    expect(prisma.interviewType.create).not.toHaveBeenCalled();
   });
 });
 

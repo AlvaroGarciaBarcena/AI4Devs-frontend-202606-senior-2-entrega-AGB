@@ -1,6 +1,6 @@
-import { getAllPositions, getCandidatesByPosition, getInterviewFlowByPosition } from './positionController';
+import { getAllPositions, getCandidatesByPosition, getInterviewFlowByPosition, addInterviewStep } from './positionController';
 import { Request, Response } from 'express';
-import { getAllPositionsService, getCandidatesByPositionService, getInterviewFlowByPositionService } from '../../application/services/positionService';
+import { getAllPositionsService, getCandidatesByPositionService, getInterviewFlowByPositionService, addInterviewStepService } from '../../application/services/positionService';
 
 jest.mock('../../application/services/positionService');
 
@@ -104,6 +104,70 @@ describe('getInterviewFlowByPosition', () => {
     (getInterviewFlowByPositionService as jest.Mock).mockRejectedValue(new Error('Position not found'));
 
     await getInterviewFlowByPosition(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Position not found', error: 'Position not found' });
+  });
+});
+
+describe('addInterviewStep', () => {
+  it('returns 201 with the created step', async () => {
+    const req = { params: { id: '1' }, body: { name: 'Live coding test' } } as unknown as Request;
+    const res = mockResponse();
+
+    (addInterviewStepService as jest.Mock).mockResolvedValue({
+      id: 50, interviewFlowId: 10, interviewTypeId: 99, name: 'Live coding test', orderIndex: 3,
+    });
+
+    await addInterviewStep(req, res);
+
+    expect(addInterviewStepService).toHaveBeenCalledWith(1, 'Live coding test');
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Interview step added successfully',
+      data: { id: 50, interviewFlowId: 10, interviewTypeId: 99, name: 'Live coding test', orderIndex: 3 },
+    });
+  });
+
+  it('returns 400 without calling the service when the id is not numeric', async () => {
+    const req = { params: { id: 'abc' }, body: { name: 'Live coding test' } } as unknown as Request;
+    const res = mockResponse();
+
+    await addInterviewStep(req, res);
+
+    expect(addInterviewStepService).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid position ID format' });
+  });
+
+  it('returns 400 without calling the service when the name is blank', async () => {
+    const req = { params: { id: '1' }, body: { name: '   ' } } as unknown as Request;
+    const res = mockResponse();
+
+    await addInterviewStep(req, res);
+
+    expect(addInterviewStepService).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Phase name is required' });
+  });
+
+  it('returns 400 without calling the service when the name is too long', async () => {
+    const req = { params: { id: '1' }, body: { name: 'a'.repeat(101) } } as unknown as Request;
+    const res = mockResponse();
+
+    await addInterviewStep(req, res);
+
+    expect(addInterviewStepService).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it('returns 404 when the position does not exist', async () => {
+    const req = { params: { id: '999' }, body: { name: 'Live coding test' } } as unknown as Request;
+    const res = mockResponse();
+
+    (addInterviewStepService as jest.Mock).mockRejectedValue(new Error('Position not found'));
+
+    await addInterviewStep(req, res);
 
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.json).toHaveBeenCalledWith({ message: 'Position not found', error: 'Position not found' });

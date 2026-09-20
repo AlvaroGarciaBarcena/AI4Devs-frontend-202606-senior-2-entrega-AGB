@@ -4,13 +4,14 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import PositionProcess from './PositionProcess';
-import { getCandidatesByPosition, getInterviewFlowByPosition } from '../services/positionService';
+import { getCandidatesByPosition, getInterviewFlowByPosition, addInterviewStep } from '../services/positionService';
 import { updateCandidateStage } from '../services/candidateService';
 import i18n from '../i18n/i18n';
 
 vi.mock('../services/positionService', () => ({
     getCandidatesByPosition: vi.fn(),
     getInterviewFlowByPosition: vi.fn(),
+    addInterviewStep: vi.fn(),
 }));
 
 vi.mock('../services/candidateService', () => ({
@@ -127,5 +128,64 @@ describe('PositionProcess — mover un candidato a otra fase', () => {
         });
         // Sigue en su fase original: la actualización optimista se revirtió.
         expect(within(screen.getByRole('heading', { name: 'Selección inicial' }).closest('.mb-4') as HTMLElement).getByText('Ana Ejemplo')).toBeTruthy();
+    });
+});
+
+// Pedido por el usuario: poder añadir una fase nueva al proceso desde el
+// propio tablero, sin tener que tocar la base de datos a mano.
+describe('PositionProcess — añadir una fase nueva', () => {
+    it('adds the new phase as an extra column once the backend confirms it', async () => {
+        const user = userEvent.setup();
+        vi.mocked(getInterviewFlowByPosition).mockResolvedValue(flow);
+        vi.mocked(getCandidatesByPosition).mockResolvedValue([]);
+        vi.mocked(addInterviewStep).mockResolvedValue({
+            message: 'ok',
+            data: { id: 9, interviewFlowId: 1, interviewTypeId: 30, name: 'Live coding test', orderIndex: 3 },
+        });
+
+        renderPage();
+
+        const input = await screen.findByPlaceholderText('Nombre de la nueva fase');
+        await user.type(input, 'Live coding test');
+        await user.click(screen.getByRole('button', { name: 'Añadir fase' }));
+
+        expect(addInterviewStep).toHaveBeenCalledWith('1', 'Live coding test');
+        await waitFor(() => {
+            expect(screen.getByRole('heading', { name: 'Live coding test' })).toBeTruthy();
+        });
+        // El campo se vacía tras un alta con éxito, listo para la siguiente.
+        expect((screen.getByPlaceholderText('Nombre de la nueva fase') as HTMLInputElement).value).toBe('');
+    });
+
+    it('does not add a column and shows an error when the backend rejects the new phase', async () => {
+        const user = userEvent.setup();
+        vi.mocked(getInterviewFlowByPosition).mockResolvedValue(flow);
+        vi.mocked(getCandidatesByPosition).mockResolvedValue([]);
+        // El servicio real lanza solo el detalle, sin prefijo propio (ver el
+        // comentario en positionService.js) -- el prefijo lo añade este
+        // componente, ya traducido.
+        vi.mocked(addInterviewStep).mockRejectedValue(new Error('Phase name is required'));
+
+        renderPage();
+
+        const input = await screen.findByPlaceholderText('Nombre de la nueva fase');
+        await user.type(input, 'Live coding test');
+        await user.click(screen.getByRole('button', { name: 'Añadir fase' }));
+
+        await waitFor(() => {
+            expect(screen.getByText('Error al añadir la fase: Phase name is required')).toBeTruthy();
+        });
+        expect(screen.queryByRole('heading', { name: 'Live coding test' })).toBeNull();
+    });
+
+    it('does not submit an empty or blank phase name', async () => {
+        vi.mocked(getInterviewFlowByPosition).mockResolvedValue(flow);
+        vi.mocked(getCandidatesByPosition).mockResolvedValue([]);
+
+        renderPage();
+
+        const button = await screen.findByRole('button', { name: 'Añadir fase' });
+        expect(button).toHaveProperty('disabled', true);
+        expect(addInterviewStep).not.toHaveBeenCalled();
     });
 });

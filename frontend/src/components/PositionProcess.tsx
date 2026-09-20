@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Container, Row, Col, Card, Badge, Spinner, Alert, Button } from 'react-bootstrap';
+import { Container, Row, Col, Card, Badge, Spinner, Alert, Button, Form } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
-import { getCandidatesByPosition, getInterviewFlowByPosition } from '../services/positionService';
+import { getCandidatesByPosition, getInterviewFlowByPosition, addInterviewStep } from '../services/positionService';
 import { updateCandidateStage } from '../services/candidateService';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useTranslation } from 'react-i18next';
@@ -38,22 +38,53 @@ const PositionProcess: React.FC = () => {
         { fallbackErrorMessage: t('positionProcess.fetchError'), networkErrorMessage: t('common.networkError'), enabled: !!id },
     );
     const [flow, fetchedCandidates] = data ?? [null, []];
+    const fetchedSteps = flow ? [...flow.interviewFlow.interviewSteps].sort((a, b) => a.orderIndex - b.orderIndex) : [];
 
-    // Copia local editable: `data` es lo que devolvió el fetch, y no tiene
-    // forma de actualizarse por sí solo cuando el usuario mueve una tarjeta
-    // (arrastrándola o con el selector accesible) sin recargar toda la
-    // página de golpe. Se resincroniza con el fetch cada vez que `data`
-    // cambia (llegada de un fetch nuevo); mientras tanto, un movimiento
-    // exitoso la actualiza de forma optimista y uno fallido la revierte.
+    // Copias locales editables: `data` es lo que devolvió el fetch, y no
+    // tiene forma de actualizarse por sí sola cuando el usuario mueve una
+    // tarjeta (arrastrándola o con el selector accesible) o añade una fase
+    // nueva, sin recargar toda la página de golpe. Se resincronizan con el
+    // fetch cada vez que `data` cambia (llegada de un fetch nuevo);
+    // mientras tanto, cada acción actualiza su propia copia (un movimiento
+    // fallido revierte `candidates`; una fase añadida con éxito amplía
+    // `steps`).
     const [candidates, setCandidates] = useState(fetchedCandidates);
+    const [steps, setSteps] = useState(fetchedSteps);
     useEffect(() => {
         setCandidates(fetchedCandidates);
+        setSteps(fetchedSteps);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data]);
 
     const [movingApplicationId, setMovingApplicationId] = useState<number | null>(null);
     const [moveError, setMoveError] = useState('');
     const [dragOverStepId, setDragOverStepId] = useState<number | null>(null);
+    const [newStepName, setNewStepName] = useState('');
+    const [addingStep, setAddingStep] = useState(false);
+    const [addStepError, setAddStepError] = useState('');
+
+    const handleAddStep = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const name = newStepName.trim();
+        if (!name || addingStep) {
+            return;
+        }
+        setAddingStep(true);
+        setAddStepError('');
+        try {
+            const result = await addInterviewStep(id as string, name);
+            setSteps((prev) => [...prev, result.data]);
+            setNewStepName('');
+        } catch (err) {
+            if (err && typeof err === 'object' && 'isNetworkError' in err && (err as { isNetworkError?: boolean }).isNetworkError) {
+                setAddStepError(t('common.networkError'));
+            } else {
+                setAddStepError(t('positionProcess.addStep.errorPrefix') + (err instanceof Error ? err.message : ''));
+            }
+        } finally {
+            setAddingStep(false);
+        }
+    };
 
     const moveCandidate = async (candidate: Candidate, targetStep: InterviewStep) => {
         if (candidate.currentInterviewStep === targetStep.name || movingApplicationId !== null) {
@@ -102,8 +133,6 @@ const PositionProcess: React.FC = () => {
         return null;
     }
 
-    const steps = [...flow.interviewFlow.interviewSteps].sort((a, b) => a.orderIndex - b.orderIndex);
-
     return (
         <Container className="mt-5">
             <Link to="/positions" className="d-inline-block mb-3">{t('positionProcess.back')}</Link>
@@ -111,6 +140,22 @@ const PositionProcess: React.FC = () => {
                 {t('positionProcess.title')}{flow.positionName}
             </h2>
             {moveError && <Alert variant="danger" dismissible onClose={() => setMoveError('')}>{moveError}</Alert>}
+            <Form className="d-flex flex-wrap align-items-start gap-2 mb-4" onSubmit={handleAddStep}>
+                <Form.Control
+                    type="text"
+                    style={{ maxWidth: '320px' }}
+                    placeholder={t('positionProcess.addStep.placeholder')}
+                    aria-label={t('positionProcess.addStep.placeholder')}
+                    value={newStepName}
+                    onChange={(e) => setNewStepName(e.target.value)}
+                    disabled={addingStep}
+                    maxLength={100}
+                />
+                <Button type="submit" variant="outline-primary" disabled={addingStep || !newStepName.trim()}>
+                    {addingStep ? <Spinner as="span" animation="border" size="sm" role="status" /> : t('positionProcess.addStep.button')}
+                </Button>
+            </Form>
+            {addStepError && <Alert variant="danger" dismissible onClose={() => setAddStepError('')}>{addStepError}</Alert>}
             {steps.length === 0 ? (
                 <Alert variant="info">{t('positionProcess.noFlow')}</Alert>
             ) : (

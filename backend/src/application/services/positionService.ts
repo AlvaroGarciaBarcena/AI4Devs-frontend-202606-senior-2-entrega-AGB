@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { Position } from '../../domain/models/Position';
+import { InterviewType } from '../../domain/models/InterviewType';
+import { InterviewStep } from '../../domain/models/InterviewStep';
 
 const prisma = new PrismaClient();
 
@@ -110,5 +112,48 @@ export const getInterviewFlowByPositionService = async (positionId: number) => {
                 orderIndex: step.orderIndex
             }))
         }
+    };
+};
+
+// Añade una fase nueva al final del flujo de entrevistas de una posición.
+// Cada InterviewStep necesita un InterviewType (FK obligatoria) -- en vez de
+// forzar a elegir entre los tres tipos ya sembrados (HR/Technical/Hiring
+// manager, que hoy no se muestran en ningún sitio de la interfaz), se crea
+// un InterviewType propio con el mismo nombre. El esquema no obliga a
+// reutilizar tipos entre fases, así que esto no rompe nada -- solo evita
+// tener que construir además un selector de tipos que la interfaz no
+// necesitaba hasta ahora.
+export const addInterviewStepService = async (positionId: number, name: string) => {
+    const position = await prisma.position.findUnique({
+        where: { id: positionId },
+        include: {
+            interviewFlow: {
+                include: { interviewSteps: true }
+            }
+        }
+    });
+
+    if (!position) {
+        throw new Error('Position not found');
+    }
+
+    const maxOrderIndex = position.interviewFlow.interviewSteps.reduce(
+        (max, step) => Math.max(max, step.orderIndex), 0
+    );
+
+    const interviewType = await new InterviewType({ name }).save();
+    const interviewStep = await new InterviewStep({
+        interviewFlowId: position.interviewFlow.id,
+        interviewTypeId: interviewType.id,
+        name,
+        orderIndex: maxOrderIndex + 1
+    }).save();
+
+    return {
+        id: interviewStep.id,
+        interviewFlowId: interviewStep.interviewFlowId,
+        interviewTypeId: interviewStep.interviewTypeId,
+        name: interviewStep.name,
+        orderIndex: interviewStep.orderIndex
     };
 };

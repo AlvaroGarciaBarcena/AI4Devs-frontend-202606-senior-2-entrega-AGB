@@ -111,7 +111,12 @@
     },
     "moveToLabel": "Move to another stage",
     "moveToAriaLabel": "Move {{name}} to another stage",
-    "moveErrorPrefix": "Error moving the candidate: "
+    "moveErrorPrefix": "Error moving the candidate: ",
+    "addStep": {
+      "placeholder": "New stage name",
+      "button": "Add stage",
+      "errorPrefix": "Error adding the stage: "
+    }
   },
   "unassignedCandidates": {
     "title": "Unassigned Candidates",

@@ -37,3 +37,18 @@ export const getInterviewFlowByPosition = async (positionId) => {
         throwServiceError(error, 'Error al obtener el proceso de entrevista');
     }
 };
+
+// A diferencia de las demás funciones de este fichero, no usa
+// `throwServiceError` -- ese helper antepone un prefijo fijo en español al
+// mensaje (`getErrorMessage`), sin pasar por i18n. Aquí el detalle se lanza
+// en crudo (mismo patrón que candidateService.js) para que quien lo muestre
+// (PositionProcess.tsx) pueda anteponer un prefijo ya traducido, en el
+// idioma activo, en vez de uno fijo en español.
+export const addInterviewStep = async (positionId, name) => {
+    try {
+        const response = await axios.post(`${API_BASE_URL}/position/${positionId}/interviewflow/steps`, { name });
+        return response.data;
+    } catch (error) {
+        throw tagNetworkError(new Error(error.response?.data?.error || error.message, { cause: error }), error);
+    }
+};

@@ -111,7 +111,12 @@
     },
     "moveToLabel": "Mover a otra fase",
     "moveToAriaLabel": "Mover a {{name}} a otra fase",
-    "moveErrorPrefix": "Error al mover al candidato: "
+    "moveErrorPrefix": "Error al mover al candidato: ",
+    "addStep": {
+      "placeholder": "Nombre de la nueva fase",
+      "button": "Añadir fase",
+      "errorPrefix": "Error al añadir la fase: "
+    }
   },
   "unassignedCandidates": {
     "title": "Candidatos sin asignar",
