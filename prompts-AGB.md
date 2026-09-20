@@ -5751,3 +5751,164 @@ npx playwright test hiring-pipeline.feature.spec.js:6 → 1 failed, causa
 `frontend/.env` restaurado a `VITE_API_URL=http://192.168.1.151:3010`
 (tu valor real) y Vite reiniciado para recogerlo, antes de dar esto por
 cerrado.
+
+## 3.51 Investigación: "si doy de alta nuevos candidatos, se pierden" (sin rama, no era un bug)
+
+El usuario reportó que los candidatos nuevos "se pierden" -- no aparecen
+en el listado de sin asignar. Probado desde varios ángulos sin lograr
+reproducirlo: alta directa por API, alta completa desde la interfaz de
+escritorio, alta completa con la interfaz emulando un móvil, y el
+escenario E2E existente que cubre exactamente este flujo (sección
+3.39) -- los cuatro caminos guardan el candidato y lo muestran
+correctamente en "sin asignar" cuando no se le asigna posición.
+
+El propio usuario dio con la causa probable al revisarlo: había
+asignado el candidato a una posición (Full Stack) sin darse cuenta --
+probablemente seleccionándola por accidente en el `<select>` nativo del
+formulario en el móvil -- y solo miró en el listado de "sin asignar",
+donde un candidato ya asignado no aparece por diseño (ver
+`getUnassignedCandidatesService`, sección 3.39). Confirmado por el
+usuario: *"lo busqué en candidatos sin asignar y está en Full stack, así
+que ha tenido que ser eso, sí"*. No se tocó ningún código -- no había
+ningún bug que arreglar.
+
+## 3.52 Traduce los nombres de las fases del proceso de selección (`position-steps-i18n-AGB`)
+
+Aviso del usuario de pasada, viendo el tablero de `PositionProcess.tsx`
+en español: los títulos de columna ("Initial Screening", "Technical
+Interview", "Manager Interview") venían tal cual de
+`InterviewStep.name` en la base de datos -- en inglés siempre,
+independientemente del idioma activo de la interfaz.
+
+**Diseño**: mismo patrón que ya usaba `i18n/validationMessages.js`
+(`getFieldLabel`) para nombres de campo que vienen del backend --
+`t('positionProcess.interviewStepNames.${step.name}', { defaultValue:
+step.name })`. Con `defaultValue`, cualquier fase futura o
+personalizada que no tenga traducción todavía se sigue mostrando (con
+su nombre en crudo) en vez de romperse o mostrar una clave sin
+traducir. Nuevo namespace `positionProcess.interviewStepNames` en
+`es.json`/`en.json` con las tres fases que usa hoy el seed ("Initial
+Screening" → "Selección inicial", "Technical Interview" → "Entrevista
+técnica", "Manager Interview" → "Entrevista con el responsable"; el
+`en.json` lleva la misma clave con el texto sin cambios, por
+simetría con el resto de namespaces).
+
+Importante: la traducción es *solo para mostrar*. El filtrado de
+candidatos por columna (`candidates.filter((c) =>
+c.currentInterviewStep === step.name)`) sigue comparando contra
+`step.name` sin traducir -- tocar ese valor habría roto el
+emparejamiento candidato/columna.
+
+Test nuevo, `PositionProcess.test.tsx` (no existía ninguno hasta
+ahora): comprueba que las tres fases conocidas salen traducidas sin
+romper qué candidato cae en qué columna, y que una fase sin traducción
+conocida cae al nombre en crudo en vez de a una clave rota.
+
+```
+npx vitest run (frontend)  → 101 passed (99 + 2 nuevos)
+npx tsc --noEmit (frontend) → OK
+```
+
+Verificado también a mano en el navegador, con sesión real de Alice
+Johnson: el tablero de "Senior Full-Stack Engineer" en español muestra
+"Selección inicial" / "Entrevista técnica" / "Entrevista con el
+responsable", y los candidatos siguen apareciendo bajo su fase
+correcta.
+
+## 3.53 Mover un candidato a otra fase arrastrando su ficha (`candidate-drag-drop-AGB`)
+
+Pedido del usuario en el mismo mensaje que el aviso de i18n de la
+sección anterior: poder seleccionar la ficha de un candidato en el
+tablero de `PositionProcess.tsx` y arrastrarla a otra fase (p. ej. de
+"Initial Screening" a "Technical interview"). Dos ramas distintas a
+petición explícita del usuario -- *"Recuerda porfa hacerlo en dos ramas
+distintas, siguiendo nuestra lógica de siempre de que es así por
+tratarse de dos features distintos"* --, encadenada esta sobre
+`position-steps-i18n-AGB`.
+
+**Backend**: no hizo falta tocar nada. `PUT /candidates/:id`
+(`updateCandidateStageController` → `updateCandidateStage(id,
+applicationId, currentInterviewStep)`) ya validaba que la `Application`
+existiera y actualizaba su fase -- exactamente lo que pedía la
+funcionalidad. Comprobado con `grep` que el frontend no tenía ninguna
+función de servicio que lo llamara todavía.
+
+**Frontend — dos vías, no solo una**: se implementó el arrastrar y
+soltar literal que pidió el usuario (API nativa de Drag and Drop:
+`draggable` en cada `Card`, `onDragOver`/`onDrop` en cada columna), pero
+**no como único camino** -- el drag-and-drop nativo del navegador no
+funciona en pantalla táctil sin más, y el usuario ya había dejado claro
+en `clickable-row-edit-AGB` (sección 3.45) que le importa la
+accesibilidad y que la interfaz se vea bien en el móvil. Cada tarjeta
+lleva también un `<select>` "Mover a otra fase" con las mismas fases
+que las columnas -- funciona igual de bien con ratón, teclado, lector
+de pantalla o dedo, y es la vía que de verdad hace la función utilizable
+en el móvil que el usuario elogió en la sección 3.47. El
+arrastrar-y-soltar es un atajo de ratón *encima* de esa misma función
+(`moveCandidate`), no una alternativa aparte con su propia lógica.
+
+**Actualización optimista con reversión**: mover una ficha actualiza el
+estado local al instante (sin esperar la respuesta del backend, para
+que el tablero no tenga que recargarse entero en cada movimiento) y
+llama a `updateCandidateStage`; si el backend rechaza el cambio, se
+revierte el estado local y se muestra un error (mismo patrón
+`isNetworkError`/prefijo traducido que `AddCandidateForm.jsx`).
+
+Nueva función `updateCandidateStage(candidateId, applicationId,
+currentInterviewStepId)` en `candidateService.js` (PUT, no PATCH --
+mismo motivo que documenta el propio backend en
+`candidateRoutes.ts`: es una ruta y verbo distintos de
+`updateCandidateData`, con un propósito distinto).
+
+```
+npx vitest run (frontend)  → 106 passed (101 + 5 nuevos: 4 en
+                              PositionProcess.test.tsx -- incluida la
+                              reversión ante un fallo del backend -- y 1
+                              en candidateService.test.js)
+npx tsc --noEmit (frontend) → OK
+```
+
+Verificado a mano en el navegador con sesión real: mover a Carlos
+García de "Selección inicial" a "Entrevista con el responsable" con el
+selector actualiza el tablero al instante, y consultando
+`GET /position/1/candidates` directamente contra el backend tras
+recargar la página se confirmó que el cambio quedó persistido de
+verdad (`currentInterviewStep: "Manager Interview"`), no solo en el
+estado local. Probado también en emulación de móvil (375×812): el
+`<select>` de cada tarjeta es perfectamente usable en esa anchura.
+
+### Se resuelve el misterio del "Hey developer" (sección 3.50)
+
+Durante esta misma verificación, navegando por error a
+`/positions/1/process` (la ruta real es `/positions/:id`, sin
+`/process`), volvió a salir exactamente el mensaje que el usuario había
+visto una vez y no había podido reproducir: *"Hey developer 👋 — 404 Not
+Found — You can provide a way better UX than this when your app throws
+errors by providing your own ErrorBoundary or errorElement prop on your
+route."* Confirmado por consola del navegador
+(`Error handled by React Router default ErrorBoundary`): es el
+`ErrorBoundary` por defecto de `react-router` v7, que se muestra para
+**cualquier** URL que no matchea ninguna ruta -- no tiene relación con
+que el backend esté caído o no. No se ha tocado nada -- no hay ninguna
+regla de negocio ni ruta rota, fue una URL escrita a mano incorrecta
+por mi parte durante la propia verificación -- pero queda documentado
+por si el usuario quiere en el futuro una página 404 propia en vez de
+la de por defecto de la librería.
+
+### Incidente durante la propia verificación: dato de otra prueba, revertido
+
+Al verificar el movimiento con el navegador, un primer intento se vio
+interrumpido por navegar fuera de la página casi en el mismo instante
+(la petición `PUT` en vuelo probablemente se abortó por la propia
+navegación) -- el tablero mostró el movimiento solo de forma optimista,
+sin persistir. Repetido con cuidado de no navegar hasta confirmar, el
+movimiento sí persistió correctamente. Al comprobar el estado real vía
+`GET /position/1/candidates`, apareció además "John Doe" en "Initial
+Screening" en vez de en "Technical Interview" -- un candidato que esta
+sesión no había movido en ningún momento. Explicación del propio
+usuario: estaba probando el tablero por su cuenta, en paralelo, justo
+mientras yo verificaba (moviendo candidatos de un sitio a otro
+mientras corrían los tests) -- no un residuo de una sesión anterior.
+Revertidos ambos candidatos (Carlos García y John Doe) a su fase
+original con dos llamadas directas a `PUT /candidates/:id`, para no
+dejar el entorno de desarrollo con datos de prueba fuera de sitio.
