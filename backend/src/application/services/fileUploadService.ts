@@ -78,7 +78,16 @@ export const uploadFile = (req: Request, res: Response) => {
         // file-type es un paquete puramente ESM (>=17) -- este backend
         // compila a CommonJS, así que se carga con import() dinámico en vez
         // de un import estático, que TypeScript reescribiría a un require()
-        // que fallaría contra un paquete sin export CommonJS.
+        // que fallaría contra un paquete sin export CommonJS. La resolución
+        // de módulos de este tsconfig (moduleResolution por defecto para
+        // module: commonjs) tampoco encuentra los tipos de un paquete
+        // solo-ESM -- funciona en runtime (Node sí resuelve import()
+        // dinámico contra ESM), pero `tsc` real lo rechaza con TS2307
+        // (hallazgo real: nunca se había notado porque ts-node-dev corre
+        // en --transpile-only, sin comprobar tipos). @ts-expect-error en
+        // vez de tocar moduleResolution del proyecto entero por un único
+        // import.
+        // @ts-expect-error TS2307: file-type es ESM-only, ver comentario de arriba
         const { fileTypeFromFile } = await import('file-type');
         const detected = await fileTypeFromFile(req.file.path);
         if (!detected || !ALLOWED_CONTENT_TYPES.has(detected.mime)) {

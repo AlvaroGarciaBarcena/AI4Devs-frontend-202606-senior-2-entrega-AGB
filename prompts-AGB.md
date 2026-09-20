@@ -4416,3 +4416,84 @@ Solo queda `developer-tooling` (5 escenarios, los que se habían dejado
 fuera del alcance inicial y se reincorporaron tras la conversación
 sobre si tenía sentido limitar Playwright a comportamiento
 HTTP/navegador -- sección 3.27.3).
+
+## 3.31 `developer-tooling` (5/5): la última capacidad, y un hallazgo real de `tsc` que `ts-node-dev` nunca había visto
+
+Última capacidad del alcance confirmado. A diferencia del resto, sus 5
+escenarios se verifican ejecutando un comando (build, suite de tests,
+auditoría de dependencias), no una acción de la interfaz -- mismo
+patrón que "Auditoría de dependencias" de `security-hardening`
+(sección 3.27.3), con `execFileSync` y el mismo descarte de
+`npm_config_allow_scripts` del entorno.
+
+### 3.31.1 Hallazgo real: el build real del backend llevaba horas roto, sin que nadie lo notara
+
+"Ejecutar los tests después de un build" ejecuta `npm run build` de
+verdad en el backend antes de comparar resultados de Jest -- y ese
+build falló: `tsc` rechazaba
+`src/application/services/fileUploadService.ts` con
+`TS2307: Cannot find module 'file-type'`. La causa: `file-type` es un
+paquete puramente ESM (instalado en la sección de seguridad de esta
+misma sesión, 3.27.1, cargado con `import()` dinámico a propósito por
+eso mismo) y la resolución de módulos de este `tsconfig.json`
+(`module: commonjs`, sin `moduleResolution` explícito) no encuentra
+tipos para un paquete solo-ESM. `ts-node-dev` nunca lo había mostrado
+porque corre en modo `--transpile-only`, que no comprueba tipos --
+el propio proceso de desarrollo de esta sesión llevaba horas
+funcionando sobre un backend que no compilaba de verdad, y nadie lo
+había notado hasta que un escenario E2E ejecutó `tsc` de verdad por
+primera vez.
+
+Corregido con `@ts-expect-error` justo en la línea del `import()`
+dinámico, con el motivo documentado en el propio comentario, en vez de
+tocar `moduleResolution` de todo el proyecto por un único import --
+`@ts-expect-error` en vez de `@ts-ignore` a propósito: si el día de
+mañana algo hace que TypeScript sí resuelva bien ese import, la propia
+compilación avisará (error de "unused ts-expect-error") en vez de
+quedarse como una supresión silenciosa.
+
+### 3.31.2 Hallazgo menor: un proceso hijo "matado" que seguía vivo
+
+"Arranque del entorno de desarrollo" (SHALL arrancar en menos de un
+segundo) se verifica lanzando un Vite de usar y tirar en un puerto de
+scratch (el 3000 real lo ocupa el servidor de desarrollo que sirve el
+resto de la suite) y leyendo el "ready in XXX ms" que el propio Vite
+reporta en su log, en vez de cronometrar a mano desde fuera. Primer
+intento: timeout total, sin ninguna salida capturada. Causa: se
+lanzaba con `spawn('npx', ['vite', ...])`, que añade una capa extra de
+procesos (`npm` → `sh -c` → `vite`); `.kill()` solo mata al hijo
+directo (`npm`), no a los nietos -- el proceso de Vite real seguía
+vivo después de "matarlo", ocupando el puerto en el siguiente intento
+de la misma ejecución, que entonces fallaba de inmediato contra
+`--strictPort` sin imprimir nada. Corregido lanzando el binario de
+Vite directamente (`node_modules/.bin/vite`), sin la capa intermedia
+de `npm`/`npx`.
+
+### 3.31.3 Verificación final
+
+```
+npx bddgen && npx playwright test
+  → 43 passed (59.7s): las 9 capacidades completas del alcance
+    confirmado, en un único run limpio -- authentication (6),
+    candidate-intake (10), hiring-pipeline (3), position-catalog (2),
+    security-hardening (4), internationalization (4), accessibility
+    (5), frontend-performance (3), developer-tooling (5),
+    zz-rate-limiting (1)
+
+npm test (backend)   → 47 passed
+npm test (frontend)  → 34 passed
+```
+
+Con esto se cierra el alcance completo confirmado la noche del
+2026-09-19 ("prioriza primero la validación de las capacidades de
+negocio, para después validar todas... y no olvides también las
+pruebas e2e para el tooling"): 8 hallazgos reales encontrados y
+corregidos por el camino (magic number en subida de CV, candidato
+huérfano al fallar la posición, interop de `react-datepicker` con
+Vite, bucle infinito real en `Candidate.ts`, aislamiento de sesión de
+Playwright, fixture de idioma mal elegido, build real del backend
+roto sin que `ts-node-dev` lo mostrara, proceso hijo no matado del
+todo), más un hallazgo real dejado sin corregir a propósito y
+documentado para que el usuario decida el enfoque (el `Suspense
+fallback` que nunca se muestra durante una navegación real por
+`<Link>`, sección 3.30.4).
