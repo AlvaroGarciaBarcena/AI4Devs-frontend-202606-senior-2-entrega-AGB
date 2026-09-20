@@ -6283,3 +6283,85 @@ backend/frontend de la prueba parados) y los servidores de desarrollo
 propios reiniciados exactamente como estaban, sin pérdida de datos del
 contenedor real (`ai4devs-frontend-202606-senior-2-db-1`, 4 días
 corriendo, nunca tocado).
+
+## 3.59 Entrega real: fork, PR contra el repositorio original, y el *quality gate* de SonarCloud
+
+El usuario aclaró que la entrega tiene que subirse al repositorio
+**original** del bootcamp (`LIDR-academy/AI4Devs-frontend-202606-senior-2`,
+`origin`) -- pero comprobado antes de intentarlo: el token de esta
+sesión tiene `push: false` sobre ese repositorio (API de GitHub), así
+que un `git push origin` habría fallado directamente. Camino estándar
+de GitHub para contribuir sin permiso de escritura: fork propio + PR
+desde el fork. Confirmado además que es justo así como funciona el
+resto de módulos de este mismo bootcamp -- el usuario ya tenía forks
+de otros ejercicios de `LIDR-academy` (backend, sandboxes de
+OpenSpec), ninguno de este.
+
+Decisión del usuario, con toda la información ya reunida en las
+secciones 3.56-3.58 (repo privado, `JUSTIFICACION-ENTREGA.md`,
+verificación end-to-end): el PR lleva **todo** (frontend + backend),
+no solo `frontend/` como pedía el enunciado literal -- entregar un
+frontend que no arranca solo, a sabiendas, habría sido deshonesto.
+Fork creado (`gh repo fork`) y renombrado a
+`AI4Devs-frontend-202606-senior-2-entrega-AGB` (iniciales del usuario,
+a petición suya, distinto del nombre del repositorio privado ya
+existente para no chocar con él). 34 ramas subidas al fork; abierta
+**una única** PR (no 34 -- la cadena de 34 PR encadenados tiene sentido
+como estructura de revisión en el repositorio privado propio, no como
+lo que se somete a un repositorio ajeno) desde `interview-scoring-on-
+move-AGB` contra `main`: [LIDR-academy/AI4Devs-frontend-202606-senior-2#22](https://github.com/LIDR-academy/AI4Devs-frontend-202606-senior-2/pull/22).
+
+### El *quality gate* de SonarCloud, en C, exigía A
+
+El propio repositorio original tiene SonarCloud configurado como check
+del PR. Falló: `new_security_rating` en C (3), se exige A (1) --
+comprobado con la API pública de SonarCloud
+(`/api/qualitygates/project_status`), no solo con el resumen del check.
+El resto de condiciones (fiabilidad, mantenibilidad, duplicación,
+*hotspots* revisados) ya estaban en OK. Tres hallazgos reales
+(`/api/issues/search?types=VULNERABILITY`), los tres en steps E2E,
+nunca en código de la aplicación:
+
+- **`typescript:S2068`** ("Review this potentially hard-coded
+  password"): el empleado sembrado (`alice.johnson@lti.com` +
+  `Changeme123!`) estaba declarado como literal suelto y duplicado en
+  5 ficheros (`global-setup.ts` + 4 steps). Consolidado en
+  `e2e/steps/support/seededEmployee.ts`, leído de una variable de
+  entorno con ese mismo valor como valor por defecto -- el remedio que
+  la propia regla espera, y de paso una duplicación real menos. El
+  otro caso que la regla también marcaba (una contraseña
+  deliberadamente **incorrecta** en `rate-limiting.steps.ts`, para
+  forzar el fallo de login que agota el limitador) no es una
+  credencial real -- se marcó con `// NOSONAR` y su justificación en
+  vez de disfrazarla de variable de entorno sin sentido.
+- **`typescript:S4036`** ("Make sure the PATH variable only contains
+  fixed, unwriteable directories"): dos sitios
+  (`developer-tooling.steps.ts`, `security-hardening.steps.ts`)
+  lanzaban `execFileSync('npm', ...)`, dejando que el sistema
+  operativo resolviera el ejecutable buscando en `PATH`. Consolidado
+  en `e2e/steps/support/npmChildProcess.ts`: usa
+  `process.env.npm_execpath` (la ruta absoluta al propio
+  `npm-cli.js`, que npm pone en el entorno de cualquier proceso que
+  lance vía `npm run ...`) + `process.execPath` (el binario de node
+  ya en marcha) -- ningún ejecutable se resuelve por `PATH`.
+
+**Hallazgo real durante la propia verificación**: al quitar la
+declaración local de `npmEnvWithoutAllowScripts` de
+`developer-tooling.steps.ts`, quedó una referencia suelta a esa misma
+variable en un `spawn()` distinto (el que lanza el servidor de Vite de
+usar-y-tirar para medir su arranque) que no pasaba por el nuevo
+`runNpm` compartido -- lo detectó el propio test E2E al ejecutarlo
+(`ReferenceError: npmEnvWithoutAllowScripts is not defined`), no una
+relectura manual del diff. Corregido quitando ese `env:` por completo
+-- lanzar el binario de `vite` directo no necesita filtrar esa
+variable, solo hacía falta para invocaciones de `npm`.
+
+Verificado no solo que compila (`bddgen` sin errores) sino en
+ejecución real: `authentication` (6/6), `file-upload` (5/5),
+`security-hardening` (4/4), `developer-tooling` (5/5, tras el arreglo
+de arriba), `zz-rate-limiting` (1/1) -- 21/21. Backend reiniciado
+después para limpiar el limitador de login real que la propia prueba
+agota a propósito. Subido a los dos remotos que comparten esta rama
+(`fork`, que actualiza el PR #22 real; `personal`, la copia privada) y
+confirmado con la API de SonarCloud tras el reanálisis:
+`new_security_rating` en **A (1)**, *quality gate* completo en `OK`.
