@@ -108,7 +108,10 @@
       "Initial Screening": "Initial Screening",
       "Technical Interview": "Technical Interview",
       "Manager Interview": "Manager Interview"
-    }
+    },
+    "moveToLabel": "Move to another stage",
+    "moveToAriaLabel": "Move {{name}} to another stage",
+    "moveErrorPrefix": "Error moving the candidate: "
   },
   "unassignedCandidates": {
     "title": "Unassigned Candidates",

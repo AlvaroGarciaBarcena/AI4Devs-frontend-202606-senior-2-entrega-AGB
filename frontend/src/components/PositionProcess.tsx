@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Container, Row, Col, Card, Badge, Spinner, Alert, Button } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import { getCandidatesByPosition, getInterviewFlowByPosition } from '../services/positionService';
+import { updateCandidateStage } from '../services/candidateService';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useTranslation } from 'react-i18next';
 
@@ -36,7 +37,47 @@ const PositionProcess: React.FC = () => {
         [id],
         { fallbackErrorMessage: t('positionProcess.fetchError'), networkErrorMessage: t('common.networkError'), enabled: !!id },
     );
-    const [flow, candidates] = data ?? [null, []];
+    const [flow, fetchedCandidates] = data ?? [null, []];
+
+    // Copia local editable: `data` es lo que devolvió el fetch, y no tiene
+    // forma de actualizarse por sí solo cuando el usuario mueve una tarjeta
+    // (arrastrándola o con el selector accesible) sin recargar toda la
+    // página de golpe. Se resincroniza con el fetch cada vez que `data`
+    // cambia (llegada de un fetch nuevo); mientras tanto, un movimiento
+    // exitoso la actualiza de forma optimista y uno fallido la revierte.
+    const [candidates, setCandidates] = useState(fetchedCandidates);
+    useEffect(() => {
+        setCandidates(fetchedCandidates);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data]);
+
+    const [movingApplicationId, setMovingApplicationId] = useState<number | null>(null);
+    const [moveError, setMoveError] = useState('');
+    const [dragOverStepId, setDragOverStepId] = useState<number | null>(null);
+
+    const moveCandidate = async (candidate: Candidate, targetStep: InterviewStep) => {
+        if (candidate.currentInterviewStep === targetStep.name || movingApplicationId !== null) {
+            return;
+        }
+        const previousCandidates = candidates;
+        setMoveError('');
+        setMovingApplicationId(candidate.applicationId);
+        setCandidates((prev) =>
+            prev.map((c) => (c.applicationId === candidate.applicationId ? { ...c, currentInterviewStep: targetStep.name } : c)),
+        );
+        try {
+            await updateCandidateStage(candidate.id, candidate.applicationId, targetStep.id);
+        } catch (err) {
+            setCandidates(previousCandidates);
+            if (err && typeof err === 'object' && 'isNetworkError' in err && (err as { isNetworkError?: boolean }).isNetworkError) {
+                setMoveError(t('common.networkError'));
+            } else {
+                setMoveError(t('positionProcess.moveErrorPrefix') + (err instanceof Error ? err.message : ''));
+            }
+        } finally {
+            setMovingApplicationId(null);
+        }
+    };
 
     if (loading) {
         return (
@@ -67,6 +108,7 @@ const PositionProcess: React.FC = () => {
         <Container className="mt-5">
             <Link to="/positions" className="d-inline-block mb-3">{t('positionProcess.back')}</Link>
             <h2 className="mb-4">{t('positionProcess.title')}{flow.positionName}</h2>
+            {moveError && <Alert variant="danger" dismissible onClose={() => setMoveError('')}>{moveError}</Alert>}
             {steps.length === 0 ? (
                 <Alert variant="info">{t('positionProcess.noFlow')}</Alert>
             ) : (
@@ -75,7 +117,26 @@ const PositionProcess: React.FC = () => {
                         const stepCandidates = candidates.filter((c) => c.currentInterviewStep === step.name);
                         return (
                             <Col md={Math.max(3, Math.floor(12 / steps.length))} key={step.id} className="mb-4">
-                                <div className="p-2 bg-light border rounded">
+                                <div
+                                    className={`p-2 bg-light border rounded ${dragOverStepId === step.id ? 'border-primary border-2' : ''}`}
+                                    // Zona donde soltar una tarjeta arrastrada: el navegador solo
+                                    // dispara onDrop si onDragOver hace preventDefault (si no, un
+                                    // <div> normal no es un destino de drop válido).
+                                    onDragOver={(e) => {
+                                        e.preventDefault();
+                                        setDragOverStepId(step.id);
+                                    }}
+                                    onDragLeave={() => setDragOverStepId((current) => (current === step.id ? null : current))}
+                                    onDrop={(e) => {
+                                        e.preventDefault();
+                                        setDragOverStepId(null);
+                                        const applicationId = Number(e.dataTransfer.getData('text/plain'));
+                                        const candidate = candidates.find((c) => c.applicationId === applicationId);
+                                        if (candidate) {
+                                            void moveCandidate(candidate, step);
+                                        }
+                                    }}
+                                >
                                     <div className="d-flex justify-content-between align-items-center mb-3">
                                         <h6 className="mb-0">
                                             {t(`positionProcess.interviewStepNames.${step.name}`, { defaultValue: step.name })}
@@ -86,13 +147,47 @@ const PositionProcess: React.FC = () => {
                                         <p className="text-muted small">{t('positionProcess.noCandidatesInStep')}</p>
                                     )}
                                     {stepCandidates.map((candidate) => (
-                                        <Card key={candidate.applicationId} className="mb-2 shadow-sm">
+                                        <Card
+                                            key={candidate.applicationId}
+                                            className="mb-2 shadow-sm"
+                                            style={{ cursor: 'grab' }}
+                                            // Arrastrar con ratón es solo un atajo de conveniencia: el
+                                            // selector de abajo hace exactamente lo mismo por teclado,
+                                            // lector de pantalla o pantalla táctil (el drag-and-drop
+                                            // nativo no funciona en móvil sin más).
+                                            draggable={movingApplicationId === null}
+                                            onDragStart={(e) => e.dataTransfer.setData('text/plain', String(candidate.applicationId))}
+                                        >
                                             <Card.Body className="py-2 px-3">
                                                 <Card.Text className="mb-1"><strong>{candidate.fullName}</strong></Card.Text>
                                                 <Card.Text className="mb-0 small text-muted">
                                                     {t('positionProcess.averageScore')}{candidate.averageScore.toFixed(1)}
                                                 </Card.Text>
                                                 <Link to={`/candidates/${candidate.id}/edit`} className="small">{t('positionProcess.editCandidate')}</Link>
+                                                <div className="mt-1 d-flex align-items-center gap-2">
+                                                    <select
+                                                        className="form-select form-select-sm"
+                                                        aria-label={t('positionProcess.moveToAriaLabel', { name: candidate.fullName })}
+                                                        title={t('positionProcess.moveToLabel')}
+                                                        value={candidate.currentInterviewStep}
+                                                        disabled={movingApplicationId !== null}
+                                                        onChange={(e) => {
+                                                            const targetStep = steps.find((s) => s.name === e.target.value);
+                                                            if (targetStep) {
+                                                                void moveCandidate(candidate, targetStep);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {steps.map((s) => (
+                                                            <option key={s.id} value={s.name}>
+                                                                {t(`positionProcess.interviewStepNames.${s.name}`, { defaultValue: s.name })}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    {movingApplicationId === candidate.applicationId && (
+                                                        <Spinner animation="border" size="sm" role="status" />
+                                                    )}
+                                                </div>
                                             </Card.Body>
                                         </Card>
                                     ))}

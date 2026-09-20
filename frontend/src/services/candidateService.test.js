@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import axios from 'axios';
-import { sendCandidateData, uploadCV, getCandidateById, updateCandidateData } from './candidateService';
+import { sendCandidateData, uploadCV, getCandidateById, updateCandidateData, updateCandidateStage } from './candidateService';
 // No hardcodear 'http://localhost:3010' en las aserciones de abajo: si
 // quien corre los tests tiene VITE_API_URL definida en su frontend/.env
 // (p. ej. para probar el acceso desde la red local), API_BASE_URL vale
@@ -129,6 +129,29 @@ describe('updateCandidateData', () => {
             message: 'Validation failed',
             issues: [{ field: 'email', code: 'invalidFormat' }],
         });
+    });
+});
+
+describe('updateCandidateStage', () => {
+    it('PUTs the target application and interview step to /candidates/:id', async () => {
+        axios.put.mockResolvedValue({ data: { message: 'Candidate stage updated successfully', data: { id: 1 } } });
+
+        const result = await updateCandidateStage(1, 7, 2);
+
+        expect(axios.put).toHaveBeenCalledWith(`${API_BASE_URL}/candidates/1`, { applicationId: 7, currentInterviewStep: 2 });
+        expect(result).toEqual({ message: 'Candidate stage updated successfully', data: { id: 1 } });
+    });
+
+    it('tags the thrown error as isNetworkError when the backend never responds', async () => {
+        axios.put.mockRejectedValue({ request: {}, message: 'Network Error' });
+
+        await expect(updateCandidateStage(1, 7, 2)).rejects.toMatchObject({ isNetworkError: true });
+    });
+
+    it('throws only the server detail on a real rejection (e.g. application not found)', async () => {
+        axios.put.mockRejectedValue({ response: { data: { error: 'Application not found' } } });
+
+        await expect(updateCandidateStage(1, 7, 2)).rejects.toThrow('Application not found');
     });
 });
 

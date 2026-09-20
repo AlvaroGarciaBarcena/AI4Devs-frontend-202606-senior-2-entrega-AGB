@@ -60,6 +60,22 @@ export const updateCandidateData = async (id, candidateData) => {
     }
 };
 
+// PUT, no PATCH: distinto verbo+ruta que updateCandidateData a propósito,
+// ver el comentario en backend/src/routes/candidateRoutes.ts -- este mueve
+// la candidatura (applicationId) a otra fase del proceso (currentInterviewStep,
+// el id de la InterviewStep destino), no cambia datos del candidato.
+export const updateCandidateStage = async (candidateId, applicationId, currentInterviewStepId) => {
+    try {
+        const response = await axios.put(`${API_BASE_URL}/candidates/${candidateId}`, {
+            applicationId,
+            currentInterviewStep: currentInterviewStepId,
+        });
+        return response.data;
+    } catch (error) {
+        throw tagNetworkError(new Error(error.response?.data?.error || error.message, { cause: error }), error);
+    }
+};
+
 // Compartido entre alta y edición: el backend devuelve la misma forma de
 // error (validación por campo, o un mensaje de negocio suelto) para
 // POST /candidates y PATCH /candidates/:id.
