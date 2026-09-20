@@ -103,7 +103,12 @@
     "noCandidatesInStep": "No candidates in this stage.",
     "averageScore": "Average score: ",
     "editCandidate": "Edit candidate",
-    "fetchError": "Error fetching this position's process"
+    "fetchError": "Error fetching this position's process",
+    "interviewStepNames": {
+      "Initial Screening": "Initial Screening",
+      "Technical Interview": "Technical Interview",
+      "Manager Interview": "Manager Interview"
+    }
   },
   "unassignedCandidates": {
     "title": "Unassigned Candidates",

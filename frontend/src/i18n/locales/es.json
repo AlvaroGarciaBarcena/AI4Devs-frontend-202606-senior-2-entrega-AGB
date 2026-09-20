@@ -103,7 +103,12 @@
     "noCandidatesInStep": "Sin candidatos en esta fase.",
     "averageScore": "Puntuación media: ",
     "editCandidate": "Editar candidato",
-    "fetchError": "Error al obtener el proceso de esta posición"
+    "fetchError": "Error al obtener el proceso de esta posición",
+    "interviewStepNames": {
+      "Initial Screening": "Selección inicial",
+      "Technical Interview": "Entrevista técnica",
+      "Manager Interview": "Entrevista con el responsable"
+    }
   },
   "unassignedCandidates": {
     "title": "Candidatos sin asignar",

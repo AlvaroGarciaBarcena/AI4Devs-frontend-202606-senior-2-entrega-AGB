@@ -77,7 +77,9 @@ const PositionProcess: React.FC = () => {
                             <Col md={Math.max(3, Math.floor(12 / steps.length))} key={step.id} className="mb-4">
                                 <div className="p-2 bg-light border rounded">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="mb-0">{step.name}</h6>
+                                        <h6 className="mb-0">
+                                            {t(`positionProcess.interviewStepNames.${step.name}`, { defaultValue: step.name })}
+                                        </h6>
                                         <Badge bg="secondary">{stepCandidates.length}</Badge>
                                     </div>
                                     {stepCandidates.length === 0 && (
