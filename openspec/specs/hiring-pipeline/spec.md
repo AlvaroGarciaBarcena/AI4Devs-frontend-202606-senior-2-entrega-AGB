@@ -43,3 +43,13 @@ Desde que elegir posición al dar de alta un candidato es opcional (ver la capac
 - **WHEN** un reclutador visita el listado de candidatos sin asignar
 - **THEN** ve una indicación de que no hay ninguno, en vez de una lista vacía sin explicación
 
+### Requirement: Acceso rápido a la edición desde el listado
+_Rama: `back-to-dashboard-links-AGB`_
+
+El sistema SHALL permitir acceder a la edición de un candidato sin asignar pulsando en cualquier punto de su fila, como atajo para ratón, SIN sustituir el acceso accesible: un enlace con icono de lápiz y nombre accesible "Editar" (no dependiente de un tooltip) que sigue siendo alcanzable por teclado y anunciable por lector de pantalla.
+
+#### Scenario: Pulsar la fila entera navega a la edición
+- **GIVEN** un reclutador está en el listado de candidatos sin asignar
+- **WHEN** pulsa en cualquier punto de la fila de un candidato, no solo en el icono
+- **THEN** el sistema navega a la edición de ese candidato
+

@@ -190,3 +190,29 @@ Then('ve una indicación de que no hay ninguno', async ({ page }) => {
   // la Application-marcador creada arriba.
   await prisma.application.deleteMany({ where: { id: { in: tempPlaceholderApplicationIds } } });
 });
+
+let tempRowClickCandidateId: number;
+
+Given('un reclutador está en el listado de candidatos sin asignar', async ({ page }) => {
+  const candidate = await prisma.candidate.create({
+    data: { firstName: 'E2E', lastName: 'FilaClicable', email: `e2e-fila-clicable-${Date.now()}@example.com` },
+  });
+  tempRowClickCandidateId = candidate.id;
+
+  await page.goto('/candidates/unassigned');
+  await expect(page.getByText('E2E FilaClicable')).toBeVisible();
+});
+
+When('pulsa en cualquier punto de la fila de un candidato, no solo en el icono', async ({ page }) => {
+  // La celda del nombre, deliberadamente NO el icono de editar -- es
+  // justo lo que este escenario comprueba: que la fila entera es
+  // clicable, no solo el enlace.
+  await page.getByRole('cell', { name: 'E2E FilaClicable' }).click();
+});
+
+Then('el sistema navega a la edición de ese candidato', async ({ page }) => {
+  await expect(page).toHaveURL(`/candidates/${tempRowClickCandidateId}/edit`);
+  await expect(page.getByRole('heading', { name: 'Editar Candidato' })).toBeVisible();
+
+  await prisma.candidate.delete({ where: { id: tempRowClickCandidateId } });
+});

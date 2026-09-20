@@ -1,6 +1,7 @@
 import React from 'react';
 import { Container, Table, Spinner, Alert } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { PencilSquare } from 'react-bootstrap-icons';
 import { getUnassignedCandidates } from '../services/candidateService';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +15,7 @@ type UnassignedCandidate = {
 
 const UnassignedCandidates: React.FC = () => {
     const { t } = useTranslation();
+    const navigate = useNavigate();
     const { data, loading, error } = useAsyncData<UnassignedCandidate[]>(getUnassignedCandidates, [], {
         fallbackErrorMessage: t('unassignedCandidates.fetchError'),
     });
@@ -44,11 +46,28 @@ const UnassignedCandidates: React.FC = () => {
                     </thead>
                     <tbody>
                         {candidates.map((candidate) => (
-                            <tr key={candidate.id}>
+                            // Toda la fila navega a la edición como atajo para ratón,
+                            // pero el acceso "de verdad" (teclado, lector de pantalla)
+                            // sigue siendo el enlace del icono: aria-label le da un
+                            // nombre accesible propio, no depende del title/tooltip.
+                            <tr
+                                key={candidate.id}
+                                onClick={() => navigate(`/candidates/${candidate.id}/edit`)}
+                                style={{ cursor: 'pointer' }}
+                            >
                                 <td>{candidate.fullName}</td>
                                 <td>{candidate.email}</td>
                                 <td>{new Date(candidate.createdAt).toLocaleDateString()}</td>
-                                <td><Link to={`/candidates/${candidate.id}/edit`}>{t('unassignedCandidates.edit')}</Link></td>
+                                <td>
+                                    <Link
+                                        to={`/candidates/${candidate.id}/edit`}
+                                        aria-label={t('unassignedCandidates.edit')}
+                                        title={t('unassignedCandidates.edit')}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <PencilSquare aria-hidden="true" />
+                                    </Link>
+                                </td>
                             </tr>
                         ))}
                     </tbody>

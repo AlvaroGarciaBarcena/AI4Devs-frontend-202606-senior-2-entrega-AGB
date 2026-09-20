@@ -30,3 +30,9 @@ Feature: Tablero de proceso de selección
     Given no existe ningún candidato sin candidatura
     When un reclutador visita el listado de candidatos sin asignar
     Then ve una indicación de que no hay ninguno
+
+  # Requirement: Acceso rápido a la edición desde el listado
+  Scenario: Pulsar la fila entera navega a la edición
+    Given un reclutador está en el listado de candidatos sin asignar
+    When pulsa en cualquier punto de la fila de un candidato, no solo en el icono
+    Then el sistema navega a la edición de ese candidato

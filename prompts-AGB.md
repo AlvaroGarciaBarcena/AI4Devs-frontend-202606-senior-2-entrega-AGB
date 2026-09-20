@@ -5321,3 +5321,34 @@ npm test (frontend)      → 77 passed, sin cambios (solo un enlace nuevo,
 npm run build (frontend) → OK, tsc + vite build sin errores
 npm run test:e2e         → 57 passed (55 + 2 nuevos)
 ```
+
+## 3.45 Fila clicable + icono de editar, sin perder accesibilidad (`clickable-row-edit-AGB`)
+
+Pregunta del usuario: "¿Resulta sencillo modificar el botón Editar por
+pulsar sobre la fila...?". Antes de tocar nada se señaló el riesgo real:
+una `<tr onClick>` sola no es alcanzable por teclado ni anunciable por
+lector de pantalla (no es un elemento interactivo nativo). El usuario
+confirmó mantener el enlace (además, van a hacer falta más acciones por
+fila -- borrar, dijo -- así que la celda de acciones se queda), pero
+cambiarlo por un icono de lápiz con tooltip "Editar" al pasar el ratón, y
+preguntó explícitamente si eso mantendría la accesibilidad.
+
+Respuesta aplicada: sí, siempre que el nombre accesible del enlace no
+dependa solo del tooltip. `title="Editar"` da el tooltip visual al pasar
+el ratón, pero **`aria-label="Editar"` es quien de verdad define el
+nombre accesible** -- un lector de pantalla lo anuncia igual que antes de
+cambiar el texto por un icono (`PencilSquare` de `react-bootstrap-icons`,
+`aria-hidden` porque es decorativo). La fila entera (`<tr onClick>`) es
+solo un atajo de ratón por encima de eso, no lo sustituye; el click en el
+icono para la propagación (`stopPropagation`) para no disparar la
+navegación dos veces.
+
+Nuevo requisito en `hiring-pipeline/spec.md` y escenario E2E que pulsa
+deliberadamente una celda que NO es el icono, para comprobar que la fila
+entera funciona, no solo el enlace.
+
+```
+npm test (frontend)      → 79 passed (77 + 2 nuevos)
+npm run build (frontend) → OK, tsc + vite build sin errores
+npm run test:e2e         → 58 passed (57 + 1 nuevo)
+```
