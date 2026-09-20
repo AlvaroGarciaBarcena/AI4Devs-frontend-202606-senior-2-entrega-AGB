@@ -5171,3 +5171,60 @@ npm test (frontend)      → 59 passed (53 + 6 nuevos)
 npm run build (frontend) → OK, tsc + vite build sin errores
 npm run test:e2e         → 52 passed (50 + 2 nuevos)
 ```
+
+## 3.42 Datos personales y datos laborales, en módulos reutilizables (`personal-work-modules-AGB`)
+
+Petición explícita del usuario, encadenando con el hallazgo del "Edit"
+mal entendido de la sección anterior: separar los datos personales del
+candidato de sus datos laborales, como dos módulos independientes,
+probados por separado, pensados como piezas reutilizables en otros
+proyectos futuros -- no solo una limpieza interna de `AddCandidateForm`.
+
+Dos componentes nuevos, ninguno con nada específico de este ATS:
+
+- **`PersonalDataFields.jsx`** -- nombre, apellido, email, teléfono,
+  dirección. Completamente controlado (`values`/`onChange`, sin estado
+  propio), sin ninguna dependencia de `react-i18next` ni texto
+  hardcodeado: las etiquetas llegan por prop (`labels`), y los mensajes
+  de error como un mapa plano `{ campo: mensaje }` (`errors`), no
+  acoplado a la forma de `issues` que usa el validador de este backend en
+  concreto. `requiredFields` tiene un valor por defecto razonable
+  (nombre/apellido/email) pero se puede sobrescribir. Cualquier proyecto
+  que gestione personas (CRM, alta de empleados, onboarding...) lo puede
+  usar tal cual.
+- **`WorkHistoryFields.jsx`** -- historial de educación y experiencia
+  laboral (listas de entradas, añadir/quitar/editar cada una). A
+  diferencia del anterior, aquí SÍ vive la lógica de interacción dentro
+  del propio componente (añadir una entrada vacía, editar un campo,
+  quitar una entrada) -- exponerla entera al padre habría obligado a
+  reimplementarla en cada proyecto que lo use. Sigue siendo controlado
+  hacia fuera (`educations`/`workExperiences` + sus `onChange`), y
+  `onFieldChanged(section, index, field)` es un enganche opcional para
+  que quien lo use reaccione a un campo concreto (aquí, limpiar su error
+  de validación) sin que el componente sepa nada de cómo se valida nada.
+
+Decisión deliberada: la posición/candidatura (`positionId`) **no** entra
+en ninguno de los dos módulos -- es un concepto específico de este ATS
+(no todo proyecto que gestione personas tiene "posiciones a las que
+presentarse"), así que se queda en `AddCandidateForm.jsx` igual que
+antes, junto al desplegable que lo alimenta.
+
+`AddCandidateForm.jsx` pasa de ~250 líneas de JSX repetido a orquestar
+tres piezas (`ValidatedField` para la posición, `PersonalDataFields`,
+`WorkHistoryFields`) más el `FileUploader` que ya era reutilizable desde
+`reusable-components-AGB`. El comportamiento no cambia -- confirmado con
+los 10 tests ya existentes de `AddCandidateForm.test.jsx`, que pasan sin
+tocar ni una línea.
+
+Tests nuevos: `PersonalDataFields.test.jsx` (5 casos, deliberadamente sin
+mencionar "candidato" en ningún sitio, para comprobar que de verdad no
+depende de nada de este dominio) y `WorkHistoryFields.test.jsx` (5 casos:
+añadir/editar/quitar una entrada sin tocar las demás, y el enganche
+`onFieldChanged`).
+
+```
+npm test (frontend)      → 69 passed (59 + 10 nuevos)
+npm run build (frontend) → OK, tsc + vite build sin errores
+npm run test:e2e         → 52 passed, sin cambios (mismo comportamiento,
+                             solo reorganizado en componentes)
+```

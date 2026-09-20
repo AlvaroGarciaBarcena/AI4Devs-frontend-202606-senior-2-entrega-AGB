@@ -1,22 +1,10 @@
 import React, { useState } from 'react';
-import { Form, Button, FormControl, Card, Container, Row, Col } from 'react-bootstrap';
-import { Trash } from 'react-bootstrap-icons';
+import { Form, Button, Card, Container, Row, Col } from 'react-bootstrap';
 import FileUploader from './FileUploader';
 import ValidatedField from './ValidatedField';
 import InlineAlert from './InlineAlert';
-import ReactDatePickerModule from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
-
-// El interop CJS→ESM del pre-bundler de dependencias de Vite envuelve dos
-// veces el export por defecto de react-datepicker@6.9.0 (el paquete no
-// tiene un único `module.exports =`, solo `exports.default = DatePicker`
-// junto a otros exports nombrados): `import DatePicker from
-// 'react-datepicker'` acaba trayendo el objeto de módulo entero en vez del
-// propio componente, y React lo rechaza con "Element type is invalid"
-// (confirmado reproduciendo el fallo al pulsar "Añadir Educación", antes de
-// aplicar este fix). Se desenvuelve a mano por si acaso, sin depender de
-// que el bundler lo resuelva bien.
-const DatePicker = ReactDatePickerModule.default || ReactDatePickerModule;
+import PersonalDataFields from './PersonalDataFields';
+import WorkHistoryFields from './WorkHistoryFields';
 import { sendCandidateData, uploadCV } from '../services/candidateService';
 import { getPositions } from '../services/positionService';
 import { useAsyncData } from '../hooks/useAsyncData';
@@ -92,34 +80,12 @@ const AddCandidateForm = () => {
         clearFieldIssue(field);
     };
 
-    const handleInputChange = (e, index, section) => {
-        const updatedSection = [...candidate[section]];
-        if (updatedSection[index]) {
-            updatedSection[index][e.target.name] = e.target.value;
-            setCandidate({ ...candidate, [section]: updatedSection });
-            clearFieldIssue(`${section}[${index}].${e.target.name}`);
-        }
-    };
-
-    const handleDateChange = (date, index, section, field) => {
-        const updatedSection = [...candidate[section]];
-        if (updatedSection[index]) {
-            updatedSection[index][field] = date;
-            setCandidate({ ...candidate, [section]: updatedSection });
-            clearFieldIssue(`${section}[${index}].${field}`);
-        }
-    };
-
-    const handleAddSection = (section) => {
-        const newSection = section === 'educations' ? { institution: '', title: '', startDate: '', endDate: '' } : { company: '', position: '', description: '', startDate: '', endDate: '' };
-        setCandidate({ ...candidate, [section]: [...candidate[section], newSection] });
-    };
-
-    const handleRemoveSection = (index, section) => {
-        const updatedSection = [...candidate[section]];
-        updatedSection.splice(index, 1);
-        setCandidate({ ...candidate, [section]: updatedSection });
-    };
+    // Los arrays de educación/experiencia y su interacción (añadir, quitar,
+    // editar una entrada) viven dentro de WorkHistoryFields -- aquí solo se
+    // guarda el array resultante, igual que con cualquier otro campo.
+    const handleEducationsChange = (educations) => setCandidate((prev) => ({ ...prev, educations }));
+    const handleWorkExperiencesChange = (workExperiences) => setCandidate((prev) => ({ ...prev, workExperiences }));
+    const handleWorkHistoryFieldChanged = (section, index, field) => clearFieldIssue(`${section}[${index}].${field}`);
 
     const handleCVUpload = (fileData) => {
         setCandidate({ ...candidate, cv: fileData });
@@ -202,58 +168,23 @@ const AddCandidateForm = () => {
                                 ))}
                             </ValidatedField>
                             {positionsError && <p className="text-danger small mt-1 mb-0">{positionsError}</p>}
-                            <ValidatedField
-                                controlId="firstName"
-                                label={t('addCandidate.firstName')}
-                                type="text"
-                                name="firstName"
-                                required
-                                value={candidate.firstName}
-                                onChange={(e) => handleFieldChange('firstName', e.target.value)}
-                                className="form-control shadow-sm"
-                                error={getFieldError('firstName')?.message}
-                            />
-                            <ValidatedField
-                                controlId="lastName"
-                                label={t('addCandidate.lastName')}
-                                type="text"
-                                name="lastName"
-                                required
-                                value={candidate.lastName}
-                                onChange={(e) => handleFieldChange('lastName', e.target.value)}
-                                className="form-control shadow-sm"
-                                error={getFieldError('lastName')?.message}
-                            />
-                            <ValidatedField
-                                controlId="email"
-                                label={t('addCandidate.email')}
-                                type="email"
-                                name="email"
-                                required
-                                value={candidate.email}
-                                onChange={(e) => handleFieldChange('email', e.target.value)}
-                                className="form-control shadow-sm"
-                                error={getFieldError('email')?.message}
-                            />
-                            <ValidatedField
-                                controlId="phone"
-                                label={t('addCandidate.phone')}
-                                type="tel"
-                                name="phone"
-                                value={candidate.phone}
-                                onChange={(e) => handleFieldChange('phone', e.target.value)}
-                                className="form-control shadow-sm"
-                                error={getFieldError('phone')?.message}
-                            />
-                            <ValidatedField
-                                controlId="address"
-                                label={t('addCandidate.address')}
-                                type="text"
-                                name="address"
-                                value={candidate.address}
-                                onChange={(e) => handleFieldChange('address', e.target.value)}
-                                className="form-control shadow-sm"
-                                error={getFieldError('address')?.message}
+                            <PersonalDataFields
+                                values={candidate}
+                                errors={{
+                                    firstName: getFieldError('firstName')?.message,
+                                    lastName: getFieldError('lastName')?.message,
+                                    email: getFieldError('email')?.message,
+                                    phone: getFieldError('phone')?.message,
+                                    address: getFieldError('address')?.message,
+                                }}
+                                onChange={handleFieldChange}
+                                labels={{
+                                    firstName: t('addCandidate.firstName'),
+                                    lastName: t('addCandidate.lastName'),
+                                    email: t('addCandidate.email'),
+                                    phone: t('addCandidate.phone'),
+                                    address: t('addCandidate.address'),
+                                }}
                             />
                         </Col>
                         <Col md={6}>
@@ -267,110 +198,24 @@ const AddCandidateForm = () => {
                                     className="shadow-sm"
                                 />
                             </Form.Group>
-                            <Row className="mt-4">
-                                <Button onClick={() => handleAddSection('educations')} className="btn btn-primary btn-sm mr-2">{t('addCandidate.addEducation')}</Button>
-                            </Row>
-                            {candidate.educations.map((education, index) => (
-                                <div key={index} className="mb-3">
-                                    <Row className="mt-4">
-                                        <Col md={6}>
-                                            <FormControl
-                                                placeholder={t('addCandidate.institutionPlaceholder')}
-                                                name="institution"
-                                                value={education.institution}
-                                                onChange={(e) => handleInputChange(e, index, 'educations')}
-                                                className="form-control shadow-sm"
-                                            />
-                                        </Col>
-                                    </Row>
-                                    <Row className="mt-2">
-                                        <Col md={6}>
-                                            <FormControl
-                                                placeholder={t('addCandidate.titlePlaceholder')}
-                                                name="title"
-                                                value={education.title}
-                                                onChange={(e) => handleInputChange(e, index, 'educations')}
-                                                className="form-control shadow-sm"
-                                            />
-                                        </Col>
-                                    </Row>
-                                    <Row className="mt-2">
-                                        <Col md={6}>
-                                            <DatePicker
-                                                selected={education.startDate}
-                                                onChange={(date) => handleDateChange(date, index, 'educations', 'startDate')}
-                                                dateFormat="yyyy-MM-dd"
-                                                placeholderText={t('addCandidate.startDatePlaceholder')}
-                                                className="form-control shadow-sm"
-                                            />
-                                        </Col>
-                                        <Col md={6}>
-                                            <DatePicker
-                                                selected={education.endDate}
-                                                onChange={(date) => handleDateChange(date, index, 'educations', 'endDate')}
-                                                dateFormat="yyyy-MM-dd"
-                                                placeholderText={t('addCandidate.endDatePlaceholder')}
-                                                className="form-control shadow-sm"
-                                            />
-                                        </Col>
-                                    </Row>
-                                    <Button variant="danger" onClick={() => handleRemoveSection(index, 'educations')} className="mt-2">
-                                        <Trash /> {t('addCandidate.remove')}
-                                    </Button>
-                                </div>
-                            ))}
-                            <Row className="mt-4">
-                                <Button onClick={() => handleAddSection('workExperiences')} className="btn btn-primary btn-sm mr-2">{t('addCandidate.addWorkExperience')}</Button>
-                            </Row>
-                            {candidate.workExperiences.map((experience, index) => (
-                                <div key={index} className="mb-3">
-                                    <Row className="mt-4">
-                                        <Col md={6}>
-                                            <FormControl
-                                                placeholder={t('addCandidate.companyPlaceholder')}
-                                                name="company"
-                                                value={experience.company}
-                                                onChange={(e) => handleInputChange(e, index, 'workExperiences')}
-                                                className="form-control shadow-sm"
-                                            />
-                                        </Col>
-                                    </Row>
-                                    <Row className="mt-2">
-                                        <Col md={6}>
-                                            <FormControl
-                                                placeholder={t('addCandidate.positionPlaceholder')}
-                                                name="position"
-                                                value={experience.position}
-                                                onChange={(e) => handleInputChange(e, index, 'workExperiences')}
-                                                className="form-control shadow-sm"
-                                            />
-                                        </Col>
-                                    </Row>
-                                    <Row className="mt-2">
-                                        <Col md={6}>
-                                            <DatePicker
-                                                selected={experience.startDate}
-                                                onChange={(date) => handleDateChange(date, index, 'workExperiences', 'startDate')}
-                                                dateFormat="yyyy-MM-dd"
-                                                placeholderText={t('addCandidate.startDatePlaceholder')}
-                                                className="form-control shadow-sm"
-                                            />
-                                        </Col>
-                                        <Col md={6}>
-                                            <DatePicker
-                                                selected={experience.endDate}
-                                                onChange={(date) => handleDateChange(date, index, 'workExperiences', 'endDate')}
-                                                dateFormat="yyyy-MM-dd"
-                                                placeholderText={t('addCandidate.endDatePlaceholder')}
-                                                className="form-control shadow-sm"
-                                            />
-                                        </Col>
-                                    </Row>
-                                    <Button variant="danger" onClick={() => handleRemoveSection(index, 'workExperiences')} className="mt-2">
-                                        <Trash /> {t('addCandidate.remove')}
-                                    </Button>
-                                </div>
-                            ))}
+                            <WorkHistoryFields
+                                educations={candidate.educations}
+                                workExperiences={candidate.workExperiences}
+                                onEducationsChange={handleEducationsChange}
+                                onWorkExperiencesChange={handleWorkExperiencesChange}
+                                onFieldChanged={handleWorkHistoryFieldChanged}
+                                labels={{
+                                    addEducation: t('addCandidate.addEducation'),
+                                    addWorkExperience: t('addCandidate.addWorkExperience'),
+                                    institutionPlaceholder: t('addCandidate.institutionPlaceholder'),
+                                    titlePlaceholder: t('addCandidate.titlePlaceholder'),
+                                    startDatePlaceholder: t('addCandidate.startDatePlaceholder'),
+                                    endDatePlaceholder: t('addCandidate.endDatePlaceholder'),
+                                    companyPlaceholder: t('addCandidate.companyPlaceholder'),
+                                    positionPlaceholder: t('addCandidate.positionPlaceholder'),
+                                    remove: t('addCandidate.remove'),
+                                }}
+                            />
                         </Col>
                     </Row>
                     <Button type="submit" className="btn btn-primary btn-block shadow-sm mt-5">{t('addCandidate.submit')}</Button>
