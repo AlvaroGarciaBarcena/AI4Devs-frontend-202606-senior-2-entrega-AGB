@@ -4752,10 +4752,14 @@ viejo:
   este mismo entorno antes de recomendarlo.
 - Al intentar verificar `docker compose ps` de verdad contra este
   proyecto, saltó un aviso real (`the attribute 'version' is
-  obsolete`) -- inofensivo, pero se documenta en la sección de
-  solución de problemas de ambos README para que no alarme a quien lo
-  vea por primera vez. No se toca `docker-compose.yml` en sí: no era
-  parte de lo pedido.
+  obsolete`) -- inofensivo, documentado inicialmente solo en la
+  sección de solución de problemas de ambos README, sin tocar
+  `docker-compose.yml`, por no ser parte de lo pedido en ese momento.
+  Preguntado luego el usuario qué había detectado y quedado sin
+  arreglar, pidió corregirlo: se quita la clave `version: "3.1"` de
+  `docker-compose.yml` (verificado con `docker compose config` que el
+  aviso desaparece y la configuración se resuelve igual) y se retira
+  la nota de ambos README, ya sin sentido una vez corregida la causa.
 - La instalación de Docker/Node no se pudo probar de principio a fin
   en esta misma máquina sin arriesgarse a romper el entorno de
   desarrollo ya en marcha (Node v26 ya instalado, base de datos con

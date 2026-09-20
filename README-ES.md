@@ -232,5 +232,3 @@ La suite E2E pilota un navegador real contra tu aplicación en marcha y cubre au
 **El puerto 3000 o 3010 ya está en uso** — algo más en tu máquina está usando ese puerto. Encuéntralo y detenlo (`sudo lsof -i :3000`), o ten en cuenta que el puerto del frontend está fijado en `frontend/vite.config.ts` para coincidir con la configuración de CORS del backend, así que cambiarlo exige actualizar los dos.
 
 **`npx prisma migrate dev` pide reiniciar la base de datos** — esto solo pasa si tu base de datos local ya tiene datos en conflicto de una configuración previa distinta. En una base de datos recién creada con `docker compose` esto no debería ocurrir; si ocurre y no te importa perder los datos locales, confirma el reinicio.
-
-**`docker compose up -d` imprime `the attribute 'version' is obsolete`** — inofensivo. Las versiones modernas de Docker Compose ya no necesitan la clave `version:` al principio de `docker-compose.yml`; sigue funcionando exactamente igual, es solo un aviso de que ese campo está en desuso.

@@ -232,5 +232,3 @@ The E2E suite drives a real browser against your running app and covers authenti
 **Port 3000 or 3010 already in use** — something else on your machine is using that port. Find and stop it (`sudo lsof -i :3000`), or note that the frontend's port is hardcoded in `frontend/vite.config.ts` to match the backend's CORS configuration, so changing it requires updating both.
 
 **`npx prisma migrate dev` asks to reset the database** — this only happens if your local database already has conflicting data from a previous, different setup. On a genuinely fresh `docker compose` database this shouldn't happen; if it does and you don't mind losing local data, confirm the reset.
-
-**`docker compose up -d` prints `the attribute 'version' is obsolete`** — harmless. Modern Docker Compose no longer needs the `version:` key at the top of `docker-compose.yml`; it still works exactly the same, this is just a deprecation notice.
