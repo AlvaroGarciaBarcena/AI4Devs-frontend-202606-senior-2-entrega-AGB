@@ -72,7 +72,7 @@ export const updateCandidateProfileController = async (req: Request, res: Respon
 export const updateCandidateStageController = async (req: Request, res: Response) => {
     try {
         const id = parseInt(req.params.id);
-        const { applicationId, currentInterviewStep } = req.body;
+        const { applicationId, currentInterviewStep, score } = req.body;
         const applicationIdNumber = parseInt(applicationId);
         if (isNaN(applicationIdNumber)) {
             return res.status(400).json({ error: 'Invalid position ID format' });
@@ -81,7 +81,24 @@ export const updateCandidateStageController = async (req: Request, res: Response
         if (isNaN(currentInterviewStepNumber)) {
             return res.status(400).json({ error: 'Invalid currentInterviewStep format' });
         }
-        const updatedCandidate = await updateCandidateStage(id, applicationIdNumber, currentInterviewStepNumber);
+
+        // Opcional: ausente/null/cadena vacía significa "sin puntuar", no un
+        // error -- ver el comentario de updateCandidateStage en
+        // candidateService.ts.
+        let scoreValue: number | undefined;
+        if (score !== undefined && score !== null && score !== '') {
+            const parsedScore = Number(score);
+            if (!Number.isInteger(parsedScore) || parsedScore < 0) {
+                return res.status(400).json({ error: 'Invalid score: must be a non-negative integer' });
+            }
+            scoreValue = parsedScore;
+        }
+
+        // Garantizado por el middleware requireAuth, que ya protege esta ruta
+        // -- de lo contrario esta petición nunca habría llegado hasta aquí.
+        const employeeId = req.employee!.sub;
+
+        const updatedCandidate = await updateCandidateStage(id, applicationIdNumber, currentInterviewStepNumber, employeeId, scoreValue);
         res.status(200).json({ message: 'Candidate stage updated successfully', data: updatedCandidate });
     } catch (error: unknown) {
         if (error instanceof Error) {

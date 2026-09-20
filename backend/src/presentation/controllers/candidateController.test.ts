@@ -93,12 +93,14 @@ describe('addCandidateController', () => {
 });
 
 describe('updateCandidateStageController', () => {
-    it('should return 200 and updated candidate stage', async () => {
-      const req = { params: { id: '1' }, body: { applicationId: 1, currentInterviewStep: 2 } } as unknown as Request;
-      const res = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      } as unknown as Response;
+    // requireAuth (ya delante de toda /candidates) siempre deja
+    // req.employee puesto antes de llegar aquí -- se simula igual en cada
+    // test de este describe.
+    const authenticatedReq = (body: object) => ({ params: { id: '1' }, body, employee: { sub: 7, role: 'Interviewer', companyId: 1 } }) as unknown as Request;
+
+    it('should return 200 and updated candidate stage, passing the score and the employee from the token', async () => {
+      const req = authenticatedReq({ applicationId: 1, currentInterviewStep: 2, score: 5 });
+      const res = mockResponse();
 
       (updateCandidateStage as jest.Mock).mockResolvedValue({
         id: 1,
@@ -109,6 +111,7 @@ describe('updateCandidateStageController', () => {
 
       await updateCandidateStageController(req, res);
 
+      expect(updateCandidateStage).toHaveBeenCalledWith(1, 1, 2, 7, 5);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Candidate stage updated successfully',
@@ -119,5 +122,39 @@ describe('updateCandidateStageController', () => {
           currentInterviewStep: 2,
         },
       });
+    });
+
+    // Pedido por el usuario: omitir la puntuación no debe bloquear el
+    // movimiento -- solo no se puntúa (ver candidateService.ts).
+    it('moves the candidate without a score when none is given', async () => {
+      const req = authenticatedReq({ applicationId: 1, currentInterviewStep: 2 });
+      const res = mockResponse();
+
+      (updateCandidateStage as jest.Mock).mockResolvedValue({ id: 1 });
+
+      await updateCandidateStageController(req, res);
+
+      expect(updateCandidateStage).toHaveBeenCalledWith(1, 1, 2, 7, undefined);
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('returns 400 without calling the service when the score is negative', async () => {
+      const req = authenticatedReq({ applicationId: 1, currentInterviewStep: 2, score: -1 });
+      const res = mockResponse();
+
+      await updateCandidateStageController(req, res);
+
+      expect(updateCandidateStage).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('returns 400 without calling the service when the score is not an integer', async () => {
+      const req = authenticatedReq({ applicationId: 1, currentInterviewStep: 2, score: 'excellent' });
+      const res = mockResponse();
+
+      await updateCandidateStageController(req, res);
+
+      expect(updateCandidateStage).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
     });
   });

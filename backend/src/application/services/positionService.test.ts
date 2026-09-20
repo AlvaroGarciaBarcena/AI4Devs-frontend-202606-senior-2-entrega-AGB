@@ -80,10 +80,51 @@ describe('getCandidatesByPositionService', () => {
         fullName: 'John Doe',
         currentInterviewStep: 'Technical Interview',
         averageScore: 4,
+        ungradedInterviews: 0,
         id: 1,
         applicationId: 1,
       },
     ]);
+  });
+
+  // El motivo de esta rama: una fase completada sin puntuación (`score`
+  // en null, ver candidateService.ts) no debe hundir la media -- antes,
+  // `interview.score || 0` la contaba como un cero en la suma, pero SÍ en
+  // el divisor.
+  it('excludes ungraded interviews from the average instead of counting them as zero', async () => {
+    const mockApplications = [
+      {
+        id: 2,
+        candidate: { id: 2, firstName: 'Ana', lastName: 'García' },
+        interviewStep: { name: 'Technical Interview' },
+        interviews: [{ score: 4 }, { score: null }, { score: null }],
+      },
+    ];
+
+    jest.spyOn(prisma.application, 'findMany').mockResolvedValue(mockApplications as any);
+
+    const result = await getCandidatesByPositionService(1);
+
+    expect(result[0].averageScore).toBe(4);
+    expect(result[0].ungradedInterviews).toBe(2);
+  });
+
+  it('returns an average of 0 and no ungraded count when there are no interviews at all', async () => {
+    const mockApplications = [
+      {
+        id: 3,
+        candidate: { id: 3, firstName: 'Nico', lastName: 'Alaslla' },
+        interviewStep: { name: 'Initial Screening' },
+        interviews: [],
+      },
+    ];
+
+    jest.spyOn(prisma.application, 'findMany').mockResolvedValue(mockApplications as any);
+
+    const result = await getCandidatesByPositionService(1);
+
+    expect(result[0].averageScore).toBe(0);
+    expect(result[0].ungradedInterviews).toBe(0);
   });
 });
 

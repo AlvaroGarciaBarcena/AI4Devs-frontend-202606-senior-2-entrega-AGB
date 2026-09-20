@@ -116,6 +116,16 @@
       "placeholder": "New stage name",
       "button": "Add stage",
       "errorPrefix": "Error adding the stage: "
+    },
+    "ungradedInterviews_one": "{{count}} ungraded interview",
+    "ungradedInterviews_other": "{{count}} ungraded interviews",
+    "scoreModal": {
+      "title": "Interview score",
+      "body": "What score do you give {{name}} for \"{{step}}\"?",
+      "placeholder": "Score (optional)",
+      "invalidScore": "The score must be a whole number of 0 or more.",
+      "skip": "Skip",
+      "save": "Save"
     }
   },
   "unassignedCandidates": {

@@ -32,6 +32,12 @@ jest.mock('@prisma/client', () => {
       findFirst: jest.fn(),
       update: jest.fn(),
     },
+    // Interview.ts (domain/models/Interview.ts) hace su propio `new
+    // PrismaClient()` -- comparte esta misma instancia simulada, así que
+    // sus llamadas a `prisma.interview.create` acaban también aquí.
+    interview: {
+      create: jest.fn(),
+    },
   };
   return { PrismaClient: jest.fn(() => mockPrisma) };
 });
@@ -279,26 +285,65 @@ describe('updateCandidateProfile', () => {
 });
 
 describe('updateCandidateStage', () => {
-  it('should update the candidate stage and return the updated application', async () => {
-    const mockApplication = {
-      id: 1,
-      positionId: 1,
-      candidateId: 1,
-      currentInterviewStep: 1,
-      applicationDate: new Date(),
-      notes: null,
-    };
+  const mockApplication = {
+    id: 1,
+    positionId: 1,
+    candidateId: 1,
+    currentInterviewStep: 1,
+    applicationDate: new Date(),
+    notes: null,
+  };
 
+  beforeEach(() => {
+    jest.clearAllMocks();
     jest.spyOn(prisma.application, 'findFirst').mockResolvedValue(mockApplication);
     jest.spyOn(prisma.application, 'update').mockResolvedValue({
       ...mockApplication,
       currentInterviewStep: 2,
     });
+    jest.spyOn(prisma.interview, 'create').mockResolvedValue({ id: 1 } as any);
+  });
 
-    const result = await updateCandidateStage(1, 1, 2);
+  it('should update the candidate stage and return the updated application', async () => {
+    const result = await updateCandidateStage(1, 1, 2, 7, 5);
     expect(result).toEqual(expect.objectContaining({
       ...mockApplication,
       currentInterviewStep: 2,
     }));
+  });
+
+  // El punto de esta rama: dejar constancia de que la fase anterior se
+  // completó, con quién la gestionó -- para la fase de la que sale (1,
+  // el valor de `currentInterviewStep` ANTES de actualizarlo), no la de
+  // destino.
+  it('creates an Interview record for the stage being left, with the given score', async () => {
+    await updateCandidateStage(1, 1, 2, 7, 5);
+
+    expect(prisma.interview.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        applicationId: 1,
+        interviewStepId: 1,
+        employeeId: 7,
+        score: 5,
+      }),
+    });
+  });
+
+  // Pedido por el usuario: no puntuar no debe bloquear el movimiento, pero
+  // sí debe quedar constancia de que la fase se completó sin puntuación
+  // (score en null, no ausencia de registro).
+  it('creates the Interview record with a null score when no score is given', async () => {
+    await updateCandidateStage(1, 1, 2, 7, undefined);
+
+    expect(prisma.interview.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ score: undefined }),
+    });
+  });
+
+  it('throws when the application does not exist, without creating an Interview', async () => {
+    jest.spyOn(prisma.application, 'findFirst').mockResolvedValueOnce(null as any);
+
+    await expect(updateCandidateStage(999, 1, 2, 7, 5)).rejects.toThrow('Application not found');
+    expect(prisma.interview.create).not.toHaveBeenCalled();
   });
 });

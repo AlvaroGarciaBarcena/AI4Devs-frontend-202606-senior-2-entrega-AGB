@@ -5,6 +5,7 @@ import { Education } from '../../domain/models/Education';
 import { WorkExperience } from '../../domain/models/WorkExperience';
 import { Resume } from '../../domain/models/Resume';
 import { Application } from '../../domain/models/Application';
+import { Interview } from '../../domain/models/Interview';
 import { getFirstInterviewStepForPosition } from './positionService';
 
 const prisma = new PrismaClient();
@@ -230,17 +231,42 @@ export const findCandidateById = async (id: number): Promise<Candidate | null> =
     }
 };
 
-export const updateCandidateStage = async (id: number, applicationIdNumber: number, currentInterviewStep: number) => {
+// `score` es opcional a propósito: preguntar la puntuación de la fase que
+// se abandona al mover una ficha es útil, pero no debe bloquear el
+// movimiento si el usuario no la tiene a mano todavía (o solo está
+// reorganizando el tablero). Se cree o no una puntuación, SIEMPRE se deja
+// un registro de la entrevista (`Interview`) para la fase anterior -- si
+// no, mover una ficha no dejaría ningún rastro de que esa fase se
+// completó de verdad, ni de quién la gestionó y cuándo. Ver
+// positionService.ts (`calculateAverageScore`): una entrevista con
+// `score` en null cuenta como "sin puntuar", no como un cero.
+export const updateCandidateStage = async (
+    id: number,
+    applicationIdNumber: number,
+    currentInterviewStep: number,
+    employeeId: number,
+    score?: number,
+) => {
     const application = await Application.findOneByPositionCandidateId(applicationIdNumber, id);
     if (!application) {
         throw new Error('Application not found');
     }
+
+    const previousInterviewStep = application.currentInterviewStep;
 
     // Actualizar solo la etapa de la entrevista actual de la aplicación específica
     application.currentInterviewStep = currentInterviewStep;
 
     // Guardar la aplicación actualizada
     await application.save();
+
+    await new Interview({
+        applicationId: applicationIdNumber,
+        interviewStepId: previousInterviewStep,
+        employeeId,
+        interviewDate: new Date(),
+        score,
+    }).save();
 
     return application;
 };

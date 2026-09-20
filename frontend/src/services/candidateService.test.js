@@ -153,6 +153,17 @@ describe('updateCandidateStage', () => {
 
         await expect(updateCandidateStage(1, 7, 2)).rejects.toThrow('Application not found');
     });
+
+    // Pedido por el usuario: al mover una ficha, poder dar la puntuación
+    // de la fase que se abandona -- opcional (ver el test anterior, que
+    // no la manda), pero cuando se manda debe llegar al backend.
+    it('includes the score in the request when one is given', async () => {
+        axios.put.mockResolvedValue({ data: { message: 'ok', data: { id: 1 } } });
+
+        await updateCandidateStage(1, 7, 2, 5);
+
+        expect(axios.put).toHaveBeenCalledWith(`${API_BASE_URL}/candidates/1`, { applicationId: 7, currentInterviewStep: 2, score: 5 });
+    });
 });
 
 describe('uploadCV', () => {

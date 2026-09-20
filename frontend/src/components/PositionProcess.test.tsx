@@ -88,12 +88,56 @@ describe('PositionProcess — nombres de fase traducidos', () => {
 // Pedido por el usuario: poder mover la ficha de un candidato de una fase a
 // otra. El selector por tarjeta es la vía accesible por teclado/lector de
 // pantalla/táctil (probada aquí); el arrastrar-y-soltar nativo es solo un
-// atajo de ratón encima del mismo `updateCandidateStage` (no se puede
-// simular con jsdom de forma realista, así que no tiene test propio aquí).
+// atajo de ratón encima del mismo `moveCandidate` (no se puede simular con
+// jsdom de forma realista, así que no tiene test propio aquí). Desde esta
+// rama, elegir una fase abre primero el aviso de puntuación -- el
+// movimiento en sí no se dispara hasta "Guardar" u "Omitir".
 describe('PositionProcess — mover un candidato a otra fase', () => {
-    const candidate = { id: 5, applicationId: 50, fullName: 'Ana Ejemplo', currentInterviewStep: 'Initial Screening', averageScore: 4 };
+    const candidate = { id: 5, applicationId: 50, fullName: 'Ana Ejemplo', currentInterviewStep: 'Initial Screening', averageScore: 4, ungradedInterviews: 0 };
 
-    it('moves the candidate to the selected stage and calls the backend with the target step id', async () => {
+    it('opens the score prompt instead of moving immediately', async () => {
+        const user = userEvent.setup();
+        vi.mocked(getInterviewFlowByPosition).mockResolvedValue(flow);
+        vi.mocked(getCandidatesByPosition).mockResolvedValue([candidate]);
+
+        renderPage();
+
+        const select = await screen.findByRole('combobox', { name: 'Mover a Ana Ejemplo a otra fase' });
+        await user.selectOptions(select, 'Technical Interview');
+
+        expect(screen.getByText('¿Qué puntuación le das a Ana Ejemplo en "Selección inicial"?')).toBeTruthy();
+        expect(updateCandidateStage).not.toHaveBeenCalled();
+    });
+
+    it('moves the candidate without a score when "Omitir" is chosen, then refreshes the averages from the backend', async () => {
+        const user = userEvent.setup();
+        vi.mocked(getInterviewFlowByPosition).mockResolvedValue(flow);
+        // Primera llamada: la carga inicial. Segunda: el refresco que
+        // dispara moveCandidate tras un movimiento con éxito, para que la
+        // media/recuento de "sin puntuar" no se queden con el valor de
+        // antes del movimiento (ver el comentario en PositionProcess.tsx).
+        vi.mocked(getCandidatesByPosition)
+            .mockResolvedValueOnce([candidate])
+            .mockResolvedValueOnce([{ ...candidate, currentInterviewStep: 'Technical Interview', ungradedInterviews: 1 }]);
+        vi.mocked(updateCandidateStage).mockResolvedValue({ message: 'ok', data: {} });
+
+        renderPage();
+
+        const select = await screen.findByRole('combobox', { name: 'Mover a Ana Ejemplo a otra fase' });
+        await user.selectOptions(select, 'Technical Interview');
+        await user.click(screen.getByRole('button', { name: 'Omitir' }));
+
+        expect(updateCandidateStage).toHaveBeenCalledWith(5, 50, 2, undefined);
+        await waitFor(() => {
+            expect(within(screen.getByRole('heading', { name: 'Entrevista técnica' }).closest('.mb-4') as HTMLElement).getByText('Ana Ejemplo')).toBeTruthy();
+        });
+        expect(getCandidatesByPosition).toHaveBeenCalledTimes(2);
+        await waitFor(() => {
+            expect(screen.getByText('Puntuación media: 4.0 (1 entrevista sin puntuar)')).toBeTruthy();
+        });
+    });
+
+    it('moves the candidate with the given score when "Guardar" is chosen', async () => {
         const user = userEvent.setup();
         vi.mocked(getInterviewFlowByPosition).mockResolvedValue(flow);
         vi.mocked(getCandidatesByPosition).mockResolvedValue([candidate]);
@@ -103,11 +147,41 @@ describe('PositionProcess — mover un candidato a otra fase', () => {
 
         const select = await screen.findByRole('combobox', { name: 'Mover a Ana Ejemplo a otra fase' });
         await user.selectOptions(select, 'Technical Interview');
+        await user.type(screen.getByPlaceholderText('Puntuación (opcional)'), '5');
+        await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
-        expect(updateCandidateStage).toHaveBeenCalledWith(5, 50, 2);
-        await waitFor(() => {
-            expect(within(screen.getByRole('heading', { name: 'Entrevista técnica' }).closest('.mb-4') as HTMLElement).getByText('Ana Ejemplo')).toBeTruthy();
-        });
+        expect(updateCandidateStage).toHaveBeenCalledWith(5, 50, 2, 5);
+    });
+
+    it('rejects a negative score without calling the backend', async () => {
+        const user = userEvent.setup();
+        vi.mocked(getInterviewFlowByPosition).mockResolvedValue(flow);
+        vi.mocked(getCandidatesByPosition).mockResolvedValue([candidate]);
+
+        renderPage();
+
+        const select = await screen.findByRole('combobox', { name: 'Mover a Ana Ejemplo a otra fase' });
+        await user.selectOptions(select, 'Technical Interview');
+        await user.type(screen.getByPlaceholderText('Puntuación (opcional)'), '-1');
+        await user.click(screen.getByRole('button', { name: 'Guardar' }));
+
+        expect(screen.getByText('La puntuación debe ser un número entero de 0 en adelante.')).toBeTruthy();
+        expect(updateCandidateStage).not.toHaveBeenCalled();
+    });
+
+    it('closing the prompt (Cancel) does not move the candidate', async () => {
+        const user = userEvent.setup();
+        vi.mocked(getInterviewFlowByPosition).mockResolvedValue(flow);
+        vi.mocked(getCandidatesByPosition).mockResolvedValue([candidate]);
+
+        renderPage();
+
+        const select = await screen.findByRole('combobox', { name: 'Mover a Ana Ejemplo a otra fase' });
+        await user.selectOptions(select, 'Technical Interview');
+        await user.click(screen.getByRole('button', { name: 'Close' }));
+
+        expect(updateCandidateStage).not.toHaveBeenCalled();
+        expect(within(screen.getByRole('heading', { name: 'Selección inicial' }).closest('.mb-4') as HTMLElement).getByText('Ana Ejemplo')).toBeTruthy();
     });
 
     it('rolls back the optimistic move and shows an error when the backend rejects it', async () => {
@@ -122,12 +196,43 @@ describe('PositionProcess — mover un candidato a otra fase', () => {
 
         const select = await screen.findByRole('combobox', { name: 'Mover a Ana Ejemplo a otra fase' });
         await user.selectOptions(select, 'Technical Interview');
+        await user.click(screen.getByRole('button', { name: 'Omitir' }));
 
         await waitFor(() => {
             expect(screen.getByText('Error al mover al candidato: Application not found')).toBeTruthy();
         });
         // Sigue en su fase original: la actualización optimista se revirtió.
         expect(within(screen.getByRole('heading', { name: 'Selección inicial' }).closest('.mb-4') as HTMLElement).getByText('Ana Ejemplo')).toBeTruthy();
+    });
+});
+
+// Pedido por el usuario: reflejar en la propia tarjeta cuando una fase se
+// completó sin puntuación, en vez de que desaparezca sin rastro.
+describe('PositionProcess — entrevistas sin puntuar', () => {
+    it('shows a count of ungraded interviews next to the average score', async () => {
+        vi.mocked(getInterviewFlowByPosition).mockResolvedValue(flow);
+        vi.mocked(getCandidatesByPosition).mockResolvedValue([
+            { id: 5, applicationId: 50, fullName: 'Ana Ejemplo', currentInterviewStep: 'Initial Screening', averageScore: 4, ungradedInterviews: 2 },
+        ]);
+
+        renderPage();
+
+        await waitFor(() => {
+            expect(screen.getByText('Puntuación media: 4.0 (2 entrevistas sin puntuar)')).toBeTruthy();
+        });
+    });
+
+    it('does not show anything extra when every interview has been graded', async () => {
+        vi.mocked(getInterviewFlowByPosition).mockResolvedValue(flow);
+        vi.mocked(getCandidatesByPosition).mockResolvedValue([
+            { id: 5, applicationId: 50, fullName: 'Ana Ejemplo', currentInterviewStep: 'Initial Screening', averageScore: 4, ungradedInterviews: 0 },
+        ]);
+
+        renderPage();
+
+        await waitFor(() => {
+            expect(screen.getByText('Puntuación media: 4.0')).toBeTruthy();
+        });
     });
 });
 

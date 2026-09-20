@@ -116,6 +116,16 @@
       "placeholder": "Nombre de la nueva fase",
       "button": "Añadir fase",
       "errorPrefix": "Error al añadir la fase: "
+    },
+    "ungradedInterviews_one": "{{count}} entrevista sin puntuar",
+    "ungradedInterviews_other": "{{count}} entrevistas sin puntuar",
+    "scoreModal": {
+      "title": "Puntuación de la entrevista",
+      "body": "¿Qué puntuación le das a {{name}} en \"{{step}}\"?",
+      "placeholder": "Puntuación (opcional)",
+      "invalidScore": "La puntuación debe ser un número entero de 0 en adelante.",
+      "skip": "Omitir",
+      "save": "Guardar"
     }
   },
   "unassignedCandidates": {

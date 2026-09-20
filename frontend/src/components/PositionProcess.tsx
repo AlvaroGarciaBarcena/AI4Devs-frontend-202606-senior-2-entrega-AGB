@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Container, Row, Col, Card, Badge, Spinner, Alert, Button, Form } from 'react-bootstrap';
+import { Container, Row, Col, Card, Badge, Spinner, Alert, Button, Form, Modal } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import { getCandidatesByPosition, getInterviewFlowByPosition, addInterviewStep } from '../services/positionService';
 import { updateCandidateStage } from '../services/candidateService';
@@ -12,6 +12,7 @@ type Candidate = {
     fullName: string;
     currentInterviewStep: string;
     averageScore: number;
+    ungradedInterviews: number;
 };
 
 type InterviewStep = {
@@ -59,6 +60,14 @@ const PositionProcess: React.FC = () => {
     const [movingApplicationId, setMovingApplicationId] = useState<number | null>(null);
     const [moveError, setMoveError] = useState('');
     const [dragOverStepId, setDragOverStepId] = useState<number | null>(null);
+    // Pedido por el usuario: al mover una ficha, preguntar la puntuación de
+    // la fase que se abandona -- opcional, no debe bloquear el movimiento
+    // (por eso `moveCandidate` real se dispara tanto al pulsar "Guardar"
+    // como "Omitir", solo cambia si se manda `score` o no). `pendingMove`
+    // guarda la intención (quién, a qué fase) mientras se decide.
+    const [pendingMove, setPendingMove] = useState<{ candidate: Candidate; targetStep: InterviewStep } | null>(null);
+    const [pendingScoreInput, setPendingScoreInput] = useState('');
+    const [pendingScoreError, setPendingScoreError] = useState('');
     const [newStepName, setNewStepName] = useState('');
     const [addingStep, setAddingStep] = useState(false);
     const [addStepError, setAddStepError] = useState('');
@@ -86,10 +95,7 @@ const PositionProcess: React.FC = () => {
         }
     };
 
-    const moveCandidate = async (candidate: Candidate, targetStep: InterviewStep) => {
-        if (candidate.currentInterviewStep === targetStep.name || movingApplicationId !== null) {
-            return;
-        }
+    const moveCandidate = async (candidate: Candidate, targetStep: InterviewStep, score?: number) => {
         const previousCandidates = candidates;
         setMoveError('');
         setMovingApplicationId(candidate.applicationId);
@@ -97,7 +103,20 @@ const PositionProcess: React.FC = () => {
             prev.map((c) => (c.applicationId === candidate.applicationId ? { ...c, currentInterviewStep: targetStep.name } : c)),
         );
         try {
-            await updateCandidateStage(candidate.id, candidate.applicationId, targetStep.id);
+            await updateCandidateStage(candidate.id, candidate.applicationId, targetStep.id, score);
+            // La actualización optimista de arriba solo cambia la columna --
+            // "Puntuación media" y "sin puntuar" no se pueden recalcular aquí
+            // sin repetir la lógica del backend (positionService.ts). Se
+            // vuelve a pedir la lista completa tras un movimiento con éxito
+            // para que la puntuación recién dada (o su ausencia) se vea sin
+            // tener que recargar toda la página. Si este refresco puntual
+            // falla, no es grave -- el movimiento en sí ya se guardó bien.
+            try {
+                const freshCandidates = await getCandidatesByPosition(id as string);
+                setCandidates(freshCandidates);
+            } catch {
+                // Se ignora a propósito: ver el comentario de arriba.
+            }
         } catch (err) {
             setCandidates(previousCandidates);
             if (err && typeof err === 'object' && 'isNetworkError' in err && (err as { isNetworkError?: boolean }).isNetworkError) {
@@ -108,6 +127,43 @@ const PositionProcess: React.FC = () => {
         } finally {
             setMovingApplicationId(null);
         }
+    };
+
+    // Punto de entrada real desde el arrastre y desde el selector: abre el
+    // aviso de puntuación en vez de mover directamente. El movimiento en sí
+    // (moveCandidate) no se dispara hasta que el usuario decide "Guardar" u
+    // "Omitir" en el modal.
+    const requestMove = (candidate: Candidate, targetStep: InterviewStep) => {
+        if (candidate.currentInterviewStep === targetStep.name || movingApplicationId !== null) {
+            return;
+        }
+        setPendingScoreInput('');
+        setPendingScoreError('');
+        setPendingMove({ candidate, targetStep });
+    };
+
+    const cancelPendingMove = () => {
+        setPendingMove(null);
+        setPendingScoreInput('');
+        setPendingScoreError('');
+    };
+
+    const confirmPendingMove = (skip: boolean) => {
+        if (!pendingMove) {
+            return;
+        }
+        let score: number | undefined;
+        if (!skip && pendingScoreInput.trim() !== '') {
+            const parsed = Number(pendingScoreInput);
+            if (!Number.isInteger(parsed) || parsed < 0) {
+                setPendingScoreError(t('positionProcess.scoreModal.invalidScore'));
+                return;
+            }
+            score = parsed;
+        }
+        const { candidate, targetStep } = pendingMove;
+        setPendingMove(null);
+        void moveCandidate(candidate, targetStep, score);
     };
 
     if (loading) {
@@ -180,7 +236,7 @@ const PositionProcess: React.FC = () => {
                                         const applicationId = Number(e.dataTransfer.getData('text/plain'));
                                         const candidate = candidates.find((c) => c.applicationId === applicationId);
                                         if (candidate) {
-                                            void moveCandidate(candidate, step);
+                                            requestMove(candidate, step);
                                         }
                                     }}
                                 >
@@ -209,6 +265,8 @@ const PositionProcess: React.FC = () => {
                                                 <Card.Text className="mb-1"><strong>{candidate.fullName}</strong></Card.Text>
                                                 <Card.Text className="mb-0 small text-muted">
                                                     {t('positionProcess.averageScore')}{candidate.averageScore.toFixed(1)}
+                                                    {candidate.ungradedInterviews > 0 &&
+                                                        ` (${t('positionProcess.ungradedInterviews', { count: candidate.ungradedInterviews })})`}
                                                 </Card.Text>
                                                 <Link to={`/candidates/${candidate.id}/edit`} className="small">{t('positionProcess.editCandidate')}</Link>
                                                 <div className="mt-1 d-flex align-items-center gap-2">
@@ -221,7 +279,7 @@ const PositionProcess: React.FC = () => {
                                                         onChange={(e) => {
                                                             const targetStep = steps.find((s) => s.name === e.target.value);
                                                             if (targetStep) {
-                                                                void moveCandidate(candidate, targetStep);
+                                                                requestMove(candidate, targetStep);
                                                             }
                                                         }}
                                                     >
@@ -244,6 +302,47 @@ const PositionProcess: React.FC = () => {
                     })}
                 </Row>
             )}
+            <Modal show={!!pendingMove} onHide={cancelPendingMove} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title as="h6">{t('positionProcess.scoreModal.title')}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {pendingMove && (
+                        <>
+                            <p>
+                                {t('positionProcess.scoreModal.body', {
+                                    name: pendingMove.candidate.fullName,
+                                    step: t(`positionProcess.interviewStepNames.${pendingMove.candidate.currentInterviewStep}`, {
+                                        defaultValue: pendingMove.candidate.currentInterviewStep,
+                                    }),
+                                })}
+                            </p>
+                            <Form.Control
+                                type="number"
+                                min={0}
+                                step={1}
+                                value={pendingScoreInput}
+                                onChange={(e) => {
+                                    setPendingScoreInput(e.target.value);
+                                    setPendingScoreError('');
+                                }}
+                                placeholder={t('positionProcess.scoreModal.placeholder')}
+                                aria-label={t('positionProcess.scoreModal.placeholder')}
+                                isInvalid={!!pendingScoreError}
+                            />
+                            <Form.Control.Feedback type="invalid">{pendingScoreError}</Form.Control.Feedback>
+                        </>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="outline-secondary" onClick={() => confirmPendingMove(true)}>
+                        {t('positionProcess.scoreModal.skip')}
+                    </Button>
+                    <Button variant="primary" onClick={() => confirmPendingMove(false)}>
+                        {t('positionProcess.scoreModal.save')}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
         </Container>
     );
 };

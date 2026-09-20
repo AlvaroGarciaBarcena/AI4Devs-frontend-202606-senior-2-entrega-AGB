@@ -5,11 +5,20 @@ import { InterviewStep } from '../../domain/models/InterviewStep';
 
 const prisma = new PrismaClient();
 
+// Una entrevista con `score` en null ("se movió de fase sin puntuar",
+// ver candidateService.ts) debe quedar FUERA de la media, ni sumar ni
+// restar -- antes de esta rama, `interview.score || 0` la contaba como un
+// cero en la suma pero SÍ en el divisor, así que cada entrevista sin
+// puntuar hundía la media en vez de no afectarla.
 const calculateAverageScore = (interviews: any[]) => {
-    if (interviews.length === 0) return 0;
-    const totalScore = interviews.reduce((acc, interview) => acc + (interview.score || 0), 0);
-    return totalScore / interviews.length;
+    const scored = interviews.filter((interview) => interview.score !== null && interview.score !== undefined);
+    if (scored.length === 0) return 0;
+    const totalScore = scored.reduce((acc, interview) => acc + interview.score, 0);
+    return totalScore / scored.length;
 };
+
+const countUngradedInterviews = (interviews: any[]) =>
+    interviews.filter((interview) => interview.score === null || interview.score === undefined).length;
 
 export const getAllPositionsService = async () => {
     const positions = await prisma.position.findMany({
@@ -46,6 +55,7 @@ export const getCandidatesByPositionService = async (positionId: number) => {
             fullName: `${app.candidate.firstName} ${app.candidate.lastName}`,
             currentInterviewStep: app.interviewStep.name,
             averageScore: calculateAverageScore(app.interviews),
+            ungradedInterviews: countUngradedInterviews(app.interviews),
             id: app.candidate.id,
             applicationId: app.id
         }));

@@ -64,11 +64,17 @@ export const updateCandidateData = async (id, candidateData) => {
 // ver el comentario en backend/src/routes/candidateRoutes.ts -- este mueve
 // la candidatura (applicationId) a otra fase del proceso (currentInterviewStep,
 // el id de la InterviewStep destino), no cambia datos del candidato.
-export const updateCandidateStage = async (candidateId, applicationId, currentInterviewStepId) => {
+//
+// `score` es opcional: la puntuación de la fase que se abandona, si se
+// quiere dar en el momento de mover la ficha (ver PositionProcess.tsx).
+// Omitirlo no bloquea el movimiento -- el backend deja igualmente
+// constancia de que esa fase se completó, solo que sin puntuación.
+export const updateCandidateStage = async (candidateId, applicationId, currentInterviewStepId, score) => {
     try {
         const response = await axios.put(`${API_BASE_URL}/candidates/${candidateId}`, {
             applicationId,
             currentInterviewStep: currentInterviewStepId,
+            score,
         });
         return response.data;
     } catch (error) {
