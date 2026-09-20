@@ -5417,3 +5417,23 @@ npm run test:e2e         → 58 passed, sin cambios (usan siempre el valor
                              por defecto, así que el comportamiento real
                              no cambia para nadie que no toque la variable)
 ```
+
+Añadido después, a petición del usuario (dudaba dónde exactamente añadir
+`host: true` en `vite.config.ts`, y pidió que lo hiciera yo directamente):
+`server.host: true` en `frontend/vite.config.ts` -- el último de los 4
+pasos de la sección "Acceder desde otro equipo de tu red local", con los
+otros tres ya cubiertos por `cors-configurable-origins-AGB`/esta rama. De
+paso se corrige el comentario de al lado de `port: 3000`, que decía que
+el CORS estaba "hardcodeado" -- ya no lo está desde `cors-configurable-
+origins-AGB`.
+
+Verificado arrancando `npm run dev` de verdad: antes de este cambio Vite
+solo mostraba `Local: http://localhost:3000/`; después muestra también
+`Network: http://<ip-de-la-máquina>:3000/` (confirmado con `ss -tlnp`:
+escucha en `*:3000`, no solo en `127.0.0.1:3000`).
+
+```
+npm test (frontend)      → 81 passed, sin cambios (config de arranque del
+                             servidor, no afecta a build ni a tests)
+npm run build (frontend) → OK, tsc + vite build sin errores
+```
