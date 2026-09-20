@@ -222,7 +222,7 @@ The E2E suite drives a real browser against your running app and covers authenti
 - [`backend/ManifestoBuenasPracticas.md`](./backend/ManifestoBuenasPracticas.md) — backend coding conventions.
 - [`openspec/specs/`](./openspec/specs/) — what the system does today, capability by capability, each requirement traced to the branch and commit that implemented it.
 - [`docs/adr/`](./docs/adr/) — this project's real architecture decisions, one per file, short Nygard format: what was decided, why, and which alternatives were rejected.
-- [`BRANCHES_LOG`](./BRANCHES_LOG) — index of this project's 17 branches, each linked directly to the `prompts-AGB.md` section that documents it.
+- [`BRANCHES_LOG`](./BRANCHES_LOG) — index of this project's 20 branches, each linked directly to the `prompts-AGB.md` section that documents it.
 - [`prompts-AGB.md`](./prompts-AGB.md) — the full development history of this project: every branch, the reasoning behind it, and real bugs found and fixed along the way.
 
 ## Troubleshooting
