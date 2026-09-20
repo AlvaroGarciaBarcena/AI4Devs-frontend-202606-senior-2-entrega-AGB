@@ -31,19 +31,19 @@ Feature: Alta de candidatos
     When pulsa "Añadir Experiencia Laboral" y rellena empresa, puesto y fecha de inicio, y completa el resto del alta
     Then esa entrada de experiencia se guarda asociada al candidato tras el envío
 
-  # Requirement: Candidatura vinculada a una posición (rama position-selector-AGB)
+  # Requirement: Elegir posición es opcional; si se elige, debe ser válida (rama position-selector-AGB)
   Scenario: Alta con posición válida
     Given existe al menos una posición con su flujo de entrevistas configurado
     When el reclutador elige esa posición en el desplegable y completa el resto del formulario
     Then el candidato se crea y aparece en la primera fase del tablero "Ver proceso" de esa posición
 
-  # Requirement: Candidatura vinculada a una posición (rama position-selector-AGB)
-  Scenario: Posición sin elegir
+  # Requirement: Elegir posición es opcional; si se elige, debe ser válida (rama unassigned-candidates-AGB)
+  Scenario: Alta sin elegir posición
     Given el reclutador ha rellenado el resto del formulario pero no ha elegido ninguna posición
-    When intenta enviarlo
-    Then el sistema rechaza el alta señalando el campo de posición como obligatorio
+    When lo envía
+    Then el candidato se crea con éxito, sin ninguna candidatura asociada
 
-  # Requirement: Candidatura vinculada a una posición (rama position-selector-AGB)
+  # Requirement: Elegir posición es opcional; si se elige, debe ser válida (rama position-selector-AGB)
   Scenario: Posición elegida sin flujo de entrevistas configurado
     Given la posición elegida existe pero su flujo de entrevistas no tiene ninguna fase
     When se envía el alta con esa posición

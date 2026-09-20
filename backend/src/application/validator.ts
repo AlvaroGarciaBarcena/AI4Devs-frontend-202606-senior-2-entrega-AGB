@@ -150,13 +150,15 @@ const validateCV = (cv: any, issues: ValidationIssue[]) => {
     }
 };
 
-// Solo comprueba forma (presente, entero positivo) — que la posición
+// Opcional a propósito: un candidato puede registrarse sin elegir
+// posición todavía (queda sin candidatura, ver candidateService.ts), así
+// que ausente/vacío ya no es un error de formato. Si SÍ se manda un
+// valor, tiene que tener forma de entero positivo -- que esa posición
 // exista de verdad y tenga un flujo de entrevistas con al menos una fase
 // es responsabilidad de quien la usa (candidateService.ts), no de este
 // validador de formato.
 const validatePositionId = (positionId: any, issues: ValidationIssue[]) => {
     if (positionId === undefined || positionId === null || positionId === '') {
-        issues.push({ field: 'positionId', code: 'required' });
         return;
     }
     if (typeof positionId !== 'number' || !Number.isInteger(positionId) || positionId <= 0) {

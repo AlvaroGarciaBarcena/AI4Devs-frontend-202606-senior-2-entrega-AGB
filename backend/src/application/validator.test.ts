@@ -83,13 +83,14 @@ describe('validateCandidateData', () => {
         expect(() => validateCandidateData({ ...baseCandidate, phone: '' })).not.toThrow();
     });
 
-    // La candidatura ahora exige elegir una posición (desplegable en el
-    // frontend, no texto libre) — sin esto, el candidato se guardaba pero
-    // nunca aparecía en el tablero "Ver proceso" de ninguna posición.
-    it('reports the missing field when positionId is not provided', () => {
+    // Elegir posición es opcional a propósito: un candidato puede
+    // registrarse sin candidatura todavía (queda "sin asignar", ver
+    // candidateService.test.ts) — antes esto se rechazaba, pero esa regla
+    // impedía justo el caso de uso real que la motivó: dar de alta a
+    // alguien antes de tener claro a qué posición encaja.
+    it('does not report positionId as missing when it is not provided', () => {
         const { positionId, ...withoutPositionId } = baseCandidate;
-        const error = getValidationError(withoutPositionId);
-        expect(error.issues).toContainEqual({ field: 'positionId', code: 'required' });
+        expect(() => validateCandidateData(withoutPositionId)).not.toThrow();
     });
 
     it('rejects a non-numeric or non-positive positionId', () => {

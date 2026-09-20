@@ -5005,3 +5005,89 @@ npx playwright test          → 48 passed (1.0m) -- accessibility,
                                  pasando sin cambios
 npm test (backend)           → 47 passed, sin cambios (rama solo de frontend)
 ```
+
+## 3.39 Candidatos sin asignar: elegir posición pasa a ser opcional (`unassigned-candidates-AGB`)
+
+Reporte del usuario, probando la app tras reautenticarse (la sesión de
+Alice había caducado): "en Positions no me muestra el nuevo candidato que
+creé ayer, pero acordamos que se mostrarían aunque no estuvieran
+asignados a ninguna candidatura". Antes de tocar nada se comprobó la base
+de datos real: solo 2 posiciones (ambas del seed original — esta app no
+tiene ninguna forma de crear posiciones desde la UI), y 5 candidatos sin
+ninguna `Application` (`id` 10, 15-18, con pinta de pruebas manuales
+previas: "Bad Position"/"Good Position"). Aclarado por el usuario: dio de
+alta un candidato ayer sin elegir posición porque en ese momento ese
+campo aún no existía (rama `position-selector-AGB` es posterior), y la
+interfaz confirmó el alta con un mensaje en verde — esperaba que ese
+candidato siguiera siendo accesible en algún sitio, no que desapareciera.
+
+Esto revierte, a propósito y a petición explícita del usuario, una parte
+de lo que se hizo en `position-selector-AGB` (sección 3.23): ese branch
+hizo la posición **obligatoria** y rechazaba el alta sin ella. Aquí se
+relaja lo justo para permitir el caso de uso real sin renunciar a lo que
+esa rama sí seguía necesitando: una posición que SÍ se elige tiene que
+seguir siendo válida (existir, tener flujo de entrevistas configurado).
+
+Cambios:
+- **Base de datos**: nuevo campo `Candidate.createdAt` (`@default(now())`,
+  migración `20260920091514_add_candidate_created_at`) — pedido
+  explícitamente por el usuario ("necesitamos un campo... para no estar
+  adivinando cuándo"). Las filas ya existentes lo reciben con la fecha de
+  la migración, no con una fecha real retroactiva (no había ninguna que
+  backfillear) — se avisa de esto al usuario, no se presenta como un dato
+  más preciso de lo que es.
+- **`validator.ts`**: `validatePositionId` deja de exigir el campo; si SÍ
+  se manda un valor, se sigue exigiendo que tenga forma de entero
+  positivo.
+- **`candidateService.ts`**: `addCandidate` solo valida/crea la
+  `Application` cuando `positionId` viene informado; si no, el candidato
+  se guarda igualmente, sin candidatura ("sin asignar"). Nueva
+  `getUnassignedCandidatesService` (`candidate.findMany` con
+  `applications: { none: {} } }`, orden por `createdAt` descendente).
+- **API**: `GET /candidates/unassigned` (antes de `/candidates/:id` en el
+  router — si no, Express probaría `:id = "unassigned"` primero y
+  `parseInt` fallaría con 400). Documentado en `api-spec.yaml`.
+- **`AddCandidateForm.jsx`**: quita `required` del desplegable de
+  posición; el placeholder ahora dice "...o déjalo sin asignar". Bug real
+  encontrado al escribir esto, antes de que llegara a probarse en
+  navegador: `Number('')` da `0`, no `null` — enviar el formulario vacío
+  habría mandado `positionId: 0`, que el validador rechaza (`0` no es un
+  entero positivo) en vez de guardarse sin candidatura. Se distingue a
+  mano: `candidate.positionId ? Number(...) : null`.
+- **`UnassignedCandidates.tsx`** (nuevo, `/candidates/unassigned`,
+  code-split con `lazy` como el resto de rutas protegidas): tabla con
+  nombre, email y fecha de alta, más reciente primero; estados de carga,
+  error y vacío con `useAsyncData`, igual que `Positions.tsx`. Enlazada
+  desde una tercera tarjeta en `RecruiterDashboard.jsx`.
+- **OpenSpec**: `candidate-intake/spec.md` — el requisito "Candidatura
+  vinculada a una posición" se reescribe a "Elegir posición es opcional;
+  si se elige, debe ser válida", con una nota explícita del porqué del
+  cambio. `hiring-pipeline/spec.md` — nuevo requisito "Listado de
+  candidatos sin asignar".
+- **E2E**: escenario "Posición sin elegir" (candidate-intake.feature) se
+  reescribe a "Alta sin elegir posición", ahora comprobando que el alta
+  tiene éxito y que el candidato queda sin `Application` (consulta directa
+  a la base de datos, no solo la UI). Dos escenarios nuevos en
+  hiring-pipeline.feature para el listado ("Ver los candidatos sin
+  asignar" / "Ningún candidato sin asignar" — este último limpia primero
+  cualquier candidato sin asignar preexistente en la base de datos de
+  desarrollo, incluidos los 5 residuos reales encontrados al principio de
+  esta sección, para poder comprobar el estado vacío de forma
+  determinista).
+
+Verificado a mano en el navegador antes de tocar la suite automática: los
+5 candidatos reales sin asignar aparecen tal cual en `/candidates/unassigned`
+(mismo nombre/email que en la base de datos, fecha de la migración por lo
+explicado arriba); un alta nueva sin elegir posición muestra el mensaje de
+éxito y aparece de inmediato en ese listado, el primero de la lista.
+
+```
+npx prisma migrate dev       → 20260920091514_add_candidate_created_at aplicada
+npm test (backend)           → 49 passed (47 + 2 nuevos)
+npm run build (backend)      → OK, tsc sin errores
+npm test (frontend)          → 53 passed (49 + 4 nuevos)
+npm run build (frontend)     → OK, tsc + vite build sin errores; UnassignedCandidates
+                                 se divide en su propio chunk, igual que el resto de rutas
+npm run test:e2e             → 50 passed (48 + 2 nuevos), incluida la
+                                 reescritura de "Posición sin elegir"
+```

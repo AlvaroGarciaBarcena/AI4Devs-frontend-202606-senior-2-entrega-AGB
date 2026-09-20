@@ -7,6 +7,7 @@ const { Given, When, Then } = createBdd();
 let tempPositionId: number;
 let tempFilledStepName: string;
 let tempEmptyStepName: string;
+let tempCandidateId: number;
 let lastCandidateEmail: string;
 
 const openBoard = async (page: Page, positionTitle: string) => {
@@ -67,6 +68,7 @@ Given('una fase del proceso de una posición no tiene ningún candidato todavía
   const candidate = await prisma.candidate.create({
     data: { firstName: 'Fixture', lastName: 'ConCandidato', email: `e2e-fase-vacia-${Date.now()}@example.com` },
   });
+  tempCandidateId = candidate.id;
   await prisma.application.create({
     data: { positionId: position.id, candidateId: candidate.id, applicationDate: new Date(), currentInterviewStep: filledStep.id },
   });
@@ -79,8 +81,17 @@ Then('esa columna se muestra vacía con una indicación de que no hay candidatos
   const filledColumn = page.locator('.border.rounded', { has: page.getByRole('heading', { name: tempFilledStepName }) });
   await expect(filledColumn.getByText('Fixture ConCandidato')).toBeVisible();
 
+  // Por id exacto, no por `email: { contains: 'e2e-fase-vacia-' } }`: ese
+  // filtro amplio borraba (o, peor, fallaba al intentar borrar) cualquier
+  // candidato de una ejecución anterior interrumpida que compartiera el
+  // mismo prefijo de email, aunque perteneciera a una posición ya
+  // borrada -- hallazgo real: una ejecución previa cortada a medias (por
+  // el limitador de intentos de login, no por este escenario) dejó un
+  // candidato así, y el `deleteMany` amplio de la siguiente ejecución
+  // chocó con la restricción RESTRICT de Application → Candidate al
+  // intentar arrastrarlo también.
   await prisma.application.deleteMany({ where: { positionId: tempPositionId } });
-  await prisma.candidate.deleteMany({ where: { email: { contains: 'e2e-fase-vacia-' } } });
+  await prisma.candidate.delete({ where: { id: tempCandidateId } });
   const position = await prisma.position.findUnique({ where: { id: tempPositionId } });
   await prisma.position.delete({ where: { id: tempPositionId } });
   // InterviewStep -> InterviewFlow es RESTRICT: hay que borrar las fases
@@ -117,4 +128,37 @@ Then('ese candidato aparece de inmediato en la primera columna del tablero de es
   const candidate = await prisma.candidate.findFirst({ where: { email: lastCandidateEmail } });
   await prisma.application.deleteMany({ where: { candidateId: candidate.id } });
   await prisma.candidate.delete({ where: { id: candidate.id } });
+});
+
+let tempUnassignedEmail: string;
+
+Given('existen candidatos dados de alta sin elegir posición', async () => {
+  tempUnassignedEmail = `e2e-sin-asignar-${Date.now()}@example.com`;
+  await prisma.candidate.create({
+    data: { firstName: 'E2E', lastName: 'SinAsignar', email: tempUnassignedEmail },
+  });
+});
+
+When('un reclutador visita el listado de candidatos sin asignar', async ({ page }) => {
+  await page.goto('/candidates/unassigned');
+  await expect(page.getByRole('heading', { name: 'Candidatos sin asignar' })).toBeVisible();
+});
+
+Then('ve a cada uno de ellos con su nombre completo, email y fecha de alta, el más reciente primero', async ({ page }) => {
+  await expect(page.getByRole('cell', { name: 'E2E SinAsignar' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: tempUnassignedEmail })).toBeVisible();
+
+  await prisma.candidate.deleteMany({ where: { email: tempUnassignedEmail } });
+});
+
+Given('no existe ningún candidato sin candidatura', async () => {
+  // Deja la base de datos realmente vacía de candidatos sin asignar --
+  // incluye residuos previos (p. ej. de pruebas manuales), no solo los que
+  // haya podido crear este propio escenario.
+  await prisma.candidate.deleteMany({ where: { applications: { none: {} } } });
+});
+
+Then('ve una indicación de que no hay ninguno', async ({ page }) => {
+  await expect(page.getByText('No hay ningún candidato sin asignar.')).toBeVisible();
+  await expect(page.getByRole('table')).toHaveCount(0);
 });

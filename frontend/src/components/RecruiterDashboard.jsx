@@ -30,6 +30,14 @@ const RecruiterDashboard = () => {
                         </Link>
                     </Card>
                 </Col>
+                <Col md={6} className="mt-4">
+                    <Card className="shadow p-4">
+                        <h5 className="mb-4">{t('dashboard.unassignedCandidates.heading')}</h5>
+                        <Link to="/candidates/unassigned">
+                            <Button variant="secondary" className="btn-block">{t('dashboard.unassignedCandidates.button')}</Button>
+                        </Link>
+                    </Card>
+                </Col>
             </Row>
         </Container>
     );

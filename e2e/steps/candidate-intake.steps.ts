@@ -206,21 +206,25 @@ Then('el candidato se crea y aparece en la primera fase del tablero "Ver proceso
 
 Given('el reclutador ha rellenado el resto del formulario pero no ha elegido ninguna posición', async ({ page }) => {
   await goToAddCandidateForm(page);
-  await fillBasicFields(page, { firstName: 'Sin', lastName: 'Posicion', email: uniqueEmail('sin-posicion') });
+  lastCandidateEmail = uniqueEmail('sin-posicion');
+  await fillBasicFields(page, { firstName: 'Sin', lastName: 'Posicion', email: lastCandidateEmail });
 });
 
-When('intenta enviarlo', async ({ page }) => {
+When('lo envía', async ({ page }) => {
   await page.getByRole('button', { name: 'Enviar' }).click();
 });
 
-Then('el sistema rechaza el alta señalando el campo de posición como obligatorio', async ({ page }) => {
-  // required nativo del <select>: el navegador bloquea el envío del
-  // formulario sin llegar a hacer ninguna petición -- ni mensaje de éxito
-  // ni de error de la app, la página ni se mueve de /add-candidate.
-  const isValid = await page.getByLabel('Posición a la que se presenta').evaluate((el: HTMLSelectElement) => el.validity.valid);
-  expect(isValid).toBe(false);
-  await expect(page).toHaveURL(/\/add-candidate$/);
-  await expect(page.getByRole('status').filter({ hasText: 'Candidato añadido con éxito' })).toHaveCount(0);
+Then('el candidato se crea con éxito, sin ninguna candidatura asociada', async ({ page }) => {
+  await expectSuccessMessage(page);
+
+  const candidate = await prisma.candidate.findFirst({
+    where: { email: lastCandidateEmail },
+    include: { applications: true },
+  });
+  expect(candidate).not.toBeNull();
+  expect(candidate!.applications).toHaveLength(0);
+
+  await cleanupCandidateByEmail(lastCandidateEmail);
 });
 
 Given('la posición elegida existe pero su flujo de entrevistas no tiene ninguna fase', async ({ page }) => {
@@ -277,8 +281,7 @@ Given('un envío fallido ha marcado un campo como inválido', async ({ page }) =
   await goToAddCandidateForm(page);
   // "Poc2" pasa el `required` nativo del navegador (es texto no vacío) pero
   // falla la validación del backend (validator.ts: solo letras y espacios
-  // en el nombre) -- así se provoca un error de campo real, no el bloqueo
-  // nativo del formulario que ya se usa en "Posición sin elegir".
+  // en el nombre) -- así se provoca un error de campo real de verdad.
   await fillBasicFields(page, { firstName: 'Poc2', lastName: 'Apellido', email: uniqueEmail('campo-invalido') });
   await selectKnownPosition(page);
   await page.getByRole('button', { name: 'Enviar' }).click();

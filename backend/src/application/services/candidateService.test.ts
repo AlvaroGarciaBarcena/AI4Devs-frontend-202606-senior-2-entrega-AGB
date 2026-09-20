@@ -1,4 +1,4 @@
-import { addCandidate, updateCandidateStage } from './candidateService';
+import { addCandidate, getUnassignedCandidatesService, updateCandidateStage } from './candidateService';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -12,6 +12,7 @@ jest.mock('@prisma/client', () => {
   const mockPrisma = {
     candidate: {
       create: jest.fn(),
+      findMany: jest.fn(),
     },
     education: {
       create: jest.fn(),
@@ -135,6 +136,44 @@ describe('addCandidate', () => {
     await expect(addCandidate(baseCandidateData)).rejects.toThrow('Selected position not found');
     expect(prisma.application.create).not.toHaveBeenCalled();
     expect(prisma.candidate.create).not.toHaveBeenCalled();
+  });
+
+  // Caso pedido por el usuario tras probarlo a mano: un candidato dado de
+  // alta sin elegir posición debe guardarse igualmente, sin ninguna
+  // Application ni comprobación de posición -- "sin asignar" es un estado
+  // válido, no un error.
+  it('saves the candidate without creating an Application or checking any position when positionId is not provided', async () => {
+    const { positionId, ...withoutPositionId } = baseCandidateData;
+    jest.spyOn(prisma.candidate, 'create').mockResolvedValue({ id: 10, ...withoutPositionId } as any);
+
+    await addCandidate(withoutPositionId);
+
+    expect(prisma.candidate.create).toHaveBeenCalledTimes(1);
+    expect(prisma.position.findUnique).not.toHaveBeenCalled();
+    expect(prisma.application.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('getUnassignedCandidatesService', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('lists candidates with no application, most recently registered first', async () => {
+    jest.spyOn(prisma.candidate, 'findMany').mockResolvedValue([
+      { id: 18, firstName: 'Bad', lastName: 'Position', email: 'bad.position3@example.com', createdAt: new Date('2026-09-19') },
+      { id: 10, firstName: 'Nombre', lastName: 'Apellido', email: 'nombre1apellido1@email.com', createdAt: new Date('2026-09-10') },
+    ] as any);
+
+    const result = await getUnassignedCandidatesService();
+
+    expect(prisma.candidate.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { applications: { none: {} } } }),
+    );
+    expect(result).toEqual([
+      { id: 18, fullName: 'Bad Position', email: 'bad.position3@example.com', createdAt: new Date('2026-09-19') },
+      { id: 10, fullName: 'Nombre Apellido', email: 'nombre1apellido1@email.com', createdAt: new Date('2026-09-10') },
+    ]);
   });
 });
 

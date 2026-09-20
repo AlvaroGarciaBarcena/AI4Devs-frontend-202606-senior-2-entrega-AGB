@@ -1,3 +1,4 @@
+import { PrismaClient } from '@prisma/client';
 import { Candidate } from '../../domain/models/Candidate';
 import { validateCandidateData } from '../validator';
 import { Education } from '../../domain/models/Education';
@@ -6,23 +7,35 @@ import { Resume } from '../../domain/models/Resume';
 import { Application } from '../../domain/models/Application';
 import { getFirstInterviewStepForPosition } from './positionService';
 
+const prisma = new PrismaClient();
+
 export const addCandidate = async (candidateData: any) => {
     validateCandidateData(candidateData); // Validar los datos del candidato (lanza su propio Error con mensaje claro si falla)
 
-    // Se valida la posición ANTES de guardar nada del candidato. Antes esta
-    // comprobación vivía al final, después de guardar candidato, educación,
-    // experiencia y CV: un alta con una posición inexistente o sin fases
-    // configuradas fallaba con 400 igualmente, pero dejaba un candidato
-    // huérfano ya guardado en la base de datos, sin ninguna Application,
-    // ocupando su email para siempre (confirmado con PoC: POST /candidates
-    // contra una posición sin fases devuelve 400, y el candidato aparece
-    // igualmente en la tabla Candidate).
-    const firstStep = await getFirstInterviewStepForPosition(candidateData.positionId);
-    if (firstStep === undefined) {
-        throw new Error('Selected position not found');
-    }
-    if (firstStep === null) {
-        throw new Error('The selected position does not have an interview process configured');
+    // Elegir posición es opcional: un candidato puede registrarse sin
+    // candidatura todavía y quedar "sin asignar" (ver
+    // getUnassignedCandidatesService más abajo) -- eso es un estado válido,
+    // no un huérfano accidental. Lo que sigue siendo un error es indicar
+    // una posición que no existe, o que existe pero no tiene ningún flujo
+    // de entrevistas configurado.
+    //
+    // Cuando SÍ se indica, se valida ANTES de guardar nada del candidato.
+    // Antes esta comprobación vivía al final, después de guardar candidato,
+    // educación, experiencia y CV: un alta con una posición inexistente o
+    // sin fases configuradas fallaba con 400 igualmente, pero dejaba un
+    // candidato huérfano ya guardado en la base de datos, sin ninguna
+    // Application, ocupando su email para siempre (confirmado con PoC:
+    // POST /candidates contra una posición sin fases devuelve 400, y el
+    // candidato aparece igualmente en la tabla Candidate).
+    let firstStep = null;
+    if (candidateData.positionId) {
+        firstStep = await getFirstInterviewStepForPosition(candidateData.positionId);
+        if (firstStep === undefined) {
+            throw new Error('Selected position not found');
+        }
+        if (firstStep === null) {
+            throw new Error('The selected position does not have an interview process configured');
+        }
     }
 
     const candidate = new Candidate(candidateData); // Crear una instancia del modelo Candidate
@@ -63,15 +76,19 @@ export const addCandidate = async (candidateData: any) => {
         // guardado pero nunca aparecía en el tablero "Ver proceso" de
         // ninguna posición, porque ese tablero se alimenta de Application,
         // no de la lista general de candidatos. (firstStep ya se validó
-        // arriba, antes de guardar nada.)
-        const applicationModel = new Application({
-            positionId: candidateData.positionId,
-            candidateId,
-            applicationDate: new Date(),
-            currentInterviewStep: firstStep.id,
-        });
-        await applicationModel.save();
-        candidate.applications.push(applicationModel);
+        // arriba, antes de guardar nada.) Si no se eligió posición,
+        // firstStep sigue siendo null aquí a propósito: el candidato se
+        // queda guardado sin ninguna Application, sin asignar.
+        if (firstStep) {
+            const applicationModel = new Application({
+                positionId: candidateData.positionId,
+                candidateId,
+                applicationDate: new Date(),
+                currentInterviewStep: firstStep.id,
+            });
+            await applicationModel.save();
+            candidate.applications.push(applicationModel);
+        }
 
         return savedCandidate;
     } catch (error: any) {
@@ -82,6 +99,25 @@ export const addCandidate = async (candidateData: any) => {
             throw error;
         }
     }
+};
+
+// Candidatos guardados sin ninguna candidatura (ver la nota sobre
+// positionId opcional en addCandidate) -- sin esto no existe ninguna
+// pantalla en la app donde un candidato así pueda aparecer: Positions
+// lista posiciones, y el tablero de cada posición solo lista candidatos
+// con Application en esa posición concreta.
+export const getUnassignedCandidatesService = async () => {
+    const candidates = await prisma.candidate.findMany({
+        where: { applications: { none: {} } },
+        orderBy: { createdAt: 'desc' }
+    });
+
+    return candidates.map(candidate => ({
+        id: candidate.id,
+        fullName: `${candidate.firstName} ${candidate.lastName}`,
+        email: candidate.email,
+        createdAt: candidate.createdAt
+    }));
 };
 
 export const findCandidateById = async (id: number): Promise<Candidate | null> => {

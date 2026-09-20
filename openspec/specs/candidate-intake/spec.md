@@ -56,25 +56,27 @@ El sistema SHALL permitir añadir cero o más entradas de experiencia laboral (e
 - **WHEN** pulsa "Añadir Experiencia Laboral" y rellena empresa, puesto y fecha de inicio
 - **THEN** esa entrada se guarda asociada al candidato tras el envío
 
-### Requirement: Candidatura vinculada a una posición
-_Rama: `position-selector-AGB` (commit `096120b`)_
+### Requirement: Elegir posición es opcional; si se elige, debe ser válida
+_Rama: `position-selector-AGB` (commit `096120b`); revisado en `unassigned-candidates-AGB`_
 
-El sistema SHALL exigir que toda alta de candidato indique la posición a la que se presenta, mediante un desplegable con las posiciones reales existentes (no texto libre), y SHALL crear automáticamente la candidatura (`Application`) en la primera fase del proceso de entrevistas de esa posición.
+El sistema SHALL permitir indicar, mediante un desplegable con las posiciones reales existentes (no texto libre), la posición a la que se presenta un candidato al darlo de alta, pero SHALL NOT exigirlo: un alta sin posición elegida SHALL guardarse igualmente, sin ninguna candidatura (`Application`) asociada (ver la capacidad `hiring-pipeline` para cómo se listan estos candidatos sin asignar). Cuando SÍ se elige una posición, el sistema SHALL crear automáticamente la candidatura en la primera fase del proceso de entrevistas de esa posición, y SHALL rechazar el alta si la posición elegida no existe o no tiene ningún proceso de entrevistas configurado.
+
+_Nota: hasta esta revisión, el sistema exigía elegir una posición y rechazaba el alta si no se elegía ninguna. Se relaja a petición del usuario, que dio de alta candidatos antes de que este campo existiera y esperaba poder seguir haciéndolo — un candidato sin candidatura es un estado válido ("sin asignar"), no un error._
 
 #### Scenario: Alta con posición válida
 - **GIVEN** existe al menos una posición con su flujo de entrevistas configurado
 - **WHEN** el reclutador elige esa posición en el desplegable y completa el resto del formulario
 - **THEN** el candidato se crea y aparece en la primera fase del tablero "Ver proceso" de esa posición
 
-#### Scenario: Posición sin elegir
+#### Scenario: Alta sin elegir posición
 - **GIVEN** el reclutador ha rellenado el resto del formulario pero no ha elegido ninguna posición
-- **WHEN** intenta enviarlo
-- **THEN** el sistema rechaza el alta señalando el campo de posición como obligatorio
+- **WHEN** lo envía
+- **THEN** el candidato se crea con éxito, sin ninguna candidatura asociada
 
 #### Scenario: Posición elegida sin flujo de entrevistas configurado
 - **GIVEN** la posición elegida existe pero su flujo de entrevistas no tiene ninguna fase
 - **WHEN** se envía el alta con esa posición
-- **THEN** el sistema la rechaza con un mensaje que indica que esa posición no tiene un proceso de entrevistas configurado, distinto del mensaje que se da cuando la posición no existe
+- **THEN** el sistema la rechaza con un mensaje que indica que esa posición no tiene un proceso de entrevistas configurado, distinto del mensaje que se da cuando la posición no existe, y el candidato no queda guardado
 
 ### Requirement: El error de un campo se limpia al corregirlo
 _Rama: `candidate-form-ux-fixes-AGB` (commit `9e425e0`)_

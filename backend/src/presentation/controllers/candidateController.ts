@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { addCandidate, findCandidateById, updateCandidateStage } from '../../application/services/candidateService';
+import { addCandidate, findCandidateById, updateCandidateStage, getUnassignedCandidatesService } from '../../application/services/candidateService';
 import { ValidationError } from '../../application/validator';
 
 export const addCandidateController = async (req: Request, res: Response) => {
@@ -18,6 +18,15 @@ export const addCandidateController = async (req: Request, res: Response) => {
         } else {
             res.status(400).json({ message: 'Error adding candidate', error: 'Unknown error' });
         }
+    }
+};
+
+export const getUnassignedCandidates = async (req: Request, res: Response) => {
+    try {
+        const candidates = await getUnassignedCandidatesService();
+        res.status(200).json(candidates);
+    } catch (error) {
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 };
 

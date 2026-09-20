@@ -131,8 +131,13 @@ const AddCandidateForm = () => {
             const candidateData = {
                 ...candidate,
                 // El <select> siempre entrega un string; el backend espera
-                // un entero (ver validatePositionId en validator.ts).
-                positionId: Number(candidate.positionId),
+                // un entero, o null si no se ha elegido ninguna posición
+                // (elegir posición es opcional -- ver validatePositionId en
+                // validator.ts). `Number('')` da 0, no null, así que hay que
+                // distinguirlo a mano: enviar 0 lo rechazaría el validador
+                // (0 no es un entero positivo), en vez de guardarse sin
+                // candidatura como se espera.
+                positionId: candidate.positionId ? Number(candidate.positionId) : null,
                 cv: candidate.cv ? {
                     filePath: candidate.cv.filePath,
                     fileType: candidate.cv.fileType
@@ -181,7 +186,6 @@ const AddCandidateForm = () => {
                                 controlId="positionId"
                                 label={t('addCandidate.applyingPosition')}
                                 name="positionId"
-                                required
                                 disabled={positionsLoading}
                                 value={candidate.positionId}
                                 onChange={(e) => handleFieldChange('positionId', e.target.value)}

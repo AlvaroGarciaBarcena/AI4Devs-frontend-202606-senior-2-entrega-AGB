@@ -20,6 +20,15 @@ export const uploadCV = async (file) => {
     }
 };
 
+export const getUnassignedCandidates = async () => {
+    try {
+        const response = await axios.get('http://localhost:3010/candidates/unassigned');
+        return response.data;
+    } catch (error) {
+        throw new Error(error.response?.data?.error || error.message, { cause: error });
+    }
+};
+
 export const sendCandidateData = async (candidateData) => {
     try {
         const response = await axios.post('http://localhost:3010/candidates', candidateData);

@@ -26,12 +26,16 @@
     "viewPositions": {
       "heading": "View Positions",
       "button": "Go to Positions"
+    },
+    "unassignedCandidates": {
+      "heading": "Unassigned Candidates",
+      "button": "View unassigned candidates"
     }
   },
   "addCandidate": {
     "title": "Add Candidate",
-    "applyingPosition": "Position applying for",
-    "selectPositionPlaceholder": "Select a position",
+    "applyingPosition": "Position applying for (optional)",
+    "selectPositionPlaceholder": "Select a position (or leave unassigned)",
     "loadingPositions": "Loading positions…",
     "firstName": "First Name",
     "lastName": "Last Name",
@@ -88,6 +92,15 @@
     "noCandidatesInStep": "No candidates in this stage.",
     "averageScore": "Average score: ",
     "fetchError": "Error fetching this position's process"
+  },
+  "unassignedCandidates": {
+    "title": "Unassigned Candidates",
+    "back": "← Back to dashboard",
+    "name": "Name",
+    "email": "Email",
+    "registeredAt": "Registered on",
+    "empty": "There are no unassigned candidates.",
+    "fetchError": "Error fetching unassigned candidates"
   },
   "validation": {
     "fields": {

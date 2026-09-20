@@ -39,7 +39,7 @@ beforeEach(async () => {
 // esperar (findByLabelText) a que la opción real exista antes de poder
 // seleccionarla.
 const fillBasicFields = async (user, { firstName, lastName, email }) => {
-    const positionSelect = await screen.findByLabelText('Posición a la que se presenta');
+    const positionSelect = await screen.findByLabelText(/Posición a la que se presenta/);
     await user.selectOptions(positionSelect, '1');
     await user.type(screen.getByLabelText('Nombre'), firstName);
     await user.type(screen.getByLabelText('Apellido'), lastName);
@@ -165,7 +165,7 @@ describe('AddCandidateForm', () => {
         sendCandidateData.mockResolvedValue({ id: 1, firstName: 'Ana', lastName: 'García', email: 'ana@example.com' });
 
         render(<AddCandidateForm />);
-        const positionSelect = await screen.findByLabelText('Posición a la que se presenta');
+        const positionSelect = await screen.findByLabelText(/Posición a la que se presenta/);
 
         expect(screen.getByRole('option', { name: 'Senior Full-Stack Engineer — LTI' })).toBeTruthy();
         expect(screen.getByRole('option', { name: 'Data Scientist — LTI' })).toBeTruthy();
@@ -178,6 +178,27 @@ describe('AddCandidateForm', () => {
 
         await waitFor(() => {
             expect(sendCandidateData).toHaveBeenCalledWith(expect.objectContaining({ positionId: 2 }));
+        });
+    });
+
+    // Elegir posición es opcional: un candidato puede registrarse "sin
+    // asignar". `Number('')` da 0, no null -- sin este caso especial,
+    // enviar el formulario sin elegir posición mandaría positionId: 0, que
+    // el backend rechazaría (0 no es un entero positivo) en vez de
+    // guardarse sin candidatura.
+    it('sends positionId as null (not 0) when no position is chosen', async () => {
+        const user = userEvent.setup();
+        sendCandidateData.mockResolvedValue({ id: 1, firstName: 'Sin', lastName: 'Posicion', email: 'sin.posicion@example.com' });
+
+        render(<AddCandidateForm />);
+        await screen.findByLabelText(/Posición a la que se presenta/);
+        await user.type(screen.getByLabelText('Nombre'), 'Sin');
+        await user.type(screen.getByLabelText('Apellido'), 'Posicion');
+        await user.type(screen.getByLabelText('Correo Electrónico'), 'sin.posicion@example.com');
+        await user.click(screen.getByRole('button', { name: 'Enviar' }));
+
+        await waitFor(() => {
+            expect(sendCandidateData).toHaveBeenCalledWith(expect.objectContaining({ positionId: null }));
         });
     });
 
@@ -216,6 +237,6 @@ describe('AddCandidateForm', () => {
         expect(screen.getByLabelText('Correo Electrónico').value).toBe('');
         expect(screen.getByLabelText('Teléfono').value).toBe('');
         expect(screen.getByLabelText('Dirección').value).toBe('');
-        expect(screen.getByLabelText('Posición a la que se presenta').value).toBe('');
+        expect(screen.getByLabelText(/Posición a la que se presenta/).value).toBe('');
     });
 });

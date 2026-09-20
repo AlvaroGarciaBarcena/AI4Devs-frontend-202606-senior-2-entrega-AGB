@@ -26,12 +26,16 @@
     "viewPositions": {
       "heading": "Ver Posiciones",
       "button": "Ir a Posiciones"
+    },
+    "unassignedCandidates": {
+      "heading": "Candidatos sin asignar",
+      "button": "Ver candidatos sin asignar"
     }
   },
   "addCandidate": {
     "title": "Agregar Candidato",
-    "applyingPosition": "Posición a la que se presenta",
-    "selectPositionPlaceholder": "Selecciona una posición",
+    "applyingPosition": "Posición a la que se presenta (opcional)",
+    "selectPositionPlaceholder": "Selecciona una posición (o déjalo sin asignar)",
     "loadingPositions": "Cargando posiciones…",
     "firstName": "Nombre",
     "lastName": "Apellido",
@@ -88,6 +92,15 @@
     "noCandidatesInStep": "Sin candidatos en esta fase.",
     "averageScore": "Puntuación media: ",
     "fetchError": "Error al obtener el proceso de esta posición"
+  },
+  "unassignedCandidates": {
+    "title": "Candidatos sin asignar",
+    "back": "← Volver al dashboard",
+    "name": "Nombre",
+    "email": "Email",
+    "registeredAt": "Fecha de alta",
+    "empty": "No hay ningún candidato sin asignar.",
+    "fetchError": "Error al obtener los candidatos sin asignar"
   },
   "validation": {
     "fields": {

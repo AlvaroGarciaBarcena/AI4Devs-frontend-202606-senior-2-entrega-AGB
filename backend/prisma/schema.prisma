@@ -21,6 +21,12 @@ model Candidate {
   email             String            @unique @db.VarChar(255)
   phone             String?           @db.VarChar(15)
   address           String?           @db.VarChar(100)
+  // Antes no existía ningún registro de cuándo se dio de alta un
+  // candidato -- "el que di de alta ayer" no era algo que se pudiera
+  // comprobar, solo recordar (o no). `@default(now())` cubre también las
+  // filas ya existentes: Postgres la rellena con el instante de la
+  // migración, no con NULL, así que no hace falta un backfill aparte.
+  createdAt         DateTime          @default(now())
   educations        Education[]
   workExperiences   WorkExperience[]
   resumes           Resume[]

@@ -251,6 +251,33 @@ paths:
           description: Position not found
         '500':
           description: Internal server error
+  /candidates/unassigned:
+    get:
+      summary: Get candidates with no application
+      description: Retrieves every candidate that was registered without being linked to any position (no Application record), ordered by registration date, most recent first.
+      responses:
+        '200':
+          description: List of unassigned candidates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      description: Candidate ID
+                    fullName:
+                      type: string
+                    email:
+                      type: string
+                    createdAt:
+                      type: string
+                      format: date-time
+                      description: When the candidate was registered
+        '500':
+          description: Internal server error
   /candidates/{id}:
     put:
       summary: Update candidate stage
