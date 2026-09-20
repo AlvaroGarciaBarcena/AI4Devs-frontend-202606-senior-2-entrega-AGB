@@ -4561,7 +4561,7 @@ openspec validate --specs --strict → 11 passed, 0 failed
   para que el usuario decida el enfoque: el indicador de carga durante
   una navegación por `<Link>` a una pantalla todavía no descargada
   nunca se muestra (sección 3.30.4).
-- **11 commits** en `playwright-bdd-AGB` desde el primer escenario de
+- **10 commits** en `playwright-bdd-AGB` desde el primer escenario de
   la tarde hasta este cierre, cada uno con su propio mensaje explicando
   qué cambió y por qué -- nada squashed, la historia completa queda
   como registro de lo que se hizo y se encontró.
