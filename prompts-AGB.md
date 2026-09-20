@@ -5091,3 +5091,36 @@ npm run build (frontend)     → OK, tsc + vite build sin errores; UnassignedCan
 npm run test:e2e             → 50 passed (48 + 2 nuevos), incluida la
                                  reescritura de "Posición sin elegir"
 ```
+
+## 3.40 Se corrige el hallazgo de 3.39: el escenario "Ningún candidato sin asignar" borraba candidatos reales
+
+Aviso del usuario, justo después de leer el resultado de la sección
+anterior: "si su propio setup borra los candidatos existentes sin
+asignación entonces no podemos tener esta opción, tal y como está ahora,
+¿no?". Razón: el `Given` de ese escenario hacía
+`candidate.deleteMany({ where: { applications: { none: {} } } })` para
+partir de una base de datos realmente vacía y poder comprobar el estado
+"no hay ninguno" de forma determinista — pero eso incluía cualquier
+candidato sin asignar que hubiera de verdad en la base de datos de
+desarrollo compartida, sin distinguir "residuo de prueba" de "dato real
+del usuario". Confirmado exactamente con lo que pasó la primera vez que
+se corrió la suite completa: los 5 candidatos reales sin asignar del
+usuario (incluido el que motivó toda esta rama) desaparecieron.
+
+Corregido para que el escenario no borre nada real: en vez de eliminar
+los candidatos existentes, el `Given` les crea una `Application`-marcador
+(en la posición sembrada, primera fase de su flujo) para "esconderlos"
+del listado solo durante el escenario, y el `Then` borra esa
+`Application`-marcador al terminar — el candidato queda exactamente como
+estaba, sin ninguna candidatura real, no borrado.
+
+Verificado con un PoC deliberado: se crearon dos candidatos de prueba sin
+asignar ("reales" a efectos del test, es decir, no creados por el propio
+escenario), se corrió el escenario, y se comprobó después que los dos
+seguían existiendo en la base de datos y seguían sin ninguna `Application`
+— antes de este arreglo, este mismo PoC los habría borrado.
+
+```
+npx playwright test hiring-pipeline   → 5 passed
+npm run test:e2e (suite completa)     → 50 passed, sin cambios en el resto
+```

@@ -151,14 +151,42 @@ Then('ve a cada uno de ellos con su nombre completo, email y fecha de alta, el m
   await prisma.candidate.deleteMany({ where: { email: tempUnassignedEmail } });
 });
 
+let tempPlaceholderApplicationIds: number[] = [];
+
 Given('no existe ningún candidato sin candidatura', async () => {
-  // Deja la base de datos realmente vacía de candidatos sin asignar --
-  // incluye residuos previos (p. ej. de pruebas manuales), no solo los que
-  // haya podido crear este propio escenario.
-  await prisma.candidate.deleteMany({ where: { applications: { none: {} } } });
+  // NO borra candidatos reales -- un primer intento de este escenario lo
+  // hacía (`candidate.deleteMany({ where: { applications: { none: {} } } })`)
+  // y se llevó por delante candidatos reales del usuario la primera vez
+  // que se ejecutó la suite completa: cualquier candidato sin asignar que
+  // hubiera en la base de datos de desarrollo compartida, sin distinguir
+  // "residuo de prueba" de "dato real", desaparecía cada vez que alguien
+  // corriera los tests. En vez de eso, se les da una Application-marcador
+  // (misma posición sembrada que usan otros escenarios) para "esconderlos"
+  // del listado durante el escenario, y el paso Then de abajo la borra al
+  // terminar -- quedan exactamente como estaban antes, de verdad sin
+  // candidatura, no borrados.
+  const existing = await prisma.candidate.findMany({ where: { applications: { none: {} } } });
+  const position = await prisma.position.findFirstOrThrow({ where: { title: 'Senior Full-Stack Engineer' } });
+  const firstStep = await prisma.interviewStep.findFirstOrThrow({
+    where: { interviewFlowId: position.interviewFlowId },
+    orderBy: { orderIndex: 'asc' },
+  });
+
+  tempPlaceholderApplicationIds = await Promise.all(
+    existing.map(async (candidate) => {
+      const application = await prisma.application.create({
+        data: { positionId: position.id, candidateId: candidate.id, applicationDate: new Date(), currentInterviewStep: firstStep.id },
+      });
+      return application.id;
+    }),
+  );
 });
 
 Then('ve una indicación de que no hay ninguno', async ({ page }) => {
   await expect(page.getByText('No hay ningún candidato sin asignar.')).toBeVisible();
   await expect(page.getByRole('table')).toHaveCount(0);
+
+  // Restaura el estado "sin candidatura" real de cada uno, quitando solo
+  // la Application-marcador creada arriba.
+  await prisma.application.deleteMany({ where: { id: { in: tempPlaceholderApplicationIds } } });
 });
