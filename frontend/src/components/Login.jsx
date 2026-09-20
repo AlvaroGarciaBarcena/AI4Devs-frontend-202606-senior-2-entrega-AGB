@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Form, Button, Alert, Card, Container } from 'react-bootstrap';
+import { Form, Button, Card, Container } from 'react-bootstrap';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
+import InlineAlert from './InlineAlert';
 
 const Login = () => {
     const { t } = useTranslation();
@@ -59,7 +60,7 @@ const Login = () => {
                             aria-invalid={!!error}
                         />
                     </Form.Group>
-                    {error && <Alert variant="danger" role="alert" aria-live="assertive" className="mb-3">{error}</Alert>}
+                    {error && <InlineAlert variant="danger" className="mb-3">{error}</InlineAlert>}
                     <Button type="submit" disabled={submitting}>
                         {submitting ? t('login.submitting') : t('login.submit')}
                     </Button>

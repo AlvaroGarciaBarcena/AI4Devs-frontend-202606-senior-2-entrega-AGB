@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Form, Button, Alert, FormControl, Card, Container, Row, Col } from 'react-bootstrap';
+import { Form, Button, FormControl, Card, Container, Row, Col } from 'react-bootstrap';
 import { Trash } from 'react-bootstrap-icons';
 import FileUploader from './FileUploader';
+import ValidatedField from './ValidatedField';
+import InlineAlert from './InlineAlert';
 import ReactDatePickerModule from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -15,7 +17,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 // aplicar este fix). Se desenvuelve a mano por si acaso, sin depender de
 // que el bundler lo resuelva bien.
 const DatePicker = ReactDatePickerModule.default || ReactDatePickerModule;
-import { sendCandidateData } from '../services/candidateService';
+import { sendCandidateData, uploadCV } from '../services/candidateService';
 import { getPositions } from '../services/positionService';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { translateValidationIssues } from '../i18n/validationMessages';
@@ -174,128 +176,81 @@ const AddCandidateForm = () => {
                 <Form onSubmit={handleSubmit}>
                     <Row>
                         <Col md={6}>
-                            <Form.Group controlId="positionId">
-                                <Form.Label>{t('addCandidate.applyingPosition')}</Form.Label>
-                                <Form.Select
-                                    name="positionId"
-                                    required
-                                    disabled={positionsLoading}
-                                    value={candidate.positionId}
-                                    onChange={(e) => handleFieldChange('positionId', e.target.value)}
-                                    className="shadow-sm"
-                                    isInvalid={!!getFieldError('positionId')}
-                                    aria-invalid={!!getFieldError('positionId')}
-                                    aria-describedby={getFieldError('positionId') ? 'positionId-error' : undefined}
-                                >
-                                    <option value="">
-                                        {positionsLoading ? t('addCandidate.loadingPositions') : t('addCandidate.selectPositionPlaceholder')}
+                            <ValidatedField
+                                as="select"
+                                controlId="positionId"
+                                label={t('addCandidate.applyingPosition')}
+                                name="positionId"
+                                required
+                                disabled={positionsLoading}
+                                value={candidate.positionId}
+                                onChange={(e) => handleFieldChange('positionId', e.target.value)}
+                                className="shadow-sm"
+                                error={getFieldError('positionId')?.message}
+                            >
+                                <option value="">
+                                    {positionsLoading ? t('addCandidate.loadingPositions') : t('addCandidate.selectPositionPlaceholder')}
+                                </option>
+                                {positions.map((position) => (
+                                    <option key={position.id} value={position.id}>
+                                        {position.title} — {position.companyName}
                                     </option>
-                                    {positions.map((position) => (
-                                        <option key={position.id} value={position.id}>
-                                            {position.title} — {position.companyName}
-                                        </option>
-                                    ))}
-                                </Form.Select>
-                                {getFieldError('positionId') && (
-                                    <Form.Control.Feedback type="invalid" id="positionId-error">
-                                        {getFieldError('positionId').message}
-                                    </Form.Control.Feedback>
-                                )}
-                                {positionsError && <p className="text-danger small mt-1 mb-0">{positionsError}</p>}
-                            </Form.Group>
-                            <Form.Group controlId="firstName">
-                                <Form.Label>{t('addCandidate.firstName')}</Form.Label>
-                                <Form.Control
-                                    type="text"
-                                    name="firstName"
-                                    required
-                                    value={candidate.firstName}
-                                    onChange={(e) => handleFieldChange('firstName', e.target.value)}
-                                    className="form-control shadow-sm"
-                                    isInvalid={!!getFieldError('firstName')}
-                                    aria-invalid={!!getFieldError('firstName')}
-                                    aria-describedby={getFieldError('firstName') ? 'firstName-error' : undefined}
-                                />
-                                {getFieldError('firstName') && (
-                                    <Form.Control.Feedback type="invalid" id="firstName-error">
-                                        {getFieldError('firstName').message}
-                                    </Form.Control.Feedback>
-                                )}
-                            </Form.Group>
-                            <Form.Group controlId="lastName">
-                                <Form.Label>{t('addCandidate.lastName')}</Form.Label>
-                                <Form.Control
-                                    type="text"
-                                    name="lastName"
-                                    required
-                                    value={candidate.lastName}
-                                    onChange={(e) => handleFieldChange('lastName', e.target.value)}
-                                    className="form-control shadow-sm"
-                                    isInvalid={!!getFieldError('lastName')}
-                                    aria-invalid={!!getFieldError('lastName')}
-                                    aria-describedby={getFieldError('lastName') ? 'lastName-error' : undefined}
-                                />
-                                {getFieldError('lastName') && (
-                                    <Form.Control.Feedback type="invalid" id="lastName-error">
-                                        {getFieldError('lastName').message}
-                                    </Form.Control.Feedback>
-                                )}
-                            </Form.Group>
-                            <Form.Group controlId="email">
-                                <Form.Label>{t('addCandidate.email')}</Form.Label>
-                                <Form.Control
-                                    type="email"
-                                    name="email"
-                                    required
-                                    value={candidate.email}
-                                    onChange={(e) => handleFieldChange('email', e.target.value)}
-                                    className="form-control shadow-sm"
-                                    isInvalid={!!getFieldError('email')}
-                                    aria-invalid={!!getFieldError('email')}
-                                    aria-describedby={getFieldError('email') ? 'email-error' : undefined}
-                                />
-                                {getFieldError('email') && (
-                                    <Form.Control.Feedback type="invalid" id="email-error">
-                                        {getFieldError('email').message}
-                                    </Form.Control.Feedback>
-                                )}
-                            </Form.Group>
-                            <Form.Group controlId="phone">
-                                <Form.Label>{t('addCandidate.phone')}</Form.Label>
-                                <Form.Control
-                                    type="tel"
-                                    name="phone"
-                                    value={candidate.phone}
-                                    onChange={(e) => handleFieldChange('phone', e.target.value)}
-                                    className="form-control shadow-sm"
-                                    isInvalid={!!getFieldError('phone')}
-                                    aria-invalid={!!getFieldError('phone')}
-                                    aria-describedby={getFieldError('phone') ? 'phone-error' : undefined}
-                                />
-                                {getFieldError('phone') && (
-                                    <Form.Control.Feedback type="invalid" id="phone-error">
-                                        {getFieldError('phone').message}
-                                    </Form.Control.Feedback>
-                                )}
-                            </Form.Group>
-                            <Form.Group controlId="address">
-                                <Form.Label>{t('addCandidate.address')}</Form.Label>
-                                <Form.Control
-                                    type="text"
-                                    name="address"
-                                    value={candidate.address}
-                                    onChange={(e) => handleFieldChange('address', e.target.value)}
-                                    className="form-control shadow-sm"
-                                    isInvalid={!!getFieldError('address')}
-                                    aria-invalid={!!getFieldError('address')}
-                                    aria-describedby={getFieldError('address') ? 'address-error' : undefined}
-                                />
-                                {getFieldError('address') && (
-                                    <Form.Control.Feedback type="invalid" id="address-error">
-                                        {getFieldError('address').message}
-                                    </Form.Control.Feedback>
-                                )}
-                            </Form.Group>
+                                ))}
+                            </ValidatedField>
+                            {positionsError && <p className="text-danger small mt-1 mb-0">{positionsError}</p>}
+                            <ValidatedField
+                                controlId="firstName"
+                                label={t('addCandidate.firstName')}
+                                type="text"
+                                name="firstName"
+                                required
+                                value={candidate.firstName}
+                                onChange={(e) => handleFieldChange('firstName', e.target.value)}
+                                className="form-control shadow-sm"
+                                error={getFieldError('firstName')?.message}
+                            />
+                            <ValidatedField
+                                controlId="lastName"
+                                label={t('addCandidate.lastName')}
+                                type="text"
+                                name="lastName"
+                                required
+                                value={candidate.lastName}
+                                onChange={(e) => handleFieldChange('lastName', e.target.value)}
+                                className="form-control shadow-sm"
+                                error={getFieldError('lastName')?.message}
+                            />
+                            <ValidatedField
+                                controlId="email"
+                                label={t('addCandidate.email')}
+                                type="email"
+                                name="email"
+                                required
+                                value={candidate.email}
+                                onChange={(e) => handleFieldChange('email', e.target.value)}
+                                className="form-control shadow-sm"
+                                error={getFieldError('email')?.message}
+                            />
+                            <ValidatedField
+                                controlId="phone"
+                                label={t('addCandidate.phone')}
+                                type="tel"
+                                name="phone"
+                                value={candidate.phone}
+                                onChange={(e) => handleFieldChange('phone', e.target.value)}
+                                className="form-control shadow-sm"
+                                error={getFieldError('phone')?.message}
+                            />
+                            <ValidatedField
+                                controlId="address"
+                                label={t('addCandidate.address')}
+                                type="text"
+                                name="address"
+                                value={candidate.address}
+                                onChange={(e) => handleFieldChange('address', e.target.value)}
+                                className="form-control shadow-sm"
+                                error={getFieldError('address')?.message}
+                            />
                         </Col>
                         <Col md={6}>
                             <Form.Group controlId="cv">
@@ -304,6 +259,7 @@ const AddCandidateForm = () => {
                                     key={fileUploaderKey}
                                     onChange={handleCVUpload}
                                     onUpload={handleCVUpload}
+                                    uploadFn={uploadCV}
                                     className="shadow-sm"
                                 />
                             </Form.Group>
@@ -415,17 +371,16 @@ const AddCandidateForm = () => {
                     </Row>
                     <Button type="submit" className="btn btn-primary btn-block shadow-sm mt-5">{t('addCandidate.submit')}</Button>
                     {fieldErrors.length > 0 && (
-                        <Alert variant="danger" role="alert" aria-live="assertive" className="mt-3">
-                            <Alert.Heading as="h2" className="h6">{t('addCandidate.reviewFields')}</Alert.Heading>
+                        <InlineAlert variant="danger" heading={t('addCandidate.reviewFields')} className="mt-3">
                             <ul className="mb-0">
                                 {fieldErrors.map((issue) => (
                                     <li key={issue.field}>{issue.message}</li>
                                 ))}
                             </ul>
-                        </Alert>
+                        </InlineAlert>
                     )}
-                    {error && <Alert variant="danger" role="alert" aria-live="assertive" className="mt-3">{error}</Alert>}
-                    {successMessage && <Alert variant="success" role="status" aria-live="polite" className="mt-3">{successMessage}</Alert>}
+                    {error && <InlineAlert variant="danger" className="mt-3">{error}</InlineAlert>}
+                    {successMessage && <InlineAlert variant="success" className="mt-3">{successMessage}</InlineAlert>}
                 </Form>
             </Card>
         </Container>

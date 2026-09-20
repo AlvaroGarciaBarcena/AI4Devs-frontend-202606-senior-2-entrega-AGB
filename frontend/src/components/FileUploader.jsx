@@ -1,9 +1,14 @@
 import React, { useRef, useState } from 'react';
 import { Button, InputGroup, FormControl, Spinner } from 'react-bootstrap';
-import { uploadCV } from '../services/candidateService';
 import { useTranslation } from 'react-i18next';
 
-const FileUploader = ({ onChange, onUpload }) => {
+// `uploadFn` es lo único que antes ataba este componente a esta app: subía
+// siempre a uploadCV (el endpoint de CV de candidatos), así que no se podía
+// reutilizar para ningún otro tipo de fichero ni en ningún otro proyecto.
+// Ahora es genérico -- solo depende de react-bootstrap y de recibir una
+// función `(file) => Promise<T>` por prop; quien lo use decide a qué
+// endpoint sube el fichero y qué forma tiene la respuesta.
+const FileUploader = ({ onChange, onUpload, uploadFn }) => {
   const { t } = useTranslation();
   // El <input type="file"> nativo pinta su propio botón y su propio texto
   // de "ningún archivo seleccionado" en el idioma del sistema operativo/
@@ -29,7 +34,7 @@ const FileUploader = ({ onChange, onUpload }) => {
       setLoading(true);
       setError('');
       try {
-        const data = await uploadCV(file);
+        const data = await uploadFn(file);
         setFileData(data);
         onUpload(data);
       } catch (error) {

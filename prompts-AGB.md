@@ -4928,3 +4928,80 @@ por quien ya sepa que existen.
 ```
 npm test (frontend)   → 40 passed, sin cambios (rama de documentación pura)
 ```
+
+## 3.38 Segunda pasada de refactorización a componentes reutilizables (`reusable-components-AGB`)
+
+Pregunta del usuario tras `adrs-AGB`: "¿Podemos lograr una refactorización
+más pronunciada en componentes reutilizables para Proyectos futuros?".
+`reusable-hooks-AGB` (sección 3.36) ya había aplicado el criterio estricto
+de "solo extraer con duplicación real demostrada" y había encontrado un
+único candidato genuino (`useAsyncData`), rechazando explícitamente otros
+tres por aparecer una sola vez en el código. Para una segunda pasada "más
+pronunciada" hacía falta un criterio algo más amplio sin caer en
+abstracción especulativa: además de duplicación real dentro de este
+repositorio, contar también como candidato un componente que hoy solo se
+usa una vez pero que está acoplado a esta app de forma innecesaria (una
+dependencia concreta metida a fuego dentro de un componente que por lo
+demás es genérico), porque desacoplarlo es lo que lo hace de verdad
+reutilizable en un proyecto futuro distinto.
+
+Con ese criterio, relectura completa de `AddCandidateForm.jsx`,
+`Login.jsx` y `FileUploader.jsx` encontró tres candidatos reales, no
+especulativos:
+
+1. **`ValidatedField`** — el bloque `Form.Group` + `Form.Label` +
+   `Form.Control`/`Form.Select` + `isInvalid`/`aria-invalid`/
+   `aria-describedby` + `Form.Control.Feedback` condicional se repetía
+   **6 veces, letra por letra**, dentro del mismo `AddCandidateForm.jsx`
+   (posición, nombre, apellido, email, teléfono, dirección) — la
+   duplicación más flagrante del proyecto, la misma clase de problema que
+   ya motivó `useAsyncData` pero a nivel de JSX en vez de lógica. Nuevo
+   componente genérico (`frontend/src/components/ValidatedField.jsx`,
+   solo depende de `react-bootstrap`): admite `as="select"` para
+   reutilizar exactamente el mismo contrato en desplegables, y reenvía
+   cualquier otra prop (`type`, `name`, `value`, `onChange`, `required`,
+   `disabled`...) tal cual al control interno.
+2. **`InlineAlert`** — el par `role`/`aria-live` correcto según el tipo de
+   mensaje (`role="alert"` + `aria-live="assertive"` para errores,
+   `role="status"` + `aria-live="polite"` para éxito) se escribía a mano
+   en 4 sitios distintos entre dos ficheros (`Login.jsx` una vez,
+   `AddCandidateForm.jsx` tres veces: resumen de errores de campo, error
+   genérico, mensaje de éxito) — duplicación real cruzando ficheros, con
+   riesgo genuino de que una copia se desincronizara de las demás (un
+   `role="alert"` con `aria-live="polite"` por descuido no se anunciaría
+   con la urgencia esperada). Nuevo componente genérico
+   (`frontend/src/components/InlineAlert.jsx`): decide el `role`/
+   `aria-live` a partir de `variant`, admite una `heading` opcional para
+   el caso del resumen de errores.
+3. **`FileUploader`** generalizado — no tenía ninguna duplicación (solo se
+   usa una vez), pero importaba `uploadCV` directamente de
+   `candidateService`, así que solo podía subir CVs de candidatos a ese
+   endpoint concreto: copiarlo a un proyecto futuro con cualquier otro
+   tipo de subida de fichero habría exigido reescribirlo, no solo
+   copiarlo. Ahora recibe la función de subida por prop (`uploadFn`), y
+   `AddCandidateForm.jsx` es quien decide a qué endpoint sube pasándole
+   `uploadCV` — el componente ya no sabe nada de candidatos.
+
+`Login.jsx` se quedó **sin** `ValidatedField`: sus dos campos comparten un
+único banner de error (no un mensaje por campo), así que forzar
+`ValidatedField` ahí habría exigido inventarle un mensaje de error
+duplicado por campo que la UI actual no tiene — se prefirió no forzar el
+componente donde no encaja el contrato real, y usar solo `InlineAlert`
+para el banner.
+
+Tests nuevos (`ValidatedField.test.jsx`, `InlineAlert.test.jsx`,
+`FileUploader.test.jsx`, 9 casos en total) cubren el contrato de
+accesibilidad de cada componente por separado — antes de esta rama,
+`FileUploader` no tenía ningún test propio pese a manejar subida de
+ficheros con estados de carga y error.
+
+```
+npm test (frontend)          → 49 passed (40 + 9 nuevos)
+npm run build (frontend)     → OK, tsc + vite build sin errores
+npx playwright test          → 48 passed (1.0m) -- accessibility,
+                                 candidate-intake, hiring-pipeline e
+                                 internationalization (los que ejercitan
+                                 estos formularios de verdad) siguen
+                                 pasando sin cambios
+npm test (backend)           → 47 passed, sin cambios (rama solo de frontend)
+```
