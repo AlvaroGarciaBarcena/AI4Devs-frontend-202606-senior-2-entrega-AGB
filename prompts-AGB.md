@@ -4497,3 +4497,71 @@ todo), más un hallazgo real dejado sin corregir a propósito y
 documentado para que el usuario decida el enfoque (el `Suspense
 fallback` que nunca se muestra durante una navegación real por
 `<Link>`, sección 3.30.4).
+
+## 3.32 Revisión final: `file-upload` había quedado fuera sin que nadie lo decidiera
+
+Al hacer la revisión exhaustiva final pedida ("dejarlo todo probado,
+documentado y verificado" antes de terminar), `openspec validate
+--specs --strict` confirmó las 11 capacidades del proyecto -- y una de
+ellas, `file-upload` (5 escenarios: tipos de fichero aceptados, límite
+de tamaño, saneado del nombre de fichero, y el selector traducido en
+los dos idiomas), no aparecía en ninguna conversación de esta sesión
+sobre qué entraba o no en el alcance. No fue una exclusión deliberada
+como `candidate-validation` o (al principio) `developer-tooling` --
+simplemente se pasó por alto en la lista larga de capacidades
+pendientes. Como el objetivo explícito era "validar todas", se
+completa también antes de cerrar la sesión.
+
+Los 5 escenarios se implementan contra la API directamente (`request`
+fixture, mismo patrón que `security-hardening`) para los tres
+primeros, y contra la interfaz para los dos de idioma. Tres PoC reales
+antes de escribir las aserciones, siguiendo la misma disciplina del
+resto de la sesión:
+
+- Un `.txt` declarado `text/plain` (no PDF ni DOCX) → `400`, "Invalid
+  file type, only PDF and DOCX are allowed!" -- un camino distinto del
+  chequeo de *magic number* de `security-hardening` (éste lo rechaza
+  el `fileFilter` de multer por el tipo declarado, antes siquiera de
+  llegar a leer el contenido).
+- Un PDF real de más de 10MB (cabecera `%PDF` válida, para que el
+  rechazo sea de verdad por tamaño y no por contenido) → `500`, "File
+  too large" (comportamiento por defecto de multer).
+- Un fichero subido con `../../etc/pwned.pdf` como nombre → `200`,
+  guardado como `{timestamp}-pwned.pdf` dentro de `backend/uploads/`,
+  sin ningún componente de ruta -- confirma que el `path.basename()`
+  de `security-audit-AGB` (commit `8b31eb5`) sigue vigente.
+
+Pasan los 5 a la primera, sin hallazgos nuevos.
+
+```
+npx bddgen && npx playwright test
+  → 48 passed (1.0m): las 10 capacidades completas -- las 9 del plan
+    original más file-upload, encontrada en esta última revisión
+
+npm test (backend)   → 47 passed
+npm test (frontend)  → 34 passed
+openspec validate --specs --strict → 11 passed, 0 failed
+```
+
+### 3.32.1 Estado final de la sesión nocturna
+
+- **10/11 capacidades de OpenSpec cubiertas por E2E real** con
+  `playwright-bdd`, 48 escenarios en verde. La única capacidad sin
+  cobertura de Playwright, `candidate-validation`, lo está a propósito
+  (cobertura de Jest ya existente, confirmado explícitamente por el
+  usuario al definir el alcance).
+- **Base de datos de desarrollo, `backend/uploads/` y procesos**:
+  verificados limpios al cierre -- cero candidatos/posiciones/flujos de
+  prueba residuales, cero ficheros subidos de prueba residuales, cero
+  procesos zombis en puertos de scratch.
+- **8 hallazgos reales corregidos** por el camino (ver el resumen de
+  la sección 3.31.3, más este último no aplica aquí -- `file-upload`
+  no encontró ninguno nuevo).
+- **1 hallazgo real dejado sin corregir a propósito**, documentado
+  para que el usuario decida el enfoque: el indicador de carga durante
+  una navegación por `<Link>` a una pantalla todavía no descargada
+  nunca se muestra (sección 3.30.4).
+- **11 commits** en `playwright-bdd-AGB` desde el primer escenario de
+  la tarde hasta este cierre, cada uno con su propio mensaje explicando
+  qué cambió y por qué -- nada squashed, la historia completa queda
+  como registro de lo que se hizo y se encontró.
