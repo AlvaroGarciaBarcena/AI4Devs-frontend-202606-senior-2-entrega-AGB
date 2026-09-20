@@ -41,7 +41,8 @@ línea de cada rama, y para saber dónde empieza cada tema hay que saber esto).
 | 24 | `edit-candidate-AGB` | 2026-09-20 13:09 | `6bf9daf`·`c5db7b1` | [§3.43](./prompts-AGB.md#343-editar-un-candidato-reutilizando-el-formulario-de-alta-edit-candidate-agb) |
 | 25 | `back-to-dashboard-links-AGB` | 2026-09-20 13:23 | `35d9bd9`·`07443b9` | [§3.44](./prompts-AGB.md#344-enlace-volver-al-inicio-en-posiciones-y-añadir-candidato-back-to-dashboard-links-agb) |
 | 26 | `clickable-row-edit-AGB` | 2026-09-20 14:44 | `e62d455`·`a66d0e7` | [§3.45](./prompts-AGB.md#345-fila-clicable-icono-de-editar-sin-perder-accesibilidad-clickable-row-edit-agb) |
-| 27 | `cors-configurable-origins-AGB` | 2026-09-20 14:59 | `ba60388` | [§3.46](./prompts-AGB.md#346-cors-configurable-por-variable-de-entorno-cors-configurable-origins-agb) |
+| 27 | `cors-configurable-origins-AGB` | 2026-09-20 14:59 | `ba60388`·`e81e0bc` | [§3.46](./prompts-AGB.md#346-cors-configurable-por-variable-de-entorno-cors-configurable-origins-agb) |
+| 28 | `frontend-api-url-config-AGB` | 2026-09-20 15:04 | `8d145d6` | [§3.47](./prompts-AGB.md#347-url-de-la-api-configurable-para-acceder-desde-la-red-local-frontend-api-url-config-agb) |
 
 ## Cómo leer esto
 
