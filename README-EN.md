@@ -240,7 +240,37 @@ By default everything above is reachable only from the machine running it (`loca
 
 Without step 4, the page loads fine on the other device, but every API call fails — that device's browser would otherwise resolve `localhost:3010` to *its own* localhost, not your server's.
 
-Find your machine's LAN IP with `ip addr` (usually the `inet` line under your `eth0`/`wlan0`/`enp*` interface). This setup is meant for a trusted local network only — this backend uses development-only credentials and isn't hardened for exposure to the public internet.
+Find your machine's LAN IP with `ip addr` (usually the `inet` line under your `eth0`/`wlan0`/`enp*` interface) — if your network uses DHCP, it can change across reboots; that's the first thing to check if something that used to work stops working. This setup is meant for a trusted local network only — this backend uses development-only credentials and isn't hardened for exposure to the public internet.
+
+### Verifying it works
+
+Before testing from the other device's browser, each piece can be checked on its own:
+
+```bash
+# The firewall is active and has the expected rules
+sudo ufw status verbose
+
+# The process really listens on every interface (*:3000), not just localhost (127.0.0.1:3000)
+ss -tlnp | grep -E ':300[0-9]'
+
+# The backend responds from outside, without going through the frontend (401 is correct: it was reached, it just wants a session)
+curl -v http://<your-server-ip>:3010/candidates/unassigned
+
+# The origin configured in CORS_ORIGINS is genuinely accepted
+curl -i -X OPTIONS http://<your-server-ip>:3010/candidates/unassigned \
+  -H "Origin: http://<your-server-ip>:3000" -H "Access-Control-Request-Method: GET" \
+  | grep -i "access-control-allow-origin"
+```
+
+If more than one `vite` or `ts-node-dev` instance ends up running at once (e.g. after restarting a few times without stopping the previous one), orphaned processes can end up holding ports or eating resources without you noticing. To see and stop all of them, by real process name (not just the PID holding the port, which can leave the rest of its process tree orphaned):
+
+```bash
+pgrep -af "ts-node-dev"
+pgrep -af "node_modules/.bin/vite"
+
+pkill -f "ts-node-dev"
+pkill -f "node_modules/.bin/vite"
+```
 
 ## Further documentation
 

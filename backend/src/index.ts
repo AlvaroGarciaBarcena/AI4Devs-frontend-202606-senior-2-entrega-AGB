@@ -12,6 +12,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { buildCorsOptions } from './corsOptions';
+import { getListeningAddresses } from './networkAddresses';
 
 // Extender la interfaz Request para incluir prisma y, tras pasar por
 // requireAuth, el empleado autenticado (payload del JWT: id, role,
@@ -116,5 +117,6 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
+  console.log(`Server listening on port ${port}, reachable at:`);
+  getListeningAddresses(port).forEach((address) => console.log(`  ${address}`));
 });

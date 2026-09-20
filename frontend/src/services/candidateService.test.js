@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import axios from 'axios';
 import { sendCandidateData, uploadCV, getCandidateById, updateCandidateData } from './candidateService';
+// No hardcodear 'http://localhost:3010' en las aserciones de abajo: si
+// quien corre los tests tiene VITE_API_URL definida en su frontend/.env
+// (p. ej. para probar el acceso desde la red local), API_BASE_URL vale
+// otra cosa de verdad, y una URL fija aquí haría fallar el test sin que
+// hubiera ningún bug real -- justo lo que pasó la primera vez que se
+// corrió esta suite con esa variable puesta (sección 3.48 de
+// prompts-AGB.md).
+import { API_BASE_URL } from '../config';
 
 vi.mock('axios');
 
@@ -65,7 +73,7 @@ describe('getCandidateById', () => {
 
         const result = await getCandidateById(1);
 
-        expect(axios.get).toHaveBeenCalledWith('http://localhost:3010/candidates/1');
+        expect(axios.get).toHaveBeenCalledWith(`${API_BASE_URL}/candidates/1`);
         expect(result).toEqual({ id: 1, firstName: 'Ana' });
     });
 });
@@ -76,7 +84,7 @@ describe('updateCandidateData', () => {
 
         const result = await updateCandidateData(1, { firstName: 'Ana' });
 
-        expect(axios.patch).toHaveBeenCalledWith('http://localhost:3010/candidates/1', { firstName: 'Ana' });
+        expect(axios.patch).toHaveBeenCalledWith(`${API_BASE_URL}/candidates/1`, { firstName: 'Ana' });
         expect(result).toEqual({ message: 'Candidate updated successfully', data: { id: 1 } });
     });
 

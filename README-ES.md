@@ -240,7 +240,37 @@ Por defecto, todo lo de arriba solo es accesible desde la propia máquina donde 
 
 Sin el paso 4, la página carga bien en el otro equipo, pero todas las llamadas a la API fallan -- el navegador de ese equipo interpretaría `localhost:3010` como su propio localhost, no el de tu servidor.
 
-Encuentra la IP de tu red local con `ip addr` (normalmente la línea `inet` bajo tu interfaz `eth0`/`wlan0`/`enp*`). Esta configuración está pensada solo para una red local de confianza -- este backend usa credenciales solo de desarrollo y no está preparado para exponerse a internet.
+Encuentra la IP de tu red local con `ip addr` (normalmente la línea `inet` bajo tu interfaz `eth0`/`wlan0`/`enp*`) -- si tu red usa DHCP, puede cambiar entre reinicios; si algo deja de funcionar que antes iba bien, es lo primero a comprobar. Esta configuración está pensada solo para una red local de confianza -- este backend usa credenciales solo de desarrollo y no está preparado para exponerse a internet.
+
+### Verificar que funciona
+
+Antes de probar desde el navegador del otro equipo, cada pieza se puede comprobar por separado:
+
+```bash
+# El cortafuegos está activo y con las reglas esperadas
+sudo ufw status verbose
+
+# El proceso escucha de verdad en todas las interfaces (*:3000), no solo en localhost (127.0.0.1:3000)
+ss -tlnp | grep -E ':300[0-9]'
+
+# El backend responde desde fuera, sin pasar por el frontend (401 es correcto: llegó, solo pide sesión)
+curl -v http://<ip-de-tu-servidor>:3010/candidates/unassigned
+
+# El origen configurado en CORS_ORIGINS es aceptado de verdad
+curl -i -X OPTIONS http://<ip-de-tu-servidor>:3010/candidates/unassigned \
+  -H "Origin: http://<ip-de-tu-servidor>:3000" -H "Access-Control-Request-Method: GET" \
+  | grep -i "access-control-allow-origin"
+```
+
+Si arranca más de una instancia de `vite` o de `ts-node-dev` a la vez (p. ej. tras varios reinicios sin parar los anteriores), pueden quedar procesos huérfanos ocupando puertos o consumiendo recursos sin que lo notes. Para verlos y pararlos todos, por nombre de proceso real (no solo el PID que ocupa el puerto, que puede dejar huérfano el resto del árbol de procesos):
+
+```bash
+pgrep -af "ts-node-dev"
+pgrep -af "node_modules/.bin/vite"
+
+pkill -f "ts-node-dev"
+pkill -f "node_modules/.bin/vite"
+```
 
 ## Más documentación
 

@@ -5437,3 +5437,189 @@ npm test (frontend)      → 81 passed, sin cambios (config de arranque del
                              servidor, no afecta a build ni a tests)
 npm run build (frontend) → OK, tsc + vite build sin errores
 ```
+
+## 3.48 Depuración real en vivo del acceso desde la red local
+
+El usuario terminó de configurar su lado (cortafuegos, `vite --host`,
+`CORS_ORIGINS`, `VITE_API_URL`) y probó desde un equipo externo de
+verdad. No funcionó a la primera -- lo que sigue es la sesión de
+depuración real, en vivo, hasta que sí funcionó. Se documenta entera
+porque cada paso es un hallazgo reutilizable, no solo para esta puesta a
+punto concreta.
+
+### 3.48.1 "Network Error" al iniciar sesión → CORS sin configurar
+
+Primer síntoma: la interfaz cargaba bien (puerto 3000 alcanzable), pero
+el login fallaba con "Network Error". Aclarado un matiz importante:
+**axios reporta "Network Error" tanto para un fallo de conexión real
+como para un bloqueo de CORS** -- el navegador oculta a JS los detalles
+de un bloqueo CORS, así que ambos casos son indistinguibles solo por el
+mensaje, hace falta mirar la consola/pestaña Red del navegador.
+
+Causa real: `backend/.env` no tenía `CORS_ORIGINS` -- el backend seguía
+aceptando solo `http://localhost:3000` (su valor por defecto, sección
+3.46), así que el `Origin` real del navegador externo (la IP del
+servidor, no `localhost`) se rechazaba. Arreglado añadiendo
+`CORS_ORIGINS=http://localhost:3000,http://<ip-real>:3000` a
+`backend/.env`.
+
+### 3.48.2 Aclaración de diseño: CORS es del origen de la página, no del cliente
+
+El usuario preguntó si hacía falta autorizar cada IP de cliente por
+separado, o algo "genérico para toda la red". Respuesta: ninguna de las
+dos -- el `Origin` que manda el navegador es de dónde viene **la
+página** (el frontend), no la IP de quien la visita. Como el frontend se
+sirve siempre desde un único sitio, una sola entrada en `CORS_ORIGINS`
+ya cubre a cualquier dispositivo de la LAN que la abra. Se descartó
+deliberadamente añadir un matcher por CIDR/wildcard en
+`corsOptions.ts`: resolvería un problema que no existe aquí (no hay
+múltiples orígenes reales) a cambio de aflojar la comprobación real de
+origen.
+
+### 3.48.3 Instancias de Vite duplicadas (3000 y 3001 ocupados)
+
+Arrancar `npm run dev` del frontend chocó con instancias anteriores sin
+parar (de reinicios previos de esta misma sesión), y arrancó en el 3002.
+Comando para verlas y pararlas, por nombre de binario real (no por un
+`grep vite` genérico, que podría coincidir con cualquier ruta que
+contenga esa palabra):
+```bash
+pgrep -af "node_modules/.bin/vite"
+pkill -f "node_modules/.bin/vite"
+```
+
+### 3.48.4 "¿Cómo paro sin matar el proceso?"
+
+Aclarado: en Unix no hay una tercera vía -- parar un proceso siempre es
+mandarle una señal. `kill` a secas ya manda `SIGTERM` (una petición
+educada, el proceso puede limpiar antes de salir); lo brusco es
+`kill -9`/`SIGKILL`. No hay ningún `npm run stop` en
+`backend/package.json` (`ts-node-dev` no es un servicio con gestor, es
+un proceso simple).
+
+### 3.48.5 "Solo me arranca en localhost" → mensaje de log engañoso, no un bug de red
+
+El usuario reportó que el backend "solo escuchaba en localhost". Antes
+de asumirlo, se verificó de forma independiente:
+```bash
+ss -tlnp | grep 3010          # → *:3010, no 127.0.0.1:3010
+curl -v http://<ip-lan>:3010/candidates/unassigned   # → 401, sí responde
+```
+El backend SÍ escuchaba en todas las interfaces (comportamiento por
+defecto de `app.listen(port)` sin `host` en Node). El verdadero problema
+era el mensaje de arranque, que decía siempre `Server is running at
+http://localhost:3010` a fuego, sin importar dónde escuchara de verdad
+-- sección 3.49, arreglado ahí.
+
+### 3.48.6 Más de 20 procesos `ts-node-dev` acumulados: lección propia sobre limpieza de procesos
+
+Al investigar 3.48.5, apareció algo peor: `ps aux | grep -i
+"ts-node-dev" | grep -v grep` devolvía más de 20 procesos vivos,
+acumulados desde las 11:01 hasta las 15:02 de esta misma sesión. Causa:
+`ts-node-dev --respawn` genera una jerarquía de 3 procesos (`sh -c` →
+`ts-node-dev` → un `node .../wrap.js` nieto, que es quien de verdad
+sujeta el puerto). El método de reinicio usado durante buena parte de
+esta sesión, `lsof -ti :3010 | xargs kill`, solo mata a ese nieto --
+cada reinicio así dejaba huérfanos los otros dos, sesión tras sesión.
+`ss -tlnp` seguía mostrando un único proceso escuchando (el más
+reciente), lo que ocultó el problema hasta que se miró `ps aux`
+explícitamente.
+
+Corregido matando por nombre (`pkill -f "ts-node-dev"`, que alcanza los
+tres niveles porque los tres tienen esa cadena en su línea de comando),
+no por PID del puerto. Lección para el resto de esta sesión y para
+futuros proyectos: reiniciar un proceso con `--respawn` (o cualquier
+supervisor similar) por PID del socket no basta, hace falta matar el
+árbol entero.
+
+### 3.48.7 La IP había cambiado (DHCP): `.153` en `frontend/.env`, `.151` en la máquina real
+
+Causa final y real del "Network Error" persistente, ya con CORS bien
+configurado: `frontend/.env` tenía `VITE_API_URL=http://192.168.1.153:3010`,
+pero la IP real de la máquina en ese momento era `192.168.1.151` --
+`vite --host` reveló la IP correcta (línea "Network:" del propio Vite),
+que no coincidía con lo que se había escrito en el `.env` en algún
+momento anterior. Corregido actualizando `frontend/.env` (fichero local,
+no versionado) a la IP real, y reiniciando `npm run dev` para que se
+recogiera.
+
+### 3.48.8 Regresión propia encontrada al re-ejecutar la suite: tests con la URL hardcodeada
+
+Con `VITE_API_URL` puesta de verdad en `frontend/.env`, `npm test` del
+frontend rompió: `candidateService.test.js` (añadido en
+`frontend-api-url-config-AGB`, sección 3.47) esperaba literalmente
+`'http://localhost:3010/candidates/1'` en sus aserciones, sin contar con
+que `API_BASE_URL` ya no fuera ese valor en el entorno de quien corriera
+los tests. Corregido importando `API_BASE_URL` de `../config` en el
+propio test y comparando contra eso, no contra un string fijo -- el
+mismo error de diseño que motivó la rama entera (URLs fijas en vez de
+configurables), esta vez colado en un test en vez de en el código de
+producción.
+
+```
+npm test (frontend) → 81 passed, con VITE_API_URL puesta de verdad en
+                        frontend/.env (antes de este arreglo, 2 fallaban)
+npm run build (frontend) → OK
+```
+
+### Comandos de verificación de estado (referencia rápida)
+
+```bash
+# Cortafuegos: reglas activas y su alcance
+sudo ufw status verbose
+
+# Qué escucha de verdad, y en qué interfaz (*: todas; 127.0.0.1: solo local)
+ss -tlnp | grep -E ':300[0-9]'
+
+# Procesos de desarrollo vivos, por nombre real (evita coincidir con "grep" a sí mismo)
+pgrep -af "ts-node-dev"
+pgrep -af "node_modules/.bin/vite"
+
+# Parar todas las instancias de un tipo, árbol completo (no solo el PID del puerto)
+pkill -f "ts-node-dev"
+pkill -f "node_modules/.bin/vite"
+
+# Alcanzabilidad real del backend desde fuera, sin pasar por el frontend
+curl -v http://<ip-del-servidor>:3010/candidates/unassigned
+
+# Comprobar el origen exacto que aceptaría el CORS configurado
+curl -i -X OPTIONS http://<ip-del-servidor>:3010/candidates/unassigned \
+  -H "Origin: http://<origen-a-probar>" -H "Access-Control-Request-Method: GET" \
+  | grep -i "access-control-allow-origin"
+
+# IP real de la máquina (para VITE_API_URL/CORS_ORIGINS -- puede cambiar por DHCP)
+ip addr
+hostname -I
+```
+
+## 3.49 Mensaje de arranque del backend: listar las direcciones reales (`backend-listening-message-AGB`)
+
+Arreglo del hallazgo 3.48.5: `console.log('Server is running at
+http://localhost:' + port)` estaba escrito a fuego en `index.ts`,
+siempre con "localhost", sin importar en qué interfaz escuchara de
+verdad el servidor -- costó tiempo real de depuración porque sugería
+justo lo contrario de lo que pasaba.
+
+Nuevo `networkAddresses.ts`: `getListeningAddresses(port, interfaces)`
+recibe las interfaces de red por parámetro (por defecto
+`os.networkInterfaces()`) en vez de llamarlo dentro de la propia
+función, para poder testear con datos fijos sin depender de las
+interfaces reales de la máquina que corra los tests. Filtra direcciones
+IPv4 no internas (descarta loopback e IPv6), y siempre antepone
+`http://localhost:PORT`. El mensaje de arranque ahora lista todas,
+imitando las líneas "Local"/"Network" que ya usa Vite:
+```
+Server listening on port 3010, reachable at:
+  http://localhost:3010
+  http://192.168.1.151:3010
+  http://172.18.0.1:3010
+```
+
+```
+npm test (backend)      → 64 passed (61 + 3 nuevos)
+npm run build (backend) → OK, tsc sin errores
+```
+
+Verificado también arrancando el servidor de verdad y comparando contra
+`ss -tlnp`: las direcciones que imprime coinciden exactamente con las
+interfaces reales de la máquina.
