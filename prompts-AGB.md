@@ -6365,3 +6365,70 @@ agota a propósito. Subido a los dos remotos que comparten esta rama
 (`fork`, que actualiza el PR #22 real; `personal`, la copia privada) y
 confirmado con la API de SonarCloud tras el reanálisis:
 `new_security_rating` en **A (1)**, *quality gate* completo en `OK`.
+
+## 3.60 Dos hooks de pre-commit (Husky): que no vuelva a pasar lo de la sección 3.59
+
+El usuario pidió no tropezar dos veces con lo mismo: los dos hallazgos
+reales que bajaron el *quality gate* a C (contraseña "hardcodeada",
+`npm` resuelto por `PATH`) solo se ven al abrir el PR contra `origin`
+-- ni en un commit local, ni en el repositorio privado (sin SonarCloud
+configurado). Confirmado que el proyecto no tenía ninguna
+infraestructura de hooks todavía (ni Husky, ni nada más allá de las
+plantillas de ejemplo de `.git/hooks/`).
+
+Instalado Husky 9 en la raíz (`npm install --save-dev husky` +
+`npx husky init`, que añade `"prepare": "husky"` a `package.json` --
+se activa solo con el `npm install` del paso 6 del README, sin ningún
+paso extra). Dos comprobaciones en `.husky/pre-commit`:
+
+1. **`gitleaks protect --staged`** -- credenciales reales, no un grep
+   casero: un patrón hecho a mano para esto es frágil de verdad (o se
+   queda corto, o da falsos positivos con literales como
+   `'contraseña-incorrecta'`, marcado `NOSONAR` en la sección 3.59).
+   Si `gitleaks` no está instalado, el hook avisa y deja pasar el
+   commit -- mejor que se instale que no que nadie pueda commitear.
+2. **`scripts/check-bare-npm.sh`** -- acotado y propio de este
+   proyecto (gitleaks no cubre esto): busca `execFileSync`/`spawn`/
+   `exec` invocando `'npm'` a secas en los ficheros staged, el mismo
+   patrón exacto que la regla `typescript:S4036`.
+
+**Verificado con casos reales antes de darlo por bueno, no solo
+leído** -- probado con un binario de `gitleaks` descargado aparte para
+la prueba (sin `sudo`, sin tocar el sistema; instalarlo de verdad
+exige contraseña interactiva que esta sesión no tiene, así que queda
+como paso pendiente del usuario, documentado en el README):
+
+- Una clave con formato de API real (estilo Stripe) en un fichero
+  staged de prueba → bloquea (`exit 1`).
+- La clave de ejemplo canónica de la propia documentación de AWS
+  (`AKIAIOSFODNN7EXAMPLE`) → **no** bloquea -- gitleaks ya la trae
+  excluida por defecto en su configuración, no es un fallo de esta
+  configuración.
+- Los ficheros reales ya arreglados de `e2e/` (con `Changeme123!`) →
+  no bloquean -- confirmado que la contraseña de desarrollo sembrada
+  no coincide con ningún patrón de credencial real (entropía
+  demasiado baja para las reglas basadas en formato).
+- Un `execFileSync('npm', ...)` de prueba → bloquea, con un mensaje
+  que señala el patrón correcto (`runNpm` de `npmChildProcess.ts`).
+- Confirmado además con un `git commit` real (no solo invocando los
+  scripts a mano) que Husky dispara el hook correctamente a través del
+  mecanismo real de git.
+
+**Hallazgo aparte, sin tocar y señalado al usuario**: al escanear el
+historial completo (no solo lo *staged*) para probar `gitleaks`,
+aparecieron **claves de API de Google Cloud reales** (`AIzaSy...`) en
+commits de `2026-09-16` de un autor que no es el usuario
+(`aimeethehost-lab`) -- de otra rama del mismo `origin` compartido (un
+ejercicio o alumno distinto, nada que ver con este proyecto). No se ha
+tocado nada: no es código de esta sesión, y tampoco hay permiso de
+escritura sobre ese historial. Queda a criterio del usuario si avisar
+a alguien del bootcamp.
+
+Documentado en `README-ES.md`/`README-EN.md` (comando de instalación
+de `gitleaks`, y que el hook no bloquea si no está instalado) junto al
+paso 6 (instalación de dependencias), que es cuando se activa.
+
+```
+git commit real → hook disparado correctamente, "no leaks found",
+                   commit completado
+```

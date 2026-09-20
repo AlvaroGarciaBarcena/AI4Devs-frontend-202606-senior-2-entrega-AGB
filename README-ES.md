@@ -116,10 +116,18 @@ Para pararlo más adelante: `docker compose down` (tus datos se quedan en disco;
 Tres `package.json` distintos, tres instalaciones:
 
 ```bash
-npm install              # raíz — solo hace falta para la suite E2E de Playwright, ver el paso 11
+npm install              # raíz — la suite E2E de Playwright (paso 11) y los hooks de pre-commit (más abajo)
 cd backend && npm install && cd ..
 cd frontend && npm install && cd ..
 ```
+
+`npm install` en la raíz también activa dos comprobaciones automáticas antes de cada commit (Husky, `.husky/pre-commit`): que no se cuele ninguna credencial real en lo que vas a commitear, y que ningún proceso hijo lance `npm` sin una ruta fija (`execFileSync('npm', ...)`, vulnerable a que el sistema operativo lo resuelva por `PATH`) — ambas nacieron de hallazgos reales del *quality gate* de SonarCloud del PR de entrega (`prompts-AGB.md`, sección 3.59). La primera necesita [`gitleaks`](https://github.com/gitleaks/gitleaks) instalado:
+
+```bash
+sudo apt install -y gitleaks
+```
+
+Si no lo tienes instalado, el commit sigue funcionando igual — el hook solo avisa de que esa comprobación en concreto se ha omitido, no bloquea.
 
 ## 7. Crea el esquema de la base de datos y los datos de ejemplo
 

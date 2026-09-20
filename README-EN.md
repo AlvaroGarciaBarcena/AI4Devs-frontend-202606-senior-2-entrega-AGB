@@ -116,10 +116,18 @@ To stop it later: `docker compose down` (your data stays on disk; add `-v` only 
 Three separate `package.json` files, three installs:
 
 ```bash
-npm install              # root — only needed for the Playwright E2E suite, see step 11
+npm install              # root — the Playwright E2E suite (step 11) and the pre-commit hooks (below)
 cd backend && npm install && cd ..
 cd frontend && npm install && cd ..
 ```
+
+`npm install` at the root also enables two automatic pre-commit checks (Husky, `.husky/pre-commit`): that no real credential sneaks into what you're about to commit, and that no child process launches `npm` without a fixed path (`execFileSync('npm', ...)`, vulnerable to the OS resolving it via `PATH`) — both came from real findings on the delivery PR's SonarCloud quality gate (`prompts-AGB.md`, section 3.59). The first one needs [`gitleaks`](https://github.com/gitleaks/gitleaks) installed:
+
+```bash
+sudo apt install -y gitleaks
+```
+
+If you don't have it installed, commits still go through — the hook just warns that this particular check was skipped, it doesn't block.
 
 ## 7. Create the database schema and seed data
 
