@@ -15,6 +15,16 @@ línea de cada rama, y para saber dónde empieza cada tema hay que saber esto).
 > real (no contra `main`, salvo las tres raíces: `backend-AGB`,
 > `frontend-AGB`, `positions-proceso-AGB`).
 
+> **Segundo ejercicio, QA/Playwright (2026-09-20, sección 3.63):** la rama
+> #36 se renombró de `step-validation-AGB` a `evaluacion-nuevos-candidatos-AGB`
+> porque aglutina todo el trabajo de la Lección 11 (ambos ejercicios) y el
+> nombre antiguo ya no lo reflejaba. Se forkeó
+> https://github.com/LIDR-academy/AI4Devs-qa-202606-senior-2 como
+> https://github.com/AlvaroGarciaBarcena/AI4Devs-qa-202606-senior-2-entrega-AGB
+> y esa rama se publicó como su `main` (con `--force`, sin historia común
+> entre ambos repos; el `main` original del fork solo tenía los 2 commits de
+> plantilla de LIDR-academy, nada propio que perder).
+
 > Nota: el propio repositorio tiene también decenas de ramas `origin/kanban-*`,
 > `origin/frontend-storybook/*`, `origin/sesion-e2e/*`, etc. — un ejercicio de
 > otro módulo del bootcamp que comparte este mismo `origin` pero no tiene
@@ -58,7 +68,7 @@ línea de cada rama, y para saber dónde empieza cada tema hay que saber esto).
 | 33 | `add-interview-phase-AGB` | 2026-09-20 17:33 | `5ff860f`·`5f2bb19` | [§3.54](./prompts-AGB.md#354-añadir-una-fase-nueva-al-proceso-de-selección-add-interview-phase-agb) |
 | 34 | `interview-scoring-on-move-AGB` | 2026-09-20 22:14 | `ec8ced0`·`704a789`·`81d4b56`·`e37eb0b`·`da0d52f`·`be07b36`·`16d8e7b`·`bc7bd05`·`7e920e0`·`126b9b9`·`7922c95`·`acfc133`·`6512dd2` | [§3.55](./prompts-AGB.md#355-puntuar-la-entrevista-al-mover-a-un-candidato-de-fase-interview-scoring-on-move-agb)–[§3.60](./prompts-AGB.md#360-dos-hooks-de-pre-commit-husky-que-no-vuelva-a-pasar-lo-de-la-sección-359) |
 | 35 | `tenant-isolation-AGB` | 2026-09-20 22:40 | `28c5c8c`·`eceb5e8` | [§3.61](./prompts-AGB.md#361-auditoría-de-ciberseguridad-completa-aislamiento-entre-empresas-roto-tenant-isolation-agb) |
-| 36 | `step-validation-AGB` | 2026-09-20 22:46 | `2358ef3` | [§3.62](./prompts-AGB.md#362-hallazgo-secundario-de-la-auditoría-la-fase-destino-no-se-validaba-step-validation-agb) |
+| 36 | `evaluacion-nuevos-candidatos-AGB` (antes `step-validation-AGB`) | 2026-09-20 22:46 | `2358ef3` | [§3.62](./prompts-AGB.md#362-hallazgo-secundario-de-la-auditoría-la-fase-destino-no-se-validaba-evaluacion-nuevos-candidatos-agb-antes-step-validation-agb) · [§3.63](./prompts-AGB.md#363-renombrar-la-rama-y-preparar-la-entrega-del-segundo-ejercicio-qaplaywright) |
 
 ## Cómo leer esto
 

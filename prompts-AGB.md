@@ -6532,7 +6532,7 @@ de proceso, mover candidatos) sin ningún cambio de comportamiento para
 el propio usuario. Datos de la PoC borrados en ambas verificaciones,
 antes y después del arreglo.
 
-## 3.62 Hallazgo secundario de la auditoría: la fase destino no se validaba (`step-validation-AGB`)
+## 3.62 Hallazgo secundario de la auditoría: la fase destino no se validaba (`evaluacion-nuevos-candidatos-AGB`, antes `step-validation-AGB`)
 
 Segundo hallazgo de la auditoría completa de la sección 3.61, en su
 propia rama tal como pidió el usuario. `updateCandidateStage` guardaba
@@ -6568,3 +6568,52 @@ distintos) -- rechazado con `400` y el mensaje claro de que esa fase no
 pertenece al flujo de su posición. Confirmado sin regresión que
 moverlo de vuelta a una fase real de su propio proceso sigue
 funcionando con normalidad.
+
+## 3.63 Renombrar la rama y preparar la entrega del segundo ejercicio (QA/Playwright)
+
+El usuario recordó que la Lección 11 tenía **dos** ejercicios: mover
+candidatos entre fases (ya resuelto en este mismo repo) y un ejercicio
+de QA con Playwright, en un repositorio aparte:
+`LIDR-academy/AI4Devs-qa-202606-senior-2`. Como el repo de partida del
+primer ejercicio obligó a divergir tanto (ver la justificación en
+`JUSTIFICACION-ENTREGA.md`), se decidió resolver ambos ejercicios sobre
+el mismo proyecto ya evolucionado y entregarlos juntos.
+
+**Primer paso -- renombrar la rama que aglutina todo el trabajo**: la
+rama `step-validation-AGB` (fila 36 de `BRANCHES_LOG`, punta de la
+cadena secuencial de las 36 ramas `*-AGB`) pasó a llamarse
+`evaluacion-nuevos-candidatos-AGB`, porque a partir de ahora es la base
+de la que van a colgar las ramas del segundo ejercicio y el nombre
+antiguo (que solo hablaba del hallazgo de seguridad de la sección 3.62)
+ya no representaba lo que contiene.
+
+Al renombrar la rama en GitHub (repo privado, vía
+`POST /repos/.../branches/{branch}/rename`) el PR abierto que tenía como
+`head` esa rama (#36) se cerró automáticamente en vez de re-enlazarse a
+la rama con el nuevo nombre, que es el comportamiento que documenta
+GitHub para este endpoint -- en la práctica no ocurrió así. Se sustituyó
+por un PR nuevo (#37) con el mismo contenido, dejando una nota explicando
+el porqué. No se perdió ningún commit -- el cierre fue solo del PR, la
+rama y su contenido siguieron intactos en todo momento.
+
+**Segundo paso -- base para el ejercicio de QA**: se forkeó
+`LIDR-academy/AI4Devs-qa-202606-senior-2` como
+`AlvaroGarciaBarcena/AI4Devs-qa-202606-senior-2-entrega-AGB` (iniciales
+en el nombre del fork, mismo criterio ya acordado para el otro
+ejercicio en la sección 3.59). Como ese repo no comparte historia git
+con este proyecto, no hay manera de que `evaluacion-nuevos-candidatos-AGB`
+se convierta en su `main` mediante un merge o fast-forward normal --
+hacía falta un `push --force`. Antes de hacerlo se comprobó que el
+`main` del fork recién creado solo tenía los 2 commits de plantilla de
+LIDR-academy (`Initial commit` y `Revise README...`), así que no había
+nada propio que perder. Confirmado el resultado: el `main` del fork
+apunta ahora a la misma punta (`16f5222`) que
+`evaluacion-nuevos-candidatos-AGB`.
+
+**Pendiente**: a partir de este `main` propio se crearán las ramas
+específicas del ejercicio de QA (atributos `data-testid`, prueba E2E
+real de drag-and-drop con Playwright, fichero de prompts en el formato
+que exige ese repo, etc.), siguiendo el mismo patrón de siempre --
+antes de tocar código, se relee con atención el `README.md` de
+`AI4Devs-qa-202606-senior-2` para confirmar exactamente qué pide la
+entrega.
