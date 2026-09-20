@@ -6089,3 +6089,71 @@ guardar. Revertidos los datos de esta verificación (los `Interview` de
 prueba borrados, la fase de Carlos García devuelta a su valor original
 directamente por Prisma -- no por el endpoint, para no dejar un
 `Interview` extra de la propia reversión) antes de terminar.
+
+## 3.56 Primera publicación en GitHub: repositorio privado propio + 34 PR encadenados
+
+El usuario recuperó el acceso a GitHub (`gh auth login`, cuenta
+`AlvaroGarciaBarcena`) y pidió subir por fin todo el trabajo -- pero
+con una condición explícita: que el código no sirviera de material de
+entrenamiento para modelos de IA. Aclarado antes de tocar nada: el
+`origin` de este proyecto es `LIDR-academy/AI4Devs-frontend-202606-senior-2`
+(el repositorio de la organización del bootcamp) y es **público**
+(confirmado con `curl` a la API de GitHub sin autenticar, que devolvió
+200 -- un repo privado habría dado 404). GitHub no tiene "ramas
+privadas": la visibilidad es una propiedad de todo el repositorio, así
+que cualquier rama subida a ese `origin` habría sido pública igual que
+el resto. Explicado también el matiz real de fondo: GitHub declara que
+el contenido de los repos **privados** no se usa para entrenar los
+modelos de Copilot, a diferencia de los públicos -- no una garantía
+que yo pueda dar, pero sí la palanca que existe.
+
+**Solución**: publicar en un repositorio nuevo, privado, bajo la
+cuenta personal del usuario -- sin tocar `origin` en ningún momento.
+Pedido el nombre `AI4Devs-frontend-202606-senior-2-AGB` (el original +
+`-AGB`); resultó que ya existía en su cuenta (`gh repo create` falló
+con "Name already exists"). Investigado antes de asumir nada: ese repo
+ya existente tenía el mismo commit inicial (`8025b6f`) que este
+proyecto local -- no era un repositorio ajeno, era la copia que el
+propio usuario ya había preparado semanas atrás (antes de perder el
+acceso), simplemente pública y solo con `main`. Cambiada su
+visibilidad a privada (`gh repo edit --visibility private`) y añadido
+como segundo remoto (`personal`), dejando `origin` intacto.
+
+**Reconstrucción del árbol real de ramas, no de memoria**: para que
+cada PR comparase solo su propio incremento (no todo el histórico
+acumulado contra `main`), se calculó programáticamente el padre
+inmediato de cada una de las 34 ramas `*-AGB` -- para cada rama, qué
+otra rama es su ancestro más profundo (`git merge-base --is-ancestor` +
+`git rev-list --count` para desempatar). El resultado coincidió
+exactamente con el orden documentado en `BRANCHES_LOG`, incluida la
+única excepción real: `backend-AGB`, `frontend-AGB` y
+`positions-proceso-AGB` resultaron ser tres ramas independientes desde
+`main` (no encadenadas entre sí, a pesar de la nota genérica de
+`BRANCHES_LOG` sobre "cada una nace de la punta de la anterior") y
+`all-fixes-AGB` es el único punto de fusión real (dos padres; el PR se
+apoya en el de mayor profundidad, `candidate-validation-i18n-a11y-AGB`,
+y el diff resultante incluye igualmente lo aportado por
+`positions-proceso-AGB` porque no está en esa rama).
+
+Subidas las 34 ramas de una vez (`git push personal --all`) y creados
+los 34 PR en orden, cada uno con `--base` la rama padre real
+(`main` solo para las tres raíces) y `--head` la propia rama -- **34
+PR, ninguno contra `main` salvo esas tres**. Verificados varios al
+azar (`gh pr view --json additions,deletions,changedFiles`): diffs de
+cientos de líneas por PR, no miles -- confirma que cada uno compara
+solo su propio incremento, no el acumulado.
+
+Todo esto se hizo mientras el usuario ya se había ido ("¿Puedes hacer
+esto sin mí?") -- pedido explícitamente y con alcance ya acordado
+(nombre del repo, siempre `--private`, subir todas las ramas, crear
+los PR asociados), así que no hizo falta confirmación adicional para
+cada paso.
+
+```
+git remote -v              → origin sin tocar; personal nuevo
+git push personal --all    → 34 ramas nuevas + main (ya existía, sin cambios)
+gh pr list (34 PR)         → cadena completa verificada, cada head->base correcto
+```
+
+Repositorio: https://github.com/AlvaroGarciaBarcena/AI4Devs-frontend-202606-senior-2-AGB
+(privado).

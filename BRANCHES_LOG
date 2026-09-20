@@ -7,6 +7,14 @@ línea de cada rama, y para saber dónde empieza cada tema hay que saber esto).
 
 `main` sigue en el *Initial commit* — nada de esto se ha fusionado ahí todavía.
 
+> **Publicación (2026-09-20, sección 3.56):** `origin` (arriba) sigue sin
+> tocarse — es el repo público de la organización del bootcamp. Las 34 ramas
+> de esta tabla están publicadas en un repositorio **privado** propio,
+> https://github.com/AlvaroGarciaBarcena/AI4Devs-frontend-202606-senior-2-AGB,
+> como segundo remoto (`personal`), con un PR por rama contra su rama padre
+> real (no contra `main`, salvo las tres raíces: `backend-AGB`,
+> `frontend-AGB`, `positions-proceso-AGB`).
+
 > Nota: el propio repositorio tiene también decenas de ramas `origin/kanban-*`,
 > `origin/frontend-storybook/*`, `origin/sesion-e2e/*`, etc. — un ejercicio de
 > otro módulo del bootcamp que comparte este mismo `origin` pero no tiene
