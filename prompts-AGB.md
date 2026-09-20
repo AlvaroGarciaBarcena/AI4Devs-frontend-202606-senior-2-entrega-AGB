@@ -4565,3 +4565,116 @@ openspec validate --specs --strict → 11 passed, 0 failed
   la tarde hasta este cierre, cada uno con su propio mensaje explicando
   qué cambió y por qué -- nada squashed, la historia completa queda
   como registro de lo que se hizo y se encontró.
+
+## 3.33 Se corrige el hallazgo de 3.30.4: indicador de carga real, genérico, con `useNavigation()`
+
+A la mañana siguiente, retomando el hallazgo dejado sin corregir:
+*"¿Cuesta mucho añadirlo para todos los casos? ¿Es algo que puedes
+programar una vez pero aplicar n veces?"* — confirmada la Opción A
+(migrar a `createBrowserRouter`/`useNavigation()`, la forma que React
+Router recomienda para esto exactamente), con un matiz explícito:
+*"me gustaría que lo implementaras de manera genérica como un
+componente que puede después reutilizar en cualquier web que pueda
+desarrollar en el futuro"* -- y aviso de que, tras cerrar el trabajo de
+Playwright, querrá entrar en un proceso de refactorización hacia
+componentes reutilizables (pendiente, no arrancado todavía).
+
+### 3.33.1 `NavigationLoadingIndicator`, componente genérico
+
+`frontend/src/components/NavigationLoadingIndicator.jsx`: una barra
+fina fija en la parte superior de la pantalla, con `role="status"`/
+`aria-live="polite"` y un texto de estado (técnica *sr-only* clásica
+en línea, sin depender de ninguna clase de Bootstrap ni de ningún
+framework CSS). Sin nada específico de esta app: solo depende de
+`react-router-dom` (`useNavigation()`, disponible desde v6.4 en modo
+*data router*) y de React. Props configurables (`label`, `color`,
+`height`, `delayMs`) para que se pueda copiar tal cual a cualquier
+otro proyecto. `delayMs` (150ms por defecto) evita el parpadeo en
+navegaciones casi instantáneas -- la barra visual no aparece a menos
+que la carga siga en marcha pasado ese tiempo, aunque el propio
+anuncio a lectores de pantalla se actualiza de inmediato, sin ese
+retraso (quien usa un lector de pantalla no necesita la heurística
+anti-parpadeo pensada para quien ve la pantalla).
+
+### 3.33.2 Migración de `App.jsx` a `createBrowserRouter`
+
+`<BrowserRouter>`/`<Routes>` (modo declarativo) pasa a
+`createBrowserRouter`/`<RouterProvider>` (modo *data router*). Las 4
+rutas protegidas cambian de `React.lazy()` + `<Suspense fallback=...>`
+a nivel de componente a `lazy` a nivel de **ruta** -- con esto el
+propio router sabe cuándo una navegación sigue esperando el código de
+la pantalla destino, y `useNavigation().state` lo refleja de verdad
+(con `React.lazy()`/`Suspense` a mano, como se documentó en 3.30.4,
+las navegaciones por `<Link>` se trataban como una transición de React
+que mantenía la pantalla anterior montada sin ninguna señal). `Login`
+se mantiene con import estático, a propósito, igual que antes.
+
+**Regresión real encontrada y corregida durante la propia migración**:
+`lazy` a nivel de ruta se invoca durante el *emparejamiento* de la
+ruta, no durante su renderizado -- así que se ejecutaba (y descargaba
+el código) **antes** de que `<RequireAuth/>` (que solo actúa al
+renderizar) tuviera ocasión de redirigir. El propio escenario E2E que
+comprueba "Primera visita sin sesión iniciada" lo detectó de
+inmediato: una visita sin sesión volvía a descargar código protegido,
+justo el requisito que se estaba, en teoría, dejando intacto. Se
+corrige con un chequeo síncrono de `localStorage` (`getStoredAuth()`,
+sin pasar por React) al principio de cada `lazy`, que evita el
+`import()` por completo si no hay sesión, devolviendo directamente
+`<RequireAuth/>` (que redirige) sin haber descargado nada.
+
+### 3.33.3 Un `role="status"` permanente rompía 9 aserciones de la propia suite
+
+Al ejecutar la suite completa tras la migración, 9 escenarios fallaron
+con "strict mode violation" (`getByRole('status')` resolviendo a 2
+elementos): `NavigationLoadingIndicator` es un `role="status"`
+permanente en el DOM (necesario para que `aria-live` funcione bien de
+verdad -- desmontar y remontar el contenedor de una región *live*
+pierde anuncios reales en varios lectores de pantalla, así que se
+queda montado siempre, con el texto vacío cuando no hay navegación en
+marcha), y varios *steps* escritos anoche asumían que solo existiría
+un `role="status"` en toda la página (el mensaje de éxito del alta de
+candidato). Corregido filtrando por el texto del mensaje en concreto
+(`.filter({ hasText: 'Candidato añadido con éxito' })`) en los 8
+puntos afectados (`candidate-intake`, `hiring-pipeline`,
+`accessibility`), con un helper compartido
+(`expectSuccessMessage`) en `candidate-intake.steps.ts` para no
+repetir el mismo comentario 5 veces.
+
+Un segundo hallazgo menor durante la depuración de la nueva aserción
+de "indicación de carga": `getByRole('status', { name: '...' })` no
+resolvía el indicador de forma fiable pese a que su nombre accesible
+era correcto de verdad (confirmado con `ariaSnapshot()`) -- probable
+manejo especial/con retraso de Chromium para regiones `aria-live` en
+su árbol de accesibilidad. Se cambia a `page.locator('[role="status"]')`
++ `toContainText(...)`, que no depende del cómputo del nombre
+accesible.
+
+7 candidatos de prueba quedaron acumulados en la base de datos
+mientras la propia suite fallaba a medio camino (varios intentos no
+llegaban a su propio `cleanup` por culpa de la colisión de arriba) --
+limpiados a mano antes de la verificación final.
+
+### 3.33.4 Verificación final
+
+```
+npx bddgen && npx playwright test
+  → 48 passed (1.0m): las 10 capacidades completas, incluido el
+    escenario de indicación de carga ahora comprobando el
+    comportamiento real (antes solo comprobaba que la pantalla nueva
+    acababa apareciendo)
+
+npm test (backend)   → 47 passed
+npm test (frontend)  → 34 passed
+```
+
+Verificado también a mano en el navegador: login, Dashboard,
+Posiciones y Agregar Candidato renderizan igual que antes de la
+migración; la barra de carga aparece de verdad al navegar a una
+pantalla con el chunk artificialmente retrasado.
+
+Queda pendiente, cuando el usuario lo pida, el proceso de
+refactorización hacia componentes reutilizables mencionado al aceptar
+este cambio -- `NavigationLoadingIndicator` es, de hecho, el primer
+componente de esta sesión escrito ya pensando en esa reutilización
+futura (sin dependencias de la app, props configurables, comentario
+explicando qué necesita para funcionar en otro proyecto).

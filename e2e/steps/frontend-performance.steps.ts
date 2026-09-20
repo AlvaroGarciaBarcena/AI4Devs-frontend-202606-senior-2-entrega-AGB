@@ -61,43 +61,19 @@ Then('el código de la pantalla de alta de candidato no llega a descargarse en e
   expect(requestedUrls.some((url) => CHUNK_URL_PATTERNS.AddCandidateForm.test(url))).toBe(false);
 });
 
-// HALLAZGO REAL, sin corregir a propósito (comentado, tal y como se pidió
-// para cualquier stopper encontrado trabajando de forma autónoma):
+// Corregido: el hallazgo real de esta sesión (el Suspense fallback nunca
+// se mostraba durante una navegación por <Link>, ver prompts-AGB.md
+// sección 3.30.4) se resolvió migrando App.jsx de <BrowserRouter>/<Routes>
+// a createBrowserRouter -- las 4 rutas protegidas ahora usan `lazy` a
+// nivel de ruta en vez de React.lazy()+<Suspense> a mano, así que el
+// propio router sabe cuándo una navegación sigue esperando el código de
+// la pantalla destino (useNavigation().state), y
+// <NavigationLoadingIndicator> (frontend/src/components/) lo refleja.
 //
-// El requisito dice que el sistema SHALL mostrar una indicación de carga
-// mientras se descarga el código de una pantalla protegida. Probado de
-// verdad (retrasando a propósito, con page.route(), la petición del chunk
-// de AddCandidateForm.jsx 800ms) y trazando el DOM cada 20-150ms tras
-// pulsar el enlace real "Añadir Nuevo Candidato": la URL cambia a
-// /add-candidate al instante (React Router sí actualiza la navegación),
-// pero el contenido en pantalla se queda mostrando "Dashboard del
-// Reclutador" -- la pantalla ANTERIOR -- de forma continua durante los
-// 800ms+ que tarda el chunk en llegar, y solo entonces cambia de golpe a
-// "Agregar Candidato". El <Suspense fallback={<PageFallback/>}> de
-// App.jsx NUNCA llega a mostrarse en ningún punto intermedio -- ni una
-// sola de las capturas del DOM a intervalos de 20-150ms lo contenía.
-//
-// Explicación más probable: las navegaciones disparadas por <Link> de
-// react-router-dom (migrado a v7 en react-router-v7-AGB) se tratan como
-// una transición de React 18 que mantiene la UI anterior montada hasta
-// que el contenido nuevo está listo, en vez de mostrar el fallback de
-// Suspense de inmediato -- un comportamiento por diseño de React para
-// evitar parpadeos en transiciones rápidas, pero que aquí deja a quien
-// pulsa el enlace sin ninguna señal de que algo está pasando durante
-// más de 800ms en una conexión lenta, justo lo que este requisito de
-// accesibilidad quería evitar.
-//
-// No se corrige aquí: la solución real (forzar el fallback de Suspense a
-// mostrarse durante estas transiciones, o exponer un estado de "cargando"
-// propio con useNavigation/un estado local en el <Link>) es una decisión
-// de arquitectura -- hay más de una forma razonable de resolverlo, y no
-// es una corrección local de una línea como los hallazgos anteriores de
-// esta sesión. Se deja documentado (prompts-AGB.md) para que el usuario
-// decida el enfoque. El escenario se deja en verde comprobando lo que SÍ
-// es cierto ahora mismo (el contenido de la pantalla nueva acaba
-// apareciendo, la carga diferida en sí funciona -- ya cubierto por los
-// otros dos escenarios de esta misma capacidad) en vez de dejarlo en
-// rojo sin más contexto.
+// Se retrasa a propósito, con page.route(), la petición del chunk de
+// AddCandidateForm.jsx 800ms -- muy por encima de los delayMs=150 del
+// propio indicador -- para comprobar que aparece de verdad durante la
+// espera, no solo que la pantalla nueva acaba llegando.
 
 Given('un usuario autenticado está en una pantalla cuyo código ya se descargó', async ({ page }) => {
   await page.goto('/');
@@ -105,13 +81,24 @@ Given('un usuario autenticado está en una pantalla cuyo código ya se descargó
 });
 
 When('navega por primera vez a otra pantalla protegida cuyo código aún no se ha descargado', async ({ page }) => {
+  await page.route(/AddCandidateForm/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await route.continue();
+  });
   await page.getByRole('link', { name: 'Añadir Nuevo Candidato' }).click();
 });
 
 Then('ve una indicación de carga hasta que la pantalla está lista para mostrarse', async ({ page }) => {
-  // Ver el comentario de arriba: la parte de "indicación de carga" es un
-  // hallazgo real sin corregir, no verificable en verde de forma honesta
-  // todavía. Se comprueba lo que sí es cierto: la pantalla nueva acaba
-  // apareciendo tras la navegación.
+  // getByRole('status', { name: ... }) no resolvía este elemento de forma
+  // fiable pese a que su nombre accesible era correcto de verdad
+  // (confirmado con ariaSnapshot() durante la depuración) -- probable
+  // manejo especial/con retraso de Chromium para regiones aria-live en su
+  // árbol de accesibilidad, que getByRole(..., {name}) no siempre ve a
+  // tiempo. Se localiza por el propio atributo role y se comprueba el
+  // texto del hijo directamente, sin depender del cómputo del nombre
+  // accesible.
+  const indicator = page.locator('[role="status"]');
+  await expect(indicator).toContainText('Cargando página…');
   await expect(page.getByRole('heading', { name: 'Agregar Candidato' })).toBeVisible();
+  await expect(indicator).not.toContainText('Cargando página…');
 });

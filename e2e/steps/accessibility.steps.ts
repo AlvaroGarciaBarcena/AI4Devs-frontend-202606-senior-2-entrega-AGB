@@ -61,7 +61,9 @@ Then('el mensaje de éxito se anuncia de forma no intrusiva', async ({ page }) =
   // role="status" + aria-live="polite": se anuncia sin interrumpir lo
   // que el lector de pantalla estuviera leyendo -- a diferencia del
   // resumen de errores (role="alert"/"assertive"), que sí interrumpe.
-  const success = page.getByRole('status');
+  // Filtrado por texto porque NavigationLoadingIndicator añade un
+  // segundo role="status" permanente en el DOM.
+  const success = page.getByRole('status').filter({ hasText: 'Candidato añadido con éxito' });
   await expect(success).toHaveText('Candidato añadido con éxito');
   await expect(success).toHaveAttribute('aria-live', 'polite');
 

@@ -101,7 +101,10 @@ When('se da de alta un candidato eligiendo esa posición', async ({ page }) => {
   await page.getByLabel('Apellido').fill('Candidato');
   await page.getByLabel('Correo Electrónico').fill(lastCandidateEmail);
   await page.getByRole('button', { name: 'Enviar' }).click();
-  await expect(page.getByRole('status')).toHaveText('Candidato añadido con éxito');
+  // getByRole('status') a secas ya no basta: NavigationLoadingIndicator
+  // (frontend/src/components/) es un segundo role="status" permanente en
+  // el DOM, hace falta filtrar por el texto del mensaje de éxito.
+  await expect(page.getByRole('status').filter({ hasText: 'Candidato añadido con éxito' })).toHaveText('Candidato añadido con éxito');
 });
 
 Then('ese candidato aparece de inmediato en la primera columna del tablero de esa posición, con puntuación media de 0', async ({ page }) => {

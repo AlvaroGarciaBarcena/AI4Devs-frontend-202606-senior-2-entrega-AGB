@@ -68,6 +68,15 @@ const cleanupCandidateByEmail = async (email: string) => {
   await prisma.candidate.delete({ where: { id: candidate.id } });
 };
 
+// getByRole('status') a secas ya no basta desde que existe
+// NavigationLoadingIndicator (frontend/src/components/): es un segundo
+// role="status" permanente en el DOM (necesario para que aria-live
+// funcione bien -- desmontarlo y volver a montarlo perdería anuncios
+// reales), así que hace falta filtrar por el texto del mensaje de éxito
+// en concreto para no toparse con "strict mode violation".
+const expectSuccessMessage = (page: Page) =>
+  expect(page.getByRole('status').filter({ hasText: 'Candidato añadido con éxito' })).toHaveText('Candidato añadido con éxito');
+
 Given('el reclutador está en el formulario de alta de candidato', async ({ page }) => {
   await goToAddCandidateForm(page);
 });
@@ -80,7 +89,7 @@ When('envía nombre, apellidos, email y una posición válidos', async ({ page }
 });
 
 Then('el sistema crea el candidato y muestra el mensaje de éxito', async ({ page }) => {
-  await expect(page.getByRole('status')).toHaveText('Candidato añadido con éxito');
+  await expectSuccessMessage(page);
   await cleanupCandidateByEmail(lastCandidateEmail);
 });
 
@@ -110,7 +119,7 @@ When('pulsa "Añadir Educación" y rellena institución, título y fecha de inic
   await fillBasicFields(page, { firstName: 'Laura', lastName: 'Martin', email: lastCandidateEmail });
   await selectKnownPosition(page);
   await page.getByRole('button', { name: 'Enviar' }).click();
-  await expect(page.getByRole('status')).toHaveText('Candidato añadido con éxito');
+  await expectSuccessMessage(page);
 });
 
 Then('esa entrada se guarda asociada al candidato tras el envío', async () => {
@@ -149,7 +158,7 @@ When('pulsa "Añadir Experiencia Laboral" y rellena empresa, puesto y fecha de i
   await fillBasicFields(page, { firstName: 'Carmen', lastName: 'Ruiz', email: lastCandidateEmail });
   await selectKnownPosition(page);
   await page.getByRole('button', { name: 'Enviar' }).click();
-  await expect(page.getByRole('status')).toHaveText('Candidato añadido con éxito');
+  await expectSuccessMessage(page);
 });
 
 Then('esa entrada de experiencia se guarda asociada al candidato tras el envío', async () => {
@@ -175,7 +184,7 @@ When('el reclutador elige esa posición en el desplegable y completa el resto de
   await selectKnownPosition(page);
   await fillBasicFields(page, { firstName: 'Elena', lastName: 'Torres', email: lastCandidateEmail });
   await page.getByRole('button', { name: 'Enviar' }).click();
-  await expect(page.getByRole('status')).toHaveText('Candidato añadido con éxito');
+  await expectSuccessMessage(page);
 });
 
 Then('el candidato se crea y aparece en la primera fase del tablero "Ver proceso" de esa posición', async ({ page }) => {
@@ -211,7 +220,7 @@ Then('el sistema rechaza el alta señalando el campo de posición como obligator
   const isValid = await page.getByLabel('Posición a la que se presenta').evaluate((el: HTMLSelectElement) => el.validity.valid);
   expect(isValid).toBe(false);
   await expect(page).toHaveURL(/\/add-candidate$/);
-  await expect(page.getByRole('status')).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Candidato añadido con éxito' })).toHaveCount(0);
 });
 
 Given('la posición elegida existe pero su flujo de entrevistas no tiene ninguna fase', async ({ page }) => {
@@ -299,7 +308,7 @@ Given('un reclutador acaba de completar un alta de candidato con éxito', async 
   await expect(page.getByText('Archivo subido con éxito')).toBeVisible();
 
   await page.getByRole('button', { name: 'Enviar' }).click();
-  await expect(page.getByRole('status')).toHaveText('Candidato añadido con éxito');
+  await expectSuccessMessage(page);
 });
 
 When('empieza a rellenar los datos de un segundo candidato', async ({ page }) => {
