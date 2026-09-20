@@ -11,6 +11,7 @@ import { AuthTokenPayload } from './application/services/authService';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { buildCorsOptions } from './corsOptions';
 
 // Extender la interfaz Request para incluir prisma y, tras pasar por
 // requireAuth, el empleado autenticado (payload del JWT: id, role,
@@ -69,11 +70,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Middleware para permitir CORS desde http://localhost:3000
-app.use(cors({
-  origin: 'http://localhost:3000',
-  credentials: true
-}));
+// Orígenes permitidos, configurables por CORS_ORIGINS (lista separada por
+// comas) -- por defecto solo http://localhost:3000, igual que antes. Para
+// acceder desde otro equipo de la red local, añade su origen real (p. ej.
+// CORS_ORIGINS=http://localhost:3000,http://192.168.1.50:3000) en
+// backend/.env; ver corsOptions.ts para el porqué.
+app.use(cors(buildCorsOptions(process.env.CORS_ORIGINS)));
 
 // Middleware de logging de peticiones. Debe ir antes de las rutas para
 // registrar TODAS las peticiones entrantes (antes vivía después de las

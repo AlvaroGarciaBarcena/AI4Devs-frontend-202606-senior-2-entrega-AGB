@@ -5352,3 +5352,33 @@ npm test (frontend)      → 79 passed (77 + 2 nuevos)
 npm run build (frontend) → OK, tsc + vite build sin errores
 npm run test:e2e         → 58 passed (57 + 1 nuevo)
 ```
+
+## 3.46 CORS configurable por variable de entorno (`cors-configurable-origins-AGB`)
+
+Contexto: el usuario quiere acceder a la app desde otro equipo de su red
+local (no solo desde la propia máquina), y preguntó qué hacía falta
+habilitar. Además del cortafuegos y de que Vite escuche en todas las
+interfaces (`host: true`, ambos a cargo del usuario), había dos cosas más
+bloqueando el acceso real, que sí implico yo: el origen de CORS estaba
+fijado a `http://localhost:3000` a fuego en `index.ts`, y la URL base de
+la API estaba hardcodeada a `http://localhost:3010` en el frontend
+(sección 3.47). Esta rama resuelve la primera.
+
+Nuevo `corsOptions.ts`: `parseAllowedOrigins`/`buildCorsOptions`,
+separados del bootstrap de Express en `index.ts` a propósito, para poder
+testear el parseo de la lista y la comparación de orígenes sin levantar
+la app entera. `CORS_ORIGINS` (lista separada por comas) en `backend/.env`
+-- sin definirla, el comportamiento es exactamente el de antes (solo
+`http://localhost:3000`), así que no rompe nada para quien no la use.
+
+Verificado con un PoC real (`curl -X OPTIONS` con distintas cabeceras
+`Origin`, backend arrancado con y sin la variable), no solo con los tests:
+con `CORS_ORIGINS=http://localhost:3000,http://192.168.1.50:3000` ambos
+orígenes reciben `Access-Control-Allow-Origin` correcto y uno no
+configurado se rechaza; sin la variable, solo `localhost:3000` pasa,
+igual que antes de este cambio.
+
+```
+npm test (backend)      → 61 passed (53 + 8 nuevos)
+npm run build (backend) → OK, tsc sin errores
+```
