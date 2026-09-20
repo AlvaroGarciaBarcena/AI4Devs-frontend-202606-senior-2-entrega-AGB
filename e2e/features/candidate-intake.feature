@@ -60,3 +60,9 @@ Feature: Alta de candidatos
     Given un reclutador acaba de completar un alta de candidato con éxito
     When empieza a rellenar los datos de un segundo candidato
     Then ningún campo conserva los valores del candidato anterior
+
+  # Requirement: Enlace de vuelta al dashboard
+  Scenario: Volver al dashboard desde el alta de candidato
+    Given el reclutador está en el formulario de alta de candidato
+    When pulsa el enlace de vuelta al dashboard
+    Then el sistema navega al dashboard del reclutador

@@ -38,3 +38,13 @@ El sistema SHALL permitir filtrar el listado de posiciones por título (subcaden
 - **WHEN** el reclutador aplica ese filtro
 - **THEN** el sistema indica que ninguna posición coincide con los filtros, no que no hay posiciones
 
+### Requirement: Enlace de vuelta al dashboard
+_Rama: `back-to-dashboard-links-AGB`_
+
+El sistema SHALL ofrecer, en la pantalla de posiciones, un enlace que navegue de vuelta al dashboard del reclutador.
+
+#### Scenario: Volver al dashboard desde el catálogo de posiciones
+- **GIVEN** el reclutador está en la pantalla de posiciones
+- **WHEN** pulsa el enlace de vuelta al dashboard
+- **THEN** el sistema navega al dashboard del reclutador
+

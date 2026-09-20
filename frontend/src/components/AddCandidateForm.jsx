@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Form, Button, Card, Container, Row, Col, Spinner } from 'react-bootstrap';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import FileUploader from './FileUploader';
 import ValidatedField from './ValidatedField';
 import InlineAlert from './InlineAlert';
@@ -236,10 +236,12 @@ const AddCandidateForm = () => {
 
     return (
         <Container className="mt-5">
-            {isEditMode && (
+            {isEditMode ? (
                 <Button variant="link" className="d-inline-block mb-3 px-0" onClick={() => navigate(-1)}>
                     {t('addCandidate.back')}
                 </Button>
+            ) : (
+                <Link to="/" className="d-inline-block mb-3">{t('common.backToDashboard')}</Link>
             )}
             <h1 className="mb-4">{t(isEditMode ? 'addCandidate.editTitle' : 'addCandidate.title')}</h1>
             <Card className="shadow p-4">

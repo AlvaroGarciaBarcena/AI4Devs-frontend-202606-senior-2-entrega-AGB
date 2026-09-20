@@ -74,3 +74,12 @@ Then('el sistema indica que ninguna posición coincide con los filtros', async (
   await expect(page.getByText('Ninguna posición coincide con los filtros.')).toBeVisible();
   await expect(page.locator('.card')).toHaveCount(0);
 });
+
+When('pulsa el enlace de vuelta al dashboard', async ({ page }) => {
+  await page.getByRole('link', { name: 'Volver al inicio' }).click();
+});
+
+Then('el sistema navega al dashboard del reclutador', async ({ page }) => {
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('heading', { name: 'Dashboard del Reclutador' })).toBeVisible();
+});

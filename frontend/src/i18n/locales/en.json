@@ -3,7 +3,8 @@
     "label": "Language:"
   },
   "common": {
-    "loadingPage": "Loading page…"
+    "loadingPage": "Loading page…",
+    "backToDashboard": "← Back to home"
   },
   "login": {
     "title": "Log in",
@@ -105,7 +106,6 @@
   },
   "unassignedCandidates": {
     "title": "Unassigned Candidates",
-    "back": "← Back to dashboard",
     "name": "Name",
     "email": "Email",
     "registeredAt": "Registered on",

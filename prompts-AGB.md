@@ -5292,3 +5292,32 @@ npm run test:e2e         → 55 passed (52 + 3 nuevos)
 Verificado también a mano en el navegador: los 5 candidatos reales
 sin asignar (recreados tras el hallazgo de la sección 3.40) siguen
 existiendo después de toda esta ronda de tests.
+
+## 3.44 Enlace "Volver al inicio" en Posiciones y Añadir Candidato (`back-to-dashboard-links-AGB`)
+
+Pedido del usuario: en las pantallas "Ver Posiciones" y "Añadir
+Candidato" faltaba un enlace de vuelta al dashboard -- ya existía en
+`UnassignedCandidates.tsx` ("← Volver al dashboard"), pero no en estas
+dos. El usuario pidió además que el texto pasara a ser "Volver al
+inicio", así que de paso se unifica: nueva clave `common.backToDashboard`
+("← Volver al inicio" / "← Back to home") compartida por las tres
+pantallas, en vez de tener el mismo texto duplicado (y ahora
+potencialmente desincronizado) en `unassignedCandidates.back`,
+`positions.*` y `addCandidate.*` por separado.
+
+En `AddCandidateForm.jsx` el enlace solo aparece en modo alta -- el modo
+edición ya tenía su propio "← Volver" (`navigate(-1)`, vuelve a la
+pantalla concreta de la que se vino, no siempre el dashboard), y no tiene
+sentido mostrar los dos a la vez.
+
+Dos escenarios E2E nuevos (uno en `position-catalog.feature`, otro en
+`candidate-intake.feature`), y el requisito correspondiente añadido a
+ambas specs de OpenSpec.
+
+```
+npm test (frontend)      → 77 passed, sin cambios (solo un enlace nuevo,
+                             sin lógica que testear en unidad más allá de
+                             lo que ya cubren los tests existentes)
+npm run build (frontend) → OK, tsc + vite build sin errores
+npm run test:e2e         → 57 passed (55 + 2 nuevos)
+```

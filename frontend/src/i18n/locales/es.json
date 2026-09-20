@@ -3,7 +3,8 @@
     "label": "Idioma:"
   },
   "common": {
-    "loadingPage": "Cargando página…"
+    "loadingPage": "Cargando página…",
+    "backToDashboard": "← Volver al inicio"
   },
   "login": {
     "title": "Iniciar sesión",
@@ -105,7 +106,6 @@
   },
   "unassignedCandidates": {
     "title": "Candidatos sin asignar",
-    "back": "← Volver al dashboard",
     "name": "Nombre",
     "email": "Email",
     "registeredAt": "Fecha de alta",

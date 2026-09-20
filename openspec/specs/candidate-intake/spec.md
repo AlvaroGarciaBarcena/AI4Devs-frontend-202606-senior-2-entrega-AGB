@@ -98,3 +98,13 @@ El sistema SHALL restablecer todos los campos del formulario, incluido el select
 - **WHEN** empieza a rellenar los datos de un segundo candidato
 - **THEN** ningún campo (incluido el fichero de CV ya subido) conserva los valores del candidato anterior
 
+### Requirement: Enlace de vuelta al dashboard
+_Rama: `back-to-dashboard-links-AGB`_
+
+El sistema SHALL ofrecer, en la pantalla de alta de candidato, un enlace que navegue de vuelta al dashboard del reclutador.
+
+#### Scenario: Volver al dashboard desde el alta de candidato
+- **GIVEN** el reclutador está en la pantalla de alta de candidato
+- **WHEN** pulsa el enlace de vuelta al dashboard
+- **THEN** el sistema navega al dashboard del reclutador
+

@@ -60,6 +60,7 @@ const Positions: React.FC = () => {
 
     return (
         <Container className="mt-5">
+            <Link to="/" className="d-inline-block mb-3">{t('common.backToDashboard')}</Link>
             <h2 className="text-center mb-4">{t('positions.title')}</h2>
             <Row className="mb-4">
                 <Col md={4}>

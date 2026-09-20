@@ -24,3 +24,9 @@ Feature: Catálogo de posiciones
     Given existen posiciones, pero ninguna cumple el filtro de estado elegido
     When el reclutador aplica ese filtro
     Then el sistema indica que ninguna posición coincide con los filtros
+
+  # Requirement: Enlace de vuelta al dashboard
+  Scenario: Volver al dashboard desde el catálogo de posiciones
+    Given el reclutador está en la pantalla de posiciones
+    When pulsa el enlace de vuelta al dashboard
+    Then el sistema navega al dashboard del reclutador

@@ -21,7 +21,7 @@ const UnassignedCandidates: React.FC = () => {
 
     return (
         <Container className="mt-5">
-            <Link to="/" className="d-inline-block mb-3">{t('unassignedCandidates.back')}</Link>
+            <Link to="/" className="d-inline-block mb-3">{t('common.backToDashboard')}</Link>
             <h2 className="mb-4">{t('unassignedCandidates.title')}</h2>
             {loading && (
                 <div className="text-center">
