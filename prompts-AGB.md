@@ -6015,3 +6015,77 @@ de prueba con un script puntual de Prisma (`interviewStep.delete` +
 `interviewType.delete`, sin endpoint `DELETE` por ahora -- fuera de lo
 pedido) antes de terminar, para no dejar datos de esta verificación en
 el entorno de desarrollo real del usuario.
+
+## 3.55 Puntuar la entrevista al mover a un candidato de fase (`interview-scoring-on-move-AGB`)
+
+El usuario preguntó cómo estaba previsto puntuar a un candidato tras
+una fase -- misma investigación que la 3.54: existía `Interview.ts`
+(modelo de dominio con su propio `.save()`) sin conectar a nada, y el
+frontend solo *leía* `averageScore`, nunca escribía una puntuación.
+Propuesta discutida con el usuario antes de escribir código: preguntar
+la puntuación de la fase que se abandona justo al mover la ficha (en
+vez de un formulario aparte) -- **opcional**, confirmado explícitamente
+por el usuario ("Coincido en que sea opcional"), para no bloquear
+reorganizaciones rápidas del tablero (como las que hicimos nosotros
+mismos probando `candidate-drag-drop-AGB`). Pregunta de seguimiento del
+usuario, clave para el diseño: *"¿cómo dejamos reflejado que no
+recibió puntuación en el caso de que no se le asigne?"*.
+
+**Decisión**: crear SIEMPRE un `Interview` al mover una ficha (`score`
+en null si se omite), nunca omitir el registro entero -- si no, mover
+una ficha no dejaría ningún rastro de que esa fase se completó de
+verdad, ni de quién la gestionó y cuándo. `employeeId` sale de
+`req.employee.sub` (puesto por `requireAuth`, primer uso real de ese
+campo en todo el backend -- hasta ahora nadie lo leía).
+
+**Fallo real destapado por esto y corregido en el mismo commit**:
+`calculateAverageScore` (`positionService.ts`) hacía `interview.score
+|| 0`, así que una entrevista con `score: null` contaba como un cero
+en la suma **pero sí** en el divisor -- cada fase completada sin
+puntuar hundía la media en vez de no afectarla. No se había notado
+antes porque hasta esta rama no existía ninguna forma de crear una
+`Interview` con `score` en null. Corregido para que las entrevistas
+sin puntuar queden fuera del cálculo, ni sumen ni resten; se añade
+`ungradedInterviews` a la respuesta de `getCandidatesByPositionService`
+para poder mostrarlo.
+
+**Frontend**: mover una ficha (arrastre o selector) ya no llama
+directamente a `updateCandidateStage` -- abre un modal ("¿Qué
+puntuación le das a X en 'fase actual'?") con un campo numérico y dos
+botones, ninguno bloquea el cierre (Guardar / Omitir), más la X de
+cerrar del propio modal (equivalente a omitir sin mover). Junto a
+"Puntuación media" se añade el recuento de entrevistas sin puntuar
+cuando las hay ("Puntuación media: 7.0 (1 entrevista sin puntuar)").
+
+Se detectó durante la propia implementación que la actualización
+optimista existente (de `candidate-drag-drop-AGB`) solo tocaba la
+columna del candidato, no `averageScore`/`ungradedInterviews` -- tras
+puntuar, la tarjeta seguía mostrando la media vieja hasta recargar la
+página. Corregido: tras un movimiento con éxito, se vuelve a pedir la
+lista completa de candidatos al backend (no se puede recalcular la
+media en el cliente sin duplicar la lógica de `calculateAverageScore`).
+
+```
+npx jest (backend)          → 80 passed (72 + 8 nuevos)
+npx tsc && build (backend)  → OK
+npx vitest run (frontend)   → 119 passed (112 + 7 nuevos)
+npx tsc --noEmit (frontend) → OK
+```
+
+Verificado a mano en el navegador con sesión real: puntuada una fase
+con 7, confirmado que la media se actualiza sin recargar; movido otro
+candidato omitiendo la puntuación, confirmado "(1 entrevista sin
+puntuar)". Durante esta verificación se detectó que el backend llevaba
+un rato corriendo con código desactualizado -- el *respawn* de
+`ts-node-dev` no había recogido la última edición de
+`positionService.ts`, así que la media mostrada (3.5) contaba
+incorrectamente el `null` como cero, en vez del valor correcto (7.0).
+Reiniciado el proceso (`pkill -f "ts-node-dev"` + `npm run dev` de
+nuevo) y confirmado el resultado correcto tras el reinicio -- ya había
+pasado antes en esta sesión (sección 3.48) que el *respawn* automático
+no siempre recoge un cambio; vale la pena comprobar la marca de tiempo
+del proceso si un resultado no cuadra con el código que se acaba de
+guardar. Revertidos los datos de esta verificación (los `Interview` de
+prueba borrados, la fase de Carlos García devuelta a su valor original
+directamente por Prisma -- no por el endpoint, para no dejar un
+`Interview` extra de la propia reversión) antes de terminar.

@@ -47,7 +47,8 @@ línea de cada rama, y para saber dónde empieza cada tema hay que saber esto).
 | 30 | `network-error-message-AGB` | 2026-09-20 16:19 | `2c65449` | [§3.50](./prompts-AGB.md#350-network-error-deja-de-ser-el-mensaje-que-ve-el-usuario-network-error-message-agb) |
 | 31 | `position-steps-i18n-AGB` | 2026-09-20 16:44 | `6b8cc68` | [§3.52](./prompts-AGB.md#352-traduce-los-nombres-de-las-fases-del-proceso-de-selección-position-steps-i18n-agb) |
 | 32 | `candidate-drag-drop-AGB` | 2026-09-20 17:00 | `3a26a5d`·`0da6c2b`·`66bf944`·`e1b25b3` | [§3.53](./prompts-AGB.md#353-mover-un-candidato-a-otra-fase-arrastrando-su-ficha-candidate-drag-drop-agb) |
-| 33 | `add-interview-phase-AGB` | 2026-09-20 17:33 | `5ff860f` | [§3.54](./prompts-AGB.md#354-añadir-una-fase-nueva-al-proceso-de-selección-add-interview-phase-agb) |
+| 33 | `add-interview-phase-AGB` | 2026-09-20 17:33 | `5ff860f`·`5f2bb19` | [§3.54](./prompts-AGB.md#354-añadir-una-fase-nueva-al-proceso-de-selección-add-interview-phase-agb) |
+| 34 | `interview-scoring-on-move-AGB` | 2026-09-20 17:53 | `ec8ced0` | [§3.55](./prompts-AGB.md#355-puntuar-la-entrevista-al-mover-a-un-candidato-de-fase-interview-scoring-on-move-agb) |
 
 ## Cómo leer esto
 
