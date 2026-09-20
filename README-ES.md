@@ -20,6 +20,7 @@ Esta guía asume una máquina **Ubuntu** recién instalada, sin nada configurado
 - [10. Inicia sesión](#10-inicia-sesión)
 - [11. Ejecuta las pruebas automáticas](#11-ejecuta-las-pruebas-automáticas)
 - [Estructura del proyecto](#estructura-del-proyecto)
+- [Acceder desde otro equipo de tu red local](#acceder-desde-otro-equipo-de-tu-red-local)
 - [Más documentación](#más-documentación)
 - [Solución de problemas](#solución-de-problemas)
 
@@ -215,6 +216,32 @@ La suite E2E pilota un navegador real contra tu aplicación en marcha y cubre au
 └── docker-compose.yml        Definición del contenedor de PostgreSQL
 ```
 
+## Acceder desde otro equipo de tu red local
+
+Por defecto, todo lo de arriba solo es accesible desde la propia máquina donde corre (`localhost`). Llegar desde otro dispositivo de tu red local (un móvil, un portátil, otro PC) exige cuatro cosas distintas, todas a la vez -- si te dejas alguna, no funciona (o parece que funciona a medias: la página carga, pero la app solo muestra errores):
+
+1. **Cortafuegos** -- abre los dos puertos, acotado a tu propia subred (ajusta `192.168.1.0/24` a la tuya), no a todo internet:
+   ```bash
+   sudo ufw allow from 192.168.1.0/24 to any port 3000 proto tcp
+   sudo ufw allow from 192.168.1.0/24 to any port 3010 proto tcp
+   ```
+2. **Vite tiene que escuchar en todas las interfaces de red**, no solo en `localhost` -- arranca el servidor de desarrollo con `--host`, o añade `host: true` al bloque `server` de `frontend/vite.config.ts`:
+   ```bash
+   cd frontend && npx vite --host
+   ```
+3. **El CORS del backend tiene que permitir el nuevo origen** -- añádelo a `CORS_ORIGINS` en `backend/.env` (separado por comas; deja también `http://localhost:3000` si sigues queriendo usar la app desde el propio servidor), con la IP real de tu red local:
+   ```
+   CORS_ORIGINS=http://localhost:3000,http://192.168.1.50:3000
+   ```
+4. **El frontend necesita saber la dirección real del backend** -- define `VITE_API_URL` en `frontend/.env` (mira `frontend/.env.example`) con esa misma IP de tu red local, puerto 3010, y reinicia `npm run dev` para que se recoja:
+   ```
+   VITE_API_URL=http://192.168.1.50:3010
+   ```
+
+Sin el paso 4, la página carga bien en el otro equipo, pero todas las llamadas a la API fallan -- el navegador de ese equipo interpretaría `localhost:3010` como su propio localhost, no el de tu servidor.
+
+Encuentra la IP de tu red local con `ip addr` (normalmente la línea `inet` bajo tu interfaz `eth0`/`wlan0`/`enp*`). Esta configuración está pensada solo para una red local de confianza -- este backend usa credenciales solo de desarrollo y no está preparado para exponerse a internet.
+
 ## Más documentación
 
 - [`backend/api-spec.yaml`](./backend/api-spec.yaml) — especificación OpenAPI de cada endpoint del backend.
@@ -231,6 +258,6 @@ La suite E2E pilota un navegador real contra tu aplicación en marcha y cubre au
 
 **El backend no puede conectar con la base de datos** — comprueba que `docker compose ps` muestra el contenedor `db` como `Up`, y que el `DATABASE_URL` de `backend/.env` coincide con las credenciales del `.env` de la raíz (mismo usuario/contraseña/nombre de base de datos/puerto).
 
-**El puerto 3000 o 3010 ya está en uso** — algo más en tu máquina está usando ese puerto. Encuéntralo y detenlo (`sudo lsof -i :3000`), o ten en cuenta que el puerto del frontend está fijado en `frontend/vite.config.ts` para coincidir con la configuración de CORS del backend, así que cambiarlo exige actualizar los dos.
+**El puerto 3000 o 3010 ya está en uso** — algo más en tu máquina está usando ese puerto. Encuéntralo y detenlo (`sudo lsof -i :3000`), o ten en cuenta que el puerto del frontend está fijado en `frontend/vite.config.ts` para coincidir con el origen de CORS por defecto del backend (`http://localhost:3000`, ver `backend/src/corsOptions.ts` y `CORS_ORIGINS` en `backend/.env`), así que cambiarlo exige actualizar los dos.
 
 **`npx prisma migrate dev` pide reiniciar la base de datos** — esto solo pasa si tu base de datos local ya tiene datos en conflicto de una configuración previa distinta. En una base de datos recién creada con `docker compose` esto no debería ocurrir; si ocurre y no te importa perder los datos locales, confirma el reinicio.

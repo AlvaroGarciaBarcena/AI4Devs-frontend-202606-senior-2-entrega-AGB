@@ -1,11 +1,12 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
 export const uploadCV = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-        const response = await axios.post('http://localhost:3010/upload', formData, {
+        const response = await axios.post(`${API_BASE_URL}/upload`, formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
@@ -22,7 +23,7 @@ export const uploadCV = async (file) => {
 
 export const getUnassignedCandidates = async () => {
     try {
-        const response = await axios.get('http://localhost:3010/candidates/unassigned');
+        const response = await axios.get(`${API_BASE_URL}/candidates/unassigned`);
         return response.data;
     } catch (error) {
         throw new Error(error.response?.data?.error || error.message, { cause: error });
@@ -31,7 +32,7 @@ export const getUnassignedCandidates = async () => {
 
 export const sendCandidateData = async (candidateData) => {
     try {
-        const response = await axios.post('http://localhost:3010/candidates', candidateData);
+        const response = await axios.post(`${API_BASE_URL}/candidates`, candidateData);
         return response.data;
     } catch (error) {
         throw buildCandidateSubmitError(error);
@@ -40,7 +41,7 @@ export const sendCandidateData = async (candidateData) => {
 
 export const getCandidateById = async (id) => {
     try {
-        const response = await axios.get(`http://localhost:3010/candidates/${id}`);
+        const response = await axios.get(`${API_BASE_URL}/candidates/${id}`);
         return response.data;
     } catch (error) {
         throw new Error(error.response?.data?.error || error.message, { cause: error });
@@ -49,7 +50,7 @@ export const getCandidateById = async (id) => {
 
 export const updateCandidateData = async (id, candidateData) => {
     try {
-        const response = await axios.patch(`http://localhost:3010/candidates/${id}`, candidateData);
+        const response = await axios.patch(`${API_BASE_URL}/candidates/${id}`, candidateData);
         return response.data;
     } catch (error) {
         throw buildCandidateSubmitError(error);

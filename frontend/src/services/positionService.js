@@ -1,6 +1,5 @@
 import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:3010';
+import { API_BASE_URL } from '../config';
 
 const getErrorMessage = (error, fallback) => {
     const details = error.response?.data?.message || error.response?.data?.error || error.message;

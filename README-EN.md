@@ -20,6 +20,7 @@ This guide assumes a fresh **Ubuntu** machine with nothing installed yet. If you
 - [10. Log in](#10-log-in)
 - [11. Run the automated tests](#11-run-the-automated-tests)
 - [Project structure](#project-structure)
+- [Accessing from another machine on your network](#accessing-from-another-machine-on-your-network)
 - [Further documentation](#further-documentation)
 - [Troubleshooting](#troubleshooting)
 
@@ -215,6 +216,32 @@ The E2E suite drives a real browser against your running app and covers authenti
 └── docker-compose.yml        PostgreSQL container definition
 ```
 
+## Accessing from another machine on your network
+
+By default everything above is reachable only from the machine running it (`localhost`). Reaching it from another device on your local network — a phone, a laptop, another PC — needs four separate things, all of them together; skipping one leaves it not working (or looking like it half-works: the page loads but the app shows only errors):
+
+1. **Firewall** — open the two ports, scoped to your own subnet (adjust `192.168.1.0/24` to yours), not to the whole internet:
+   ```bash
+   sudo ufw allow from 192.168.1.0/24 to any port 3000 proto tcp
+   sudo ufw allow from 192.168.1.0/24 to any port 3010 proto tcp
+   ```
+2. **Vite must listen on every network interface**, not just `localhost` — run the dev server with `--host`, or add `host: true` to `frontend/vite.config.ts`'s `server` block:
+   ```bash
+   cd frontend && npx vite --host
+   ```
+3. **Backend CORS must allow the new origin** — add it to `CORS_ORIGINS` in `backend/.env` (comma-separated; keep `http://localhost:3000` too if you still want to use the app from the server itself), using the server's real LAN IP:
+   ```
+   CORS_ORIGINS=http://localhost:3000,http://192.168.1.50:3000
+   ```
+4. **The frontend needs to know the backend's real address** — set `VITE_API_URL` in `frontend/.env` (see `frontend/.env.example`) to that same LAN IP, port 3010, and restart `npm run dev` for it to take effect:
+   ```
+   VITE_API_URL=http://192.168.1.50:3010
+   ```
+
+Without step 4, the page loads fine on the other device, but every API call fails — that device's browser would otherwise resolve `localhost:3010` to *its own* localhost, not your server's.
+
+Find your machine's LAN IP with `ip addr` (usually the `inet` line under your `eth0`/`wlan0`/`enp*` interface). This setup is meant for a trusted local network only — this backend uses development-only credentials and isn't hardened for exposure to the public internet.
+
 ## Further documentation
 
 - [`backend/api-spec.yaml`](./backend/api-spec.yaml) — OpenAPI specification of every backend endpoint.
@@ -231,6 +258,6 @@ The E2E suite drives a real browser against your running app and covers authenti
 
 **Backend can't connect to the database** — make sure `docker compose ps` shows the `db` container as `Up`, and that `backend/.env`'s `DATABASE_URL` matches the credentials in the root `.env` (same user/password/db name/port).
 
-**Port 3000 or 3010 already in use** — something else on your machine is using that port. Find and stop it (`sudo lsof -i :3000`), or note that the frontend's port is hardcoded in `frontend/vite.config.ts` to match the backend's CORS configuration, so changing it requires updating both.
+**Port 3000 or 3010 already in use** — something else on your machine is using that port. Find and stop it (`sudo lsof -i :3000`), or note that the frontend's port is hardcoded in `frontend/vite.config.ts` to match the backend's default CORS origin (`http://localhost:3000`, see `backend/src/corsOptions.ts` and `CORS_ORIGINS` in `backend/.env`), so changing it requires updating both.
 
 **`npx prisma migrate dev` asks to reset the database** — this only happens if your local database already has conflicting data from a previous, different setup. On a genuinely fresh `docker compose` database this shouldn't happen; if it does and you don't mind losing local data, confirm the reset.

@@ -5382,3 +5382,38 @@ igual que antes de este cambio.
 npm test (backend)      → 61 passed (53 + 8 nuevos)
 npm run build (backend) → OK, tsc sin errores
 ```
+
+## 3.47 URL de la API configurable, para acceder desde la red local (`frontend-api-url-config-AGB`)
+
+Segunda mitad de lo pedido en la sección 3.46: `http://localhost:3010`
+estaba escrito a fuego en `positionService.js`, `authService.js` y
+(repetido en cada llamada) `candidateService.js`. Nuevo
+`frontend/src/config.js`, un único sitio: `API_BASE_URL =
+import.meta.env.VITE_API_URL || 'http://localhost:3010'` -- Vite solo
+expone al navegador las variables con el prefijo `VITE_`, y las incrusta
+en el bundle en tiempo de build, no en tiempo de ejecución (por eso hay
+que reiniciar `npm run dev` si cambia).
+
+Verificado con un build real, no solo con tests: `VITE_API_URL=http://192.168.1.50:3010
+npm run build` deja esa URL en el bundle final y ya no queda ningún rastro
+de `localhost:3010` en él; sin la variable, el build vuelve a producir
+exactamente lo de siempre.
+
+`frontend/.env.example` nuevo (no existía ningún `.env` de frontend hasta
+ahora). Se añade una sección completa "Acceder desde otro equipo de tu
+red local" a ambos README, con los 4 pasos juntos (cortafuegos + `vite
+--host` + `CORS_ORIGINS` + `VITE_API_URL`) -- se insiste en que son 4
+cosas a la vez, no solo una, porque saltarse cualquiera deja la app
+funcionando a medias (la página carga, pero cada llamada a la API falla)
+de una forma que no es obvia de diagnosticar sin saber esto. De paso se
+corrige una nota de Troubleshooting que ya había quedado desactualizada
+("el puerto del frontend coincide con la configuración de CORS del
+backend" ya no es un valor fijo, es el origen por defecto).
+
+```
+npm test (frontend)      → 81 passed (79 + 2 nuevos)
+npm run build (frontend) → OK, tsc + vite build sin errores
+npm run test:e2e         → 58 passed, sin cambios (usan siempre el valor
+                             por defecto, así que el comportamiento real
+                             no cambia para nadie que no toque la variable)
+```
