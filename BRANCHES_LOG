@@ -34,7 +34,8 @@ línea de cada rama, y para saber dónde empieza cada tema hay que saber esto).
 | 17 | `readme-docs-AGB` | 2026-09-20 10:18 | `3d27d1a`·`f64bb78`·`786c006` | [§3.34](./prompts-AGB.md#334-readmemd-separado-en-readme-enmdreadme-esmd-con-las-instrucciones-que-le-faltaban-readme-docs-agb) · [§3.35](./prompts-AGB.md#335-branches_log-de-listado-plano-a-índice-rama-sección-de-prompts-agbmd) |
 | 18 | `reusable-hooks-AGB` | 2026-09-20 10:45 | `8005560` | [§3.36](./prompts-AGB.md#336-useasyncdata-el-primer-hook-genérico-extraído-de-una-duplicación-real-reusable-hooks-agb) |
 | 19 | `adrs-AGB` | 2026-09-20 10:49 | `9707384` | [§3.37](./prompts-AGB.md#337-docsadr-11-decisiones-de-arquitectura-reales-formato-corto-adrs-agb) |
-| 20 | `reusable-components-AGB` | 2026-09-20 11:03 | `2004e38` | [§3.38](./prompts-AGB.md#338-segunda-pasada-de-refactorización-a-componentes-reutilizables-reusable-components-agb) |
+| 20 | `reusable-components-AGB` | 2026-09-20 11:03 | `2004e38`·`8cddaab` | [§3.38](./prompts-AGB.md#338-segunda-pasada-de-refactorización-a-componentes-reutilizables-reusable-components-agb) |
+| 21 | `unassigned-candidates-AGB` | 2026-09-20 11:34 | `aae8b56` | [§3.39](./prompts-AGB.md#339-candidatos-sin-asignar-elegir-posición-pasa-a-ser-opcional-unassigned-candidates-agb) |
 
 ## Cómo leer esto
 
