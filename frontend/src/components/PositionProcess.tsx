@@ -107,7 +107,9 @@ const PositionProcess: React.FC = () => {
     return (
         <Container className="mt-5">
             <Link to="/positions" className="d-inline-block mb-3">{t('positionProcess.back')}</Link>
-            <h2 className="mb-4">{t('positionProcess.title')}{flow.positionName}</h2>
+            <h2 className="mb-4 py-2 sticky-top bg-white border-bottom">
+                {t('positionProcess.title')}{flow.positionName}
+            </h2>
             {moveError && <Alert variant="danger" dismissible onClose={() => setMoveError('')}>{moveError}</Alert>}
             {steps.length === 0 ? (
                 <Alert variant="info">{t('positionProcess.noFlow')}</Alert>
