@@ -36,7 +36,8 @@ línea de cada rama, y para saber dónde empieza cada tema hay que saber esto).
 | 19 | `adrs-AGB` | 2026-09-20 10:49 | `9707384` | [§3.37](./prompts-AGB.md#337-docsadr-11-decisiones-de-arquitectura-reales-formato-corto-adrs-agb) |
 | 20 | `reusable-components-AGB` | 2026-09-20 11:03 | `2004e38`·`8cddaab` | [§3.38](./prompts-AGB.md#338-segunda-pasada-de-refactorización-a-componentes-reutilizables-reusable-components-agb) |
 | 21 | `unassigned-candidates-AGB` | 2026-09-20 11:34 | `aae8b56`·`d0e63dc`·`a07d8c4`·`9532f2d` | [§3.39](./prompts-AGB.md#339-candidatos-sin-asignar-elegir-posición-pasa-a-ser-opcional-unassigned-candidates-agb) · [§3.40](./prompts-AGB.md#340-se-corrige-el-hallazgo-de-339-el-escenario-ningún-candidato-sin-asignar-borraba-candidatos-reales) |
-| 22 | `positions-filter-AGB` | 2026-09-20 12:23 | `3996598` | [§3.41](./prompts-AGB.md#341-filtro-real-del-catálogo-de-posiciones-positions-filter-agb) |
+| 22 | `positions-filter-AGB` | 2026-09-20 12:23 | `3996598`·`4eacc6a` | [§3.41](./prompts-AGB.md#341-filtro-real-del-catálogo-de-posiciones-positions-filter-agb) |
+| 23 | `personal-work-modules-AGB` | 2026-09-20 12:30 | `0527706` | [§3.42](./prompts-AGB.md#342-datos-personales-y-datos-laborales-en-módulos-reutilizables-personal-work-modules-agb) |
 
 ## Cómo leer esto
 
