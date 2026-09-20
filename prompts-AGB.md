@@ -4782,3 +4782,34 @@ viejo:
   `ModeloDatos.md`, `ManifestoBuenasPracticas.md`, `openspec/specs/`,
   `prompts-AGB.md`) y una sección de solución de problemas con los
   fallos más probables de un primer intento.
+
+## 3.35 `BRANCHES_LOG`: de listado plano a índice rama ↔ sección de `prompts-AGB.md`
+
+El usuario creó `BRANCHES_LOG` a partir de `git log --oneline` y pidió
+sugerencias para mejorar la trazabilidad. Tres propuestas (decorar el
+log, tabla índice rama↔sección, fechas) más una opcional (diagrama de
+ramas); probó la primera (`git log --oneline --decorate --all`) y no
+le resultó evidente -- razón real: con las 17 ramas apiladas (cada una
+nace de la punta de la anterior, no todas desde `main`), `--decorate`
+solo anota la última línea de cada rama, así que para saber a qué
+rama pertenece un commit del medio hay que inferirlo por posición, sin
+ninguna ayuda visual. Se pasa directamente a la tabla índice.
+
+**Hallazgo real antes de construirla**: `git log --all` mete por medio
+decenas de ramas `origin/kanban-*`, `origin/frontend-storybook/*`,
+`origin/sesion-e2e/*` -- un ejercicio de otro módulo del bootcamp que
+comparte el mismo `origin` pero no tiene relación con este proyecto.
+El índice se genera acotado explícitamente a las 17 ramas `*-AGB`
+(`git for-each-ref ... | grep -- '-AGB$'`), no con `--all`.
+
+`BRANCHES_LOG` pasa a ser una tabla: rama, fecha del último commit,
+commits propios (solo los que añade sobre la rama de la que nace, sin
+repetir lo heredado) y enlaces directos a la sección de
+`prompts-AGB.md` que la documenta. Verificación real de los enlaces:
+en vez de dar por buenos los anclajes Markdown escritos a mano, se
+generaron con un slugificador (Python, replicando el algoritmo de
+GitHub) contra los encabezados reales de `prompts-AGB.md`, y se
+comprobaron los 28 enlaces resultantes contra ese mismo conjunto de
+anclas -- así se encontraron y corrigieron dos fallos propios de guion
+doble en vez de sencillo (causados por flechas/barras en el título
+original que colapsaban a un solo espacio, no a dos).
