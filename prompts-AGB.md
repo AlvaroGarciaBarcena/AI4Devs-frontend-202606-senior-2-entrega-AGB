@@ -5912,3 +5912,28 @@ mientras corrían los tests) -- no un residuo de una sesión anterior.
 Revertidos ambos candidatos (Carlos García y John Doe) a su fase
 original con dos llamadas directas a `PUT /candidates/:id`, para no
 dejar el entorno de desarrollo con datos de prueba fuera de sitio.
+
+### Añadido en la misma rama: título fijo al hacer scroll en el móvil
+
+Probando el tablero en el móvil, el usuario pidió que la línea "Proceso
+de selección: Senior Full-Stack Engineer" se quedara fija al bajar por
+las columnas, para no perder de vista a qué posición pertenece lo que
+se está viendo. Bootstrap (ya en uso en todo el proyecto) trae de serie
+la utilidad `.sticky-top` (`position: sticky; top: 0; z-index: 1020`)
+-- no hizo falta CSS propio, solo aplicarla al `<h2>` del título, con
+`bg-white` y `border-bottom` para que las columnas no se transparenten
+al pasar por debajo al hacer scroll. No hay ninguna barra fija
+existente con la que pudiera chocar (la cabecera de usuario/idioma se
+desplaza con el resto de la página). Verificado en emulación de móvil
+(375×812): el título queda anclado arriba del todo mientras las
+tarjetas se desplazan por debajo; en escritorio no cambia nada más allá
+de la línea divisoria bajo el título. Se añadió a esta misma rama
+(`candidate-drag-drop-AGB`, no una nueva) por ser una mejora directa
+surgida de verificar la propia funcionalidad de esta rama en el móvil
+-- el mensaje del commit menciona entre paréntesis un nombre de rama
+que no llegó a crearse; el commit real vive aquí.
+
+```
+npx vitest run (frontend)  → 106 passed, sin cambios
+npx tsc --noEmit (frontend) → OK
+```
