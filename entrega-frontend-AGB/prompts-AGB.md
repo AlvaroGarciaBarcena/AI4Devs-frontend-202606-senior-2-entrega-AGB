@@ -6794,3 +6794,105 @@ misma comprobación después por este motivo, no porque haya indicio de
 que algo se haya roto. Queda como algo a tener en cuenta -- no a
 arreglar aquí -- si se sigue iterando con la suite completa en una
 sola sesión larga de trabajo.
+
+## 3.67 `GET /health` + comprobación automática en `global-setup.ts`: que la suite falle pronto si el backend es de otra rama
+
+Construido lo que quedó documentado como pendiente al final de la
+sección 3.65: la propia sesión demostró dos veces que un backend en
+marcha en el puerto esperado podía ser, sin ningún aviso, el de otro
+repo o rama.
+
+**`backend/src/gitInfo.ts`** (nuevo, con su propio test): `getGitInfo()`
+devuelve `{ commit, branch }` vía `git rev-parse HEAD` /
+`git rev-parse --abbrev-ref HEAD`, con el comando de ejecución
+inyectable por parámetro (mismo patrón que `networkAddresses.ts`) para
+poder testear sin depender de que la máquina que corra los tests tenga
+git de verdad disponible. Devuelve `null` en vez de lanzar si no hay
+repo accesible (un despliegue sin `.git`, por ejemplo) -- no debe
+tumbar el arranque del servidor.
+
+**`backend/src/index.ts`**: nueva ruta pública `GET /health` (sin
+`requireAuth` a propósito -- hace falta poder comprobarla antes
+incluso de intentar iniciar sesión), y una línea más en el log de
+arranque (`commit <corto> (rama <nombre>)`) -- visible también para
+quien esté haciendo pruebas manuales, no solo para la suite E2E.
+
+**`e2e/global-setup.ts`**: antes de nada (incluso antes del login),
+`verifyBackendCommit()` compara el commit que devuelve
+`GET {E2E_BACKEND_URL}/health` (por defecto `http://localhost:3010`,
+configurable) contra `git rev-parse HEAD` de este mismo repo. Si no
+coinciden, lanza un error explícito con los dos commits/ramas
+implicados, antes de que arranque ningún escenario -- exactamente el
+"hook que hace esta comprobación al lanzarlo" que pidió el usuario:
+`global-setup.ts` ya es, en la propia terminología de Playwright, el
+*hook* que se ejecuta automáticamente al lanzar la suite, así que no
+hacía falta un mecanismo aparte.
+
+**Verificado con datos reales, los dos caminos, no solo el feliz**:
+- Camino positivo: `candidate-editing.feature` completo (3/3) con el
+  backend real y la comprobación nueva de por medio -- pasa en
+  silencio, como debe.
+- Camino negativo: un servidor HTTP de mentira, aparte, sirviendo un
+  `/health` con un commit y una rama inventados (`otra-rama-AGB`),
+  apuntado con `E2E_BACKEND_URL` -- la comprobación detecta la
+  diferencia y produce exactamente el mensaje esperado:
+  > El backend en http://localhost:4321 está sirviendo el commit
+  > deadbee (rama otra-rama-AGB), no el de este repo (1688185). ¿Hay
+  > un backend de otra rama u otro repo arrancado en el mismo puerto?
+
+`npx tsc --noEmit` limpio y 95/95 tests unitarios del backend (93 +
+los 2 nuevos de `gitInfo.test.ts`).
+
+## 3.68 Contaminación real y visible: reejecutar la suite bajo el limitador agotado deja huérfanos que se ven en la propia app
+
+Consecuencia directa del hallazgo de la sección 3.66 (el limitador
+general se agota con facilidad reejecutando la suite completa varias
+veces seguidas): el usuario reportó, mirando la app de verdad, que
+varios candidatos que antes aparecían sin asignar ahora parecían
+asignados a "Senior Full-Stack Engineer", y que en "Posiciones"
+aparecían posiciones `E2E Posición Fase Vacía`/`E2E Posición Sin
+Flujo`.
+
+**Causa real, confirmada, no supuesta**: la última ejecución en
+segundo plano (lanzada para verificar el hallazgo de la sección 3.65)
+falló en 9 de 17 escenarios por el mismo limitador agotado -- entre
+ellos, los tres que crean fixtures temporales con su propia limpieza
+al final ("Fase sin candidatos", "Posición elegida sin flujo de
+entrevistas configurado", "Ningún candidato sin asignar"): al fallar
+antes de llegar a su `Then`, la limpieza nunca se ejecutó.
+
+**Investigado antes de tocar nada** (un script de solo lectura, en
+vez de asumir): confirmadas 6 posiciones `E2E Posición ...` huérfanas
+(4 con su propio candidato "Fixture ConCandidato", 2 sin él) y 10
+candidaturas "placeholder" espurias a "Senior Full-Stack Engineer" --
+5 de ellas de candidatos `E2E SinAsignar` (nombre de fixture
+inequívoco), las otras 5 sobre candidatos ("Nombre Apellido", "Bad
+Position" x3, "Good Position") cuyo origen no se puede afirmar con
+certeza solo por los datos -- confirmadas como del mismo lote por
+compartir la misma marca de tiempo exacta entre sí.
+
+**Limpieza, deliberadamente asimétrica según la certeza real**: las 6
+posiciones huérfanas y los 5 candidatos `E2E SinAsignar` se borraron
+enteros (fixtures inequívocos). De los otros 5, solo se borró la
+candidatura espuria -- los candidatos en sí se dejaron intactos, por
+si son datos propios del usuario (mismo criterio ya aplicado con
+"Nico alaslla": no se borra lo que no se puede confirmar que sea
+huérfano). El script, igual que las veces anteriores, lo bloqueó el
+clasificador de permisos del sandbox -- ejecutado por el usuario desde
+su propia terminal.
+
+**Verificado el resultado, no solo la ejecución del script** (consulta
+de solo lectura aparte, sin depender de la API bloqueada por el
+limitador): 0 posiciones `E2E ...` restantes, 0 candidatos `E2E
+SinAsignar` restantes, los 5 candidatos de origen incierto de vuelta a
+"realmente sin asignar", y "Senior Full-Stack Engineer" con
+exactamente los cuatro candidatos legítimos (John Doe, Jane Smith,
+Nico alaslla, Carlos García). De paso, un "E2E FilaClicable" más de la
+misma ejecución fallida, limpiado igual.
+
+**Decisión para el resto de la sesión**: no se vuelve a lanzar la
+suite E2E completa varias veces seguidas hoy -- cada intento bajo el
+limitador agotado no solo falla, deja más huérfanos reales detrás. La
+verificación ya hecha (sección 3.65, 20/20 dos veces; sección 3.67,
+los dos caminos del `/health` comprobados por separado) se da por
+suficiente.
