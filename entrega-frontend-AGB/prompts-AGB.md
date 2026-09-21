@@ -6964,3 +6964,87 @@ rama se crea y se commitea, pero **no se empuja a ningún remoto ni se
 toca el PR #22**: sigue la convención ya establecida en esta sesión de
 no hacer push sin que se pida explícitamente cada vez, y esta vez no
 se pidió -- solo portar los arreglos. Queda lista para revisión.
+
+## 3.70 A la mañana siguiente: empujar §3.69 al PR #22 real, y menos duplicación en `candidateService.ts`/`.test.ts` (mismo criterio que §3.66)
+
+El usuario, ya de vuelta, pidió actualizar el PR #22 con la rama
+`sonarcloud-quality-gate-AGB` de la sección anterior. Como esa rama no
+se llama igual que la que respalda el PR (`interview-scoring-on-move-AGB`
+en el fork), el push fue `git push fork
+sonarcloud-quality-gate-AGB:interview-scoring-on-move-AGB` -- mismo
+efecto que un merge fast-forward normal (confirmado antes con
+`git merge-base --is-ancestor` que era un avance limpio, sin nada nuevo
+en remoto que perder). El PR #22 pasó a apuntar a `65e67b3` y el
+reescaneo de SonarCloud confirmó "Quality Gate passed", 1 New issue
+(el `prisma.ts` ya documentado como deliberado), 0 Security Hotspots
+-- igual de limpio que el PR #15 del ejercicio de QA.
+
+Después, al preguntar el usuario si quedaba algo pendiente, se
+detectó con `jscpd` una duplicación real en
+`backend/src/application/services/candidateService.ts` (5,61%/3
+clones) -- residuo del propio refactor de la sección 16 del diario de
+QA (portado aquí en §3.69), que extrajo funciones auxiliares para
+bajar la complejidad cognitiva pero dejó dos pares de ellas
+repitiéndose entre sí. El usuario pidió arreglarlo con el mismo
+criterio que `positionController.ts` en su día (sección 3.66):
+extraer solo lo genuinamente idéntico, sin forzar a unificar
+funciones que hacen cosas distintas.
+
+**`candidateService.ts`**: dos duplicaciones reales.
+1. `resolveFirstStepForNewApplication` y
+   `resolveFirstStepForProfileUpdate` repetían literalmente el mismo
+   bloque -- pedir el primer paso del flujo y traducir
+   `undefined`/`null` a sus dos mensajes de error distintos. Extraído
+   a `requireInterviewFlowConfigured(positionId, companyId)`,
+   compartido por las dos; lo que NO se repetía entre ellas (la lógica
+   de "ya tiene candidatura, no se puede reasignar" de la segunda) se
+   queda donde estaba, sin forzarlo dentro del helper.
+2. `saveCandidateEducations`/`saveCandidateWorkExperiences` (usadas
+   por `addCandidate`) y `replaceCandidateEducations`/
+   `replaceCandidateWorkExperiences` (usadas por
+   `updateCandidateProfile`) compartían la misma forma -- crear una
+   entrada por cada elemento de una lista, asignarle el id del
+   candidato y guardarla -- variando solo en el modelo de dominio
+   (`Education`/`WorkExperience`) y en si hace falta además empujar
+   la entrada guardada al array en memoria del candidato (solo
+   `addCandidate` lo necesita) o borrar antes las anteriores (solo
+   `updateCandidateProfile`). Extraído un único `saveEntries<T>`
+   genérico (constructor del modelo + callback opcional
+   `onSaved`), usado por las cuatro funciones -- cada una sigue
+   siendo un *wrapper* de una línea con su propio nombre y su propia
+   llamada, no una función con banderas booleanas escondidas.
+   `jscpd`: de 5,61%/3 clones a **0,00%/0 clones**.
+
+**`candidateService.test.ts`**: mismo hallazgo que en
+`positionController.test.ts` (sección 3.66) -- el fichero de test
+tenía aún más duplicación que el propio código (14,87%/11 clones).
+Extraídos `mockPosition(overrides)` (la forma repetida de posición --
+una empresa y un flujo de un único paso -- con overrides para lo que
+cambia en cada test: otra empresa, otros pasos, sin pasos) y
+`stubCandidateCreate(data)` (el mismo mock de `candidate.create`
+repetido en casi todos los tests de `addCandidate`). Los clones que
+quedan (4,39%/5) son, igual que en la sección 3.66, casos donde
+fusionarlos exigiría mezclar tests que comprueban cosas realmente
+distintas -- dos tests sobre el mismo *arrange* pero con aserciones
+finales distintas (`application.create` vs `candidate.create` sin
+llamar), o el mismo patrón repetido entre `addCandidate` y
+`updateCandidateProfile` (funciones distintas, no vale la pena un
+test parametrizado cruzando dos `describe`). No se tocó ninguna
+aserción existente ni se perdió ningún comentario de trazabilidad
+(referencias a la sección 3.61, al bug real de 204.963 filas
+duplicadas, etc.) -- todos migraron intactos junto a su test.
+
+**Verificado con datos reales, no solo con los tests nuevos**: `tsc
+--noEmit` limpio (el genérico `saveEntries<T extends { candidateId?:
+number; save: () => Promise<unknown> }>` tipa correctamente contra
+`Education`/`WorkExperience` sin ningún `any` adicional) y los 95
+tests unitarios del backend en verde, los 16 de
+`candidateService.test.ts` incluidos, sin reescribir ninguno de los
+ya existentes -- solo su *arrange*. Además, 20 escenarios E2E reales
+(`candidate-intake`, `candidate-editing`, `hiring-pipeline`) contra el
+backend/frontend reiniciados desde este clon, que ejercitan
+`addCandidate`, `updateCandidateProfile` y `updateCandidateStage` de
+verdad contra la base de datos, no solo contra mocks.
+
+Sin empujar todavía -- el usuario no lo ha pedido para este commit en
+concreto.
