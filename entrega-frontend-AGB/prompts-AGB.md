@@ -6896,3 +6896,71 @@ limitador agotado no solo falla, deja más huérfanos reales detrás. La
 verificación ya hecha (sección 3.65, 20/20 dos veces; sección 3.67,
 los dos caminos del `/health` comprobados por separado) se da por
 suficiente.
+
+## 3.69 Por qué el PR #22 pasaba con "20 New issues" mientras el del ejercicio de QA fallaba (`sonarcloud-quality-gate-AGB`)
+
+El usuario, tras ver el arreglo del *quality gate* de SonarCloud en el
+PR del ejercicio de QA (`prompts-qa-AGB.md`, secciones 16-17), notó
+algo raro: el PR #22 de este repo llevaba tiempo pasando su propio
+*quality gate* con "20 New issues" sin problema, mientras el de QA
+había estado fallando. Pregunta razonable -- ¿por qué el mismo gate se
+comporta distinto en dos sitios?
+
+**Investigado antes de suponer nada** (mismo método que ya sirvió en
+QA: `gh api repos/.../commits/<sha>/check-runs` para encontrar el
+`check_run` de SonarCloud sobre el commit real del PR #22, y
+`.../check-runs/<id>/annotations` para el detalle). No es
+inconsistencia del gate: son los mismos 20 avisos que ya se habían
+visto en QA (`isNaN`, `node:os`, encadenamiento opcional, complejidad
+cognitiva, índice como *key*...), todos `Code Smell`, **0 Security
+Hotspots**. El gate por defecto ("Sonar way") no falla por cantidad de
+avisos -- solo por umbrales de *rating* (seguridad, fiabilidad,
+mantenibilidad) y cobertura/duplicación. QA tenía esos mismos 20 más
+UNA `Vulnerability` real (regla `typescript:S4036`, `git` resuelto por
+PATH en `gitInfo.ts`/`global-setup.ts`) -- ese único hallazgo es lo
+que bajaba el "Security Rating on New Code" y tumbaba el gate allí.
+
+**La pregunta que sigue es por qué ese hallazgo de seguridad no
+aparece aquí**, si `gitInfo.ts` se construyó primero en este mismo
+clon (sección 3.67) y luego se "portó" al ejercicio de QA. Respuesta:
+nunca se llegó a empujar a la rama real que respalda el PR #22
+(`interview-scoring-on-move-AGB` en el fork) -- confirmado con
+`gh api repos/LIDR-academy/.../contents/backend/src/gitInfo.ts?ref=<sha
+del PR>` devolviendo 404. Coherente con la convención de esta sesión
+("nunca hacer push salvo que se pida explícitamente"): el trabajo de
+`GET /health` siguió en ramas locales posteriores
+(`evaluacion-nuevos-candidatos-AGB`, donde sigue viviendo hoy) sin
+volver a actualizar el PR ya abierto.
+
+**A petición expresa del usuario, se portan igualmente los mismos
+arreglos aquí** -- no hacía falta para pasar el gate (ya pasaba), pero
+por consistencia entre ambas entregas. Rama nueva,
+`sonarcloud-quality-gate-AGB`, creada sobre la punta de
+`evaluacion-nuevos-candidatos-AGB` (que ya tenía `gitInfo.ts`). Mismo
+contenido exacto que en QA en los ficheros compartidos, verificado
+fichero a fichero contra el estado previo aquí antes de aplicar cada
+arreglo (no se copiaron los ficheros de QA sin mirar -- por si habían
+divergido). Dos excepciones deliberadas, igual que en QA:
+`e2e/steps/support/prisma.ts` (API interna de una dependencia, ya
+documentado como necesario sin *npm workspaces*) se deja tal cual; y
+`PositionProcess.tsx` no tiene nada que portar porque el `toTestId`
+con la regex señalada en QA no existe en este repo -- es exclusivo de
+los `data-testid` añadidos para el ejercicio de QA.
+
+**Verificado** igual de a fondo que en QA: `tsc` limpio en backend y
+frontend, 95 tests de backend y 119 de frontend (sin tocar ninguno),
+build de producción sin avisos, y 39 escenarios E2E reales
+(`accessibility`, `candidate-intake`, `candidate-editing`,
+`hiring-pipeline`, `position-catalog`, `security-hardening`,
+`developer-tooling`) contra el backend y frontend reiniciados desde
+este clon -- incluye el propio `verifyBackendCommit()` de
+`global-setup.ts`, así que un fallo en la resolución de `git` aquí
+habría tumbado los 39 de golpe, no solo avisado.
+
+**Esta sección se escribió con el usuario ya fuera** -- pidió
+explícitamente portar estos arreglos y se despidió antes de que
+empezara este trabajo ("te dejo sólo, que es tardísimo"). Por eso la
+rama se crea y se commitea, pero **no se empuja a ningún remoto ni se
+toca el PR #22**: sigue la convención ya establecida en esta sesión de
+no hacer push sin que se pida explícitamente cada vez, y esta vez no
+se pidió -- solo portar los arreglos. Queda lista para revisión.
