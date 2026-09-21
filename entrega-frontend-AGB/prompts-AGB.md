@@ -6648,3 +6648,149 @@ arreglaron todas las rutas de una vez, con el mismo criterio ya
 probado en el repo de QA. `npx tsc --noEmit` y los tests unitarios
 (backend 93/93, frontend 119/119) siguen en verde -- confirmado que un
 movimiento de documentación pura no afecta a nada funcional.
+
+## 3.65 Un bug real en la suite de la raíz (no "deriva de datos"), corrección de un diagnóstico anterior, y dos fallos propios de verificación
+
+El usuario preguntó si, ya que la investigación del ejercicio de QA
+había producido un test (`position.spec.ts`) que consulta la API en
+vez de asumir la fase de un candidato, valía la pena traer esa misma
+mejora al repo de origen. Aclarado primero cuál de dos lecturas
+posibles era la correcta (vía pregunta al usuario): no copiar
+`position.spec.ts` en sí (es un entregable específico del ejercicio de
+QA, no de este), sino aplicar el mismo principio al test **ya
+existente** en `/e2e` que tenía el problema real,
+`hiring-pipeline.steps.ts`.
+
+**El hallazgo importante**: al investigar, la causa real del fallo
+intermitente de este escenario resultó ser otra, distinta de la que se
+diagnosticó (mal) en la sección 2 de `prompts-qa-AGB.md` del repo de
+QA ("no hay cuello de botella real, probablemente un pico puntual del
+entorno"). Confirmado con el volcado de accesibilidad de una ejecución
+real: el escenario buscaba la columna de fase por su encabezado en
+**inglés** (`getByRole('heading', { name: 'Initial Screening' })`),
+que nunca coincide con lo que renderiza la interfaz en **español**
+(`locale: 'es-ES'` del `playwright.config.ts` de la raíz --
+"Selección inicial", traducción real de
+`positionProcess.interviewStepNames` en `frontend/src/i18n/locales/
+es.json`). El candidato buscado SÍ estaba en la columna correcta; la
+columna en sí nunca se encontraba. Ese mismo patrón (`getByRole
+('heading', { name: 'Initial Screening'|'Technical Interview' })`)
+aparecía también, sin corregir hasta ahora, en
+`candidate-editing.steps.ts` y `candidate-intake.steps.ts` -- un
+`grep` a todo `e2e/steps/*.ts` confirmó que esos tres eran los únicos.
+
+**Arreglo, en los tres ficheros**: no se busca la columna por su
+encabezado traducido -- se comprueba contra la respuesta real de
+`GET /position/:id/candidates` (o, donde el nombre del candidato ya es
+de por sí único y fiable, directamente por ese nombre dentro de
+cualquier `.border.rounded`/`.card`, sin necesitar saber en qué
+columna concreta cae). En `hiring-pipeline.steps.ts` hizo falta un
+segundo ajuste: la base de datos de desarrollo compartida tiene
+candidatos de pruebas manuales con nombres repetidos ("Bad Position"
+x3, entre otros) -- comprobar cada candidato uno a uno por nombre
+resultó ambiguo de verdad (varias tarjetas con el mismo nombre y la
+misma puntuación). Se simplificó a comprobar, a nivel de datos, que
+sigue habiendo candidatos en más de una fase, y a nivel de UI, solo el
+único candidato fiable de esa posición: Carlos García.
+
+**Dos fallos propios durante la propia verificación, ambos
+documentados para no repetirlos**:
+1. Llevaba un rato verificando por accidente contra los servidores del
+   **clon de QA** (`AI4Devs-qa-202606-senior-2-entrega-AGB`), no los
+   de este repo -- nunca se cambiaron de vuelta tras crear ese clon
+   separado (sección 5 de `prompts-qa-AGB.md`, en el otro repo).
+   Corregido: parados esos servidores, arrancados los de este repo.
+2. Con los servidores correctos, el login seguía fallando de forma
+   intermitente. Comprobado con la Browser pane en vivo (no solo
+   `curl`): el formulario de login mostraba "No se pudo conectar con
+   el servidor" -- un error real de red, no del limitador de intentos
+   de login. Causa real: `frontend/.env` tenía
+   `VITE_API_URL=http://192.168.1.151:3010` (configurado hace tiempo
+   para probar el acceso desde otro equipo de la red local, sección
+   3.47/3.48), y esa IP concreta había agotado el límite general de
+   peticiones (300/15min) de tanto testear hoy -- mientras que
+   `localhost:3010` (lo que usaban todos mis `curl` de comprobación)
+   nunca estuvo bloqueado, por eso los chequeos directos siempre
+   funcionaban mientras el navegador fallaba. Corregido a
+   `http://localhost:3010` (uso normal, no hay ninguna prueba de red
+   local en marcha) y reiniciado Vite.
+
+Con el entorno corregido: 20/20 escenarios en verde, dos veces
+seguidas, en `hiring-pipeline.feature` + `candidate-editing.feature` +
+`candidate-intake.feature`. Huérfanos propios de esta sesión de
+depuración ("E2E FilaClicable" x2, de ejecuciones fallidas por el
+problema de servidores/`.env`) limpiados con el mismo script Prisma ya
+usado antes.
+
+**Además, en la misma rama**: el usuario pidió reducir la duplicación
+de código que `jscpd` detectaba en `candidate-intake.steps.ts` (10,3%
+con la configuración que él estaba mirando). Cinco escenarios repetían
+el mismo bloque -- rellenar nombre/apellido/email, elegir la posición
+sembrada, pulsar "Enviar" -- extraído a un único helper,
+`submitBasicCandidateForm`. `jscpd` (con `--min-lines 3 --min-tokens
+30`) pasó de 3 clones/4,76% a 0 clones/0,00% en este fichero.
+
+## 3.66 Menos duplicación en `positionController.ts`/`positionController.test.ts` (aprovechando la espera al limitador)
+
+Mientras se esperaba a que el limitador general de peticiones (sección
+3.65) se liberara para la verificación final en vivo, el usuario pidió
+aplicar el mismo criterio de la sección anterior a
+`backend/src/presentation/controllers/positionController.ts` (23,6%
+de duplicación según su herramienta) y su fichero de test (13,7%).
+
+**`positionController.ts`**: los cuatro controladores repetían dos
+patrones completos --
+1. `parseInt(req.params.id)` + comprobación `isNaN` + `400` si no es
+   numérico (tres veces, con una diferencia real que no se toca:
+   `getCandidatesByPosition`/`getInterviewFlowByPosition` devuelven
+   `{ message: ... }`, `addInterviewStep` devuelve `{ error: ... }` --
+   así lo esperan sus propios tests, no es un descuido a unificar).
+2. El `catch`: mensaje `"Position not found"` del servicio -> 404,
+   cualquier otro error -> 500 con un mensaje propio de cada endpoint
+   (`getCandidatesByPosition` y `addInterviewStep`, patrón idéntico).
+   `getInterviewFlowByPosition` NO sigue este patrón -- cualquier
+   error ahí se traduce a 404 sin comprobar el mensaje, un
+   comportamiento ya existente, distinto, que no se toca ni se
+   "corrige" de paso (cambiar eso sería un cambio de comportamiento
+   real, no una limpieza de duplicación).
+
+Extraídos `parsePositionId` (parametrizado por la clave del cuerpo del
+error) y `handleNotFoundOrServerError` (para los dos controladores con
+el patrón idéntico). `jscpd`: de 24,82%/12 clones a 4,35%/1 clon
+(el único que queda son las dos líneas de llamada a `parsePositionId`
+en dos funciones distintas -- fusionarlo más habría exigido mezclar la
+estructura de funciones que hacen cosas distintas después).
+
+**`positionController.test.ts`**: mismos patrones, en los tests.
+Extraídos `expectRejectedWithout400` (id inválido, nombre vacío,
+nombre demasiado largo -- las tres son "400 sin llamar al servicio",
+con cuerpo esperado explícito, no asumido) y `expectPositionNotFound`
+(las tres pruebas de 404). De paso, la prueba de "nombre demasiado
+largo" pasó de comprobar solo el status 400 a comprobar también el
+cuerpo exacto (`{ error: 'Phase name must be 100 characters or fewer'
+}`) -- una prueba más completa, no un cambio de comportamiento: el
+valor ya lo devolvía el controlador, solo no se comprobaba antes.
+`jscpd`: de 23,98%/12 clones (fichero conjunto) a 4,03%/3 clones.
+
+**Verificado con datos reales, no solo con los propios tests
+nuevos**: `npx tsc --noEmit` limpio y los 93 tests unitarios del
+backend en verde (los 12 de `positionController.test.ts` incluidos)
+tras el refactor -- cero cambio de comportamiento real, confirmado por
+los mismos tests que ya existían, no solo por los reescritos.
+
+**Hallazgo aparte, real y estructural, no una regresión de esta
+rama**: al reintentar la verificación en vivo de la sección 3.65 tras
+este refactor, el limitador general de peticiones (300/15min) se
+agotó de nuevo -- confirmado por `curl` (`429`, `RateLimit-Remaining:
+0`). Una sola ejecución completa de `hiring-pipeline` +
+`candidate-editing` + `candidate-intake` genera de por sí varios
+cientos de peticiones (cada carga de página en modo dev de Vite pide
+decenas de módulos sueltos sin empaquetar, contra el mismo límite que
+las llamadas a la API real) -- muy cerca del propio límite pensado
+para producción. La verificación en verde de la sección 3.65 (20/20,
+dos veces seguidas) es de antes de este segundo refactor y de antes de
+que el limitador volviera a agotarse; no se ha podido repetir esa
+misma comprobación después por este motivo, no porque haya indicio de
+que algo se haya roto. Queda como algo a tener en cuenta -- no a
+arreglar aquí -- si se sigue iterando con la suite completa en una
+sola sesión larga de trabajo.
